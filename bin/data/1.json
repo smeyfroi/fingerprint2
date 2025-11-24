@@ -116,6 +116,7 @@
   },
   
   "connections": [
+    "TitleText.Text -> Title.Text",
     "Audio.PitchRmsPoint -> Cluster.Point",
     "Random Color.Vec4 -> Point.Colour",
     "Random Radius.Float -> Point.Radius",
