@@ -5,19 +5,15 @@
 #include "ofxLaunchControllers.h"
 
 
-// ***********************************************
-// ***********************************************
-const std::filesystem::path FONT_PATH { "/System/Library/Fonts/Helvetica.ttc" };
-const std::filesystem::path ROOT_SOURCE_MATERIAL_PATH { "/Users/steve/Documents/music-source-material" };
-const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
-constexpr bool RECORD_AUDIO = false;
-const std::string MIC_DEVICE_NAME = "Apple Inc.: MacBook Pro Microphone";
-constexpr float FRAME_RATE = 30.0;
-constexpr bool START_PAUSED = false; // false for dev
-constexpr glm::vec2 SYNTH_COMPOSITE_SIZE = { 2400, 2400 }; // drawing layers are scaled down to this size to fit into the window height
 
-//const std::filesystem::path SOURCE_VIDEO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/trombone-trimmed.mov" };
-//const bool SOURCE_VIDEO_MUTE = false;
+const std::filesystem::path ROOT_PERFORMANCE_PATH { "/Users/steve/Documents/MarkSynth-performances" };
+const std::filesystem::path ROOT_SOURCE_MATERIAL_PATH { "/Users/steve/Documents/music-source-material" };
+const std::filesystem::path RECORDING_PATH { "/Users/steve/Documents/MarkSynth/audio-recordings" };
+
+// === AUDIO INPUT CONFIGURATION ===
+// Option A: Audio file playback
+#define AUDIO_FILE_PLAYBACK
+const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
 //const std::filesystem::path SOURCE_MATERIAL_PATH { "belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
 //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Bell Plates.wav" };
 //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Sound Bath.wav" };
@@ -26,22 +22,47 @@ constexpr glm::vec2 SYNTH_COMPOSITE_SIZE = { 2400, 2400 }; // drawing layers are
 //const std::filesystem::path SOURCE_MATERIAL_PATH { "cork/audio-2025-06-16-11-25-03-931.wav" };
 //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/nightsong.wav" };
 //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/treganna.wav" };
-//constexpr int VIDEO_DEVICE_ID = 0;
-//constexpr bool RECORD_VIDEO = false;
+const std::string AUDIO_OUT_DEVICE_NAME = "Apple Inc.: MacBook Pro Speakers";
+constexpr int AUDIO_BUFFER_SIZE = 512;
+constexpr int AUDIO_CHANNELS = 1;
+constexpr int AUDIO_SAMPLE_RATE = 48000;
+// Option B: Microphone input
+#undef MICROPHONE_INPUT
+const std::string MIC_DEVICE_NAME = "Apple Inc.: MacBook Pro Microphone";
 //const std::string MIC_DEVICE_NAME = "Audient: iD4";
 //const std::string MIC_DEVICE_NAME = "Apple Inc.: Steve\325s iPhone Microphone";
-//const std::string MIC_DEVICE_NAME = "Apple Inc.: MacBook Pro Microphone";
-//const std::filesystem::path RECORDING_PATH { "/Users/steve/Documents/MarkSynth/audio-recordings" };
-//const std::filesystem::path IMGUI_CONFIG_PATH { "/Users/steve/Documents/MarkSynth/imgui.ini" }; // *** would need to do something about this if the app is going to be packaged
-//constexpr int SOUND_OUT_DEVICE_ID = 1;
-// ***********************************************
-// ***********************************************
+constexpr bool RECORD_AUDIO = false;
+const std::filesystem::path AUDIO_RECORDING_PATH { ROOT_PERFORMANCE_PATH/"audio-recordings" };
+
+// === VIDEO/CAMERA INPUT CONFIGURATION ===
+#define VIDEO_FILE_PLAYBACK
+// Option A: Video file playback
+const std::filesystem::path SOURCE_VIDEO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/trombone-trimmed.mov" };
+constexpr bool SOURCE_VIDEO_MUTE = true;
+// Option B: Camera input
+#undef VIDEO_CAMERA_INPUT
+constexpr int CAMERA_DEVICE_ID = 0;
+const glm::vec2 VIDEO_SIZE { 640, 480 };
+constexpr bool SAVE_VIDEO_RECORDING = false;
+const std::filesystem::path VIDEO_RECORDING_PATH { ROOT_PERFORMANCE_PATH/"video-recordings" };
+
+// === TEXT/FONT RESOURCES ===
+const std::filesystem::path FONT_PATH { "/System/Library/Fonts/Helvetica.ttc" };
+const std::string TEXT_SOURCES_PATH = "text";  // relative to bin/data/
+
+// === SYNTH CONFIGURATION ===
+constexpr glm::vec2 SYNTH_COMPOSITE_SIZE = { 2400, 2400 };
+constexpr bool START_PAUSED = false;
+constexpr float FRAME_RATE = 30.0;
+
+
 
 class ofApp : public ofBaseApp{
   
 public:
   void setup() override;
   void setGuiWindowPtr(std::shared_ptr<ofAppBaseWindow> windowPtr) { guiWindowPtr = windowPtr; }
+  void setupMidiController();
   void update() override;
   void draw() override;
   void exit() override;
