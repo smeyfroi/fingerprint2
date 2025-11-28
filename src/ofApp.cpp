@@ -95,18 +95,17 @@ void ofApp::setupMidiController() {
     ofLogNotice("ofApp") << "Binding MIDI fader " << i << " to Intent parameter: " << layerParameter.getName();
   };
 
-  // TODO: how best to do this. We are not adding Mod params into the Synth param group now
   // Bind knobs to audio analysis parameters
-//  lc->knob(4, synthPtr->findParameterByNamePrefix("MinPitch")->get().cast<float>());
-//  lc->knob(5, synthPtr->findParameterByNamePrefix("MaxPitch")->get().cast<float>());
-//  lc->knob(12, synthPtr->findParameterByNamePrefix("MinRms")->get().cast<float>());
-//  lc->knob(13, synthPtr->findParameterByNamePrefix("MaxRms")->get().cast<float>());
-//  lc->knob(6, synthPtr->findParameterByNamePrefix("MinComplexSpectralDifference")->get().cast<float>());
-//  lc->knob(7, synthPtr->findParameterByNamePrefix("MaxComplexSpectralDifference")->get().cast<float>());
-//  lc->knob(14, synthPtr->findParameterByNamePrefix("MinSpectralCrest")->get().cast<float>());
-//  lc->knob(15, synthPtr->findParameterByNamePrefix("MaxSpectralCrest")->get().cast<float>());
-//  lc->knob(22, synthPtr->findParameterByNamePrefix("MinZeroCrossingRate")->get().cast<float>());
-//  lc->knob(23, synthPtr->findParameterByNamePrefix("MaxZeroCrossingRate")->get().cast<float>());
+  lc->knob(4, synthPtr->findParameterByNamePrefix("MinPitch")->get().cast<float>());
+  lc->knob(5, synthPtr->findParameterByNamePrefix("MaxPitch")->get().cast<float>());
+  lc->knob(12, synthPtr->findParameterByNamePrefix("MinRms")->get().cast<float>());
+  lc->knob(13, synthPtr->findParameterByNamePrefix("MaxRms")->get().cast<float>());
+  lc->knob(6, synthPtr->findParameterByNamePrefix("MinComplexSpectralDifference")->get().cast<float>());
+  lc->knob(7, synthPtr->findParameterByNamePrefix("MaxComplexSpectralDifference")->get().cast<float>());
+  lc->knob(14, synthPtr->findParameterByNamePrefix("MinSpectralCrest")->get().cast<float>());
+  lc->knob(15, synthPtr->findParameterByNamePrefix("MaxSpectralCrest")->get().cast<float>());
+  lc->knob(22, synthPtr->findParameterByNamePrefix("MinZeroCrossingRate")->get().cast<float>());
+  lc->knob(23, synthPtr->findParameterByNamePrefix("MaxZeroCrossingRate")->get().cast<float>());
 }
 
 //--------------------------------------------------------------
