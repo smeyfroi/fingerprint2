@@ -14,6 +14,7 @@ void ofApp::setup(){
   TIME_SAMPLE_SET_FRAMERATE(FRAME_RATE);
   
   ResourceManager resources;
+  resources.add("performanceConfigRootPath", PERFORMANCE_CONFIG_ROOT_PATH);
   // --- Audio Input Resources ---
   // For file playback mode:
 #ifdef AUDIO_FILE_PLAYBACK
@@ -48,10 +49,10 @@ void ofApp::setup(){
 
   synthPtr = std::make_shared<ofxMarkSynth::Synth>("fingerprint2", ofxMarkSynth::ModConfig {
   }, START_PAUSED, SYNTH_COMPOSITE_SIZE, resources);
-
-  synthPtr->loadFromConfig(ofToDataPath("1.json")); // TODO: where do we start from?
   synthPtr->configureGui(guiWindowPtr);
   setupMidiController();
+  
+  synthPtr->loadFirstPerformanceConfig();
 }
 
 void ofApp::setupMidiController() {
@@ -105,12 +106,12 @@ void ofApp::exit(){
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
-  if (synthPtr->keyPressed(key)) return;
+  synthPtr->keyPressed(key);
 }
 
 //--------------------------------------------------------------
 void ofApp::keyReleased(int key){
-  
+  synthPtr->keyReleased(key);
 }
 
 //--------------------------------------------------------------

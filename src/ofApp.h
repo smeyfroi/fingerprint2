@@ -7,21 +7,22 @@
 
 
 const std::filesystem::path ROOT_PERFORMANCE_PATH { "/Users/steve/Documents/MarkSynth-performances" };
+const std::filesystem::path PERFORMANCE_CONFIG_ROOT_PATH { ROOT_PERFORMANCE_PATH/"config" };
+
 const std::filesystem::path ROOT_SOURCE_MATERIAL_PATH { "/Users/steve/Documents/music-source-material" };
-const std::filesystem::path RECORDING_PATH { "/Users/steve/Documents/MarkSynth/audio-recordings" };
 
 // === AUDIO INPUT CONFIGURATION ===
 // Option A: Audio file playback
 #define AUDIO_FILE_PLAYBACK
 const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
-//const std::filesystem::path SOURCE_MATERIAL_PATH { "belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
-//const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Bell Plates.wav" };
-//const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Sound Bath.wav" };
-//const std::filesystem::path SOURCE_MATERIAL_PATH { "belfast/20250208-trombone-melody.wav" };
-//const std::filesystem::path SOURCE_MATERIAL_PATH { "cork/audio-2025-06-16-11-16-14-782.wav" };
-//const std::filesystem::path SOURCE_MATERIAL_PATH { "cork/audio-2025-06-16-11-25-03-931.wav" };
-//const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/nightsong.wav" };
-//const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/treganna.wav" };
+  //const std::filesystem::path SOURCE_MATERIAL_PATH { "belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
+  //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Bell Plates.wav" };
+  //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Sound Bath.wav" };
+  //const std::filesystem::path SOURCE_MATERIAL_PATH { "belfast/20250208-trombone-melody.wav" };
+  //const std::filesystem::path SOURCE_MATERIAL_PATH { "cork/audio-2025-06-16-11-16-14-782.wav" };
+  //const std::filesystem::path SOURCE_MATERIAL_PATH { "cork/audio-2025-06-16-11-25-03-931.wav" };
+  //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/nightsong.wav" };
+  //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/treganna.wav" };
 const std::string AUDIO_OUT_DEVICE_NAME = "Apple Inc.: MacBook Pro Speakers";
 constexpr int AUDIO_BUFFER_SIZE = 512;
 constexpr int AUDIO_CHANNELS = 1;
@@ -48,7 +49,7 @@ const std::filesystem::path VIDEO_RECORDING_PATH { ROOT_PERFORMANCE_PATH/"video-
 
 // === TEXT/FONT RESOURCES ===
 const std::filesystem::path FONT_PATH { "/System/Library/Fonts/Helvetica.ttc" };
-const std::string TEXT_SOURCES_PATH = "text";  // relative to bin/data/
+const std::string TEXT_SOURCES_PATH = ROOT_PERFORMANCE_PATH/"texts";
 
 // === SYNTH CONFIGURATION ===
 constexpr glm::vec2 SYNTH_COMPOSITE_SIZE = { 2400, 2400 };
