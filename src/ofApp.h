@@ -1,14 +1,11 @@
 #pragma once
 
-#include "ofMain.h"
-#include "ofxMarkSynth.h"
+#include <memory>
 #include "ofxLaunchControllers.h"
+#include "ofxMarkSynth.h"
 
 
-
-// Missing:
-// imgui? looks empty
-
+// === ROOT PATHS ===
 const std::filesystem::path ROOT_SOURCE_MATERIAL_PATH { "/Users/steve/Documents/music-source-material" };
 const std::filesystem::path ROOT_PERFORMANCE_PATH { "/Users/steve/Documents/MarkSynth-performances/Practice" };
 
@@ -70,11 +67,13 @@ public:
   void setup() override;
   void setGuiWindowPtr(std::shared_ptr<ofAppBaseWindow> windowPtr) { guiWindowPtr = windowPtr; }
   void setupMidiController();
+  void onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e);
+  void onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e);
   void update() override;
   void draw() override;
   void exit() override;
   void drawGui(ofEventArgs& args);
-
+  
   void keyPressedEvent(ofKeyEventArgs& e) { keyPressed(e.key); } // adapter for ofAddListener
   void keyReleasedEvent(ofKeyEventArgs& e) { keyReleased(e.key); } // adapter for ofAddListener
   void keyPressed(int key) override;
@@ -93,5 +92,5 @@ public:
 private:
   std::shared_ptr<ofAppBaseWindow> guiWindowPtr;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
-  ofxLaunchControlXL lc;
+  std::unique_ptr<ofxLaunchControlXL> lc;
 };

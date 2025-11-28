@@ -53,39 +53,60 @@ void ofApp::setup(){
 
   synthPtr = std::make_shared<ofxMarkSynth::Synth>("fingerprint2", ofxMarkSynth::ModConfig {
   }, START_PAUSED, COMPOSITE_SIZE, resources);
-  synthPtr->configureGui(guiWindowPtr);
-  setupMidiController();
-  
   synthPtr->loadFirstPerformanceConfig();
+  ofAddListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload); // before configureGui
+  ofAddListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad); // before configureGui
+  synthPtr->configureGui(guiWindowPtr);
 }
 
+void ofApp::onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e) {
+  if (lc) {
+    lc->close();
+    lc.reset();
+  }
+}
+
+void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
+  setupMidiController();
+}
+
+// TODO: refactor the MIDI controller setup into a separate class when we know more about it
 void ofApp::setupMidiController() {
-  // TODO: refactor the MIDI controller setup into a separate class when we know more about it
-  lc.listDevices();
-  //lc.setup(1); // sewtup with a defined id
-  if (!lc.setup()) return; // setup with automatic id finding
+  if (lc) {
+    lc->close();
+    lc.reset();
+    ofLogNotice() << "Re-setting up Launch Control XL MIDI controller after config load";
+  }
+  lc = std::make_unique<ofxLaunchControlXL>();
+  ofLogNotice() << "Setting up Launch Control XL MIDI controller";
+
+  lc->listDevices();
+  //lc->setup(1); // sewtup with a defined id
+  if (!lc->setup()) return; // setup with automatic id finding
     
   // Global agency knob
-  lc.knob(0, synthPtr->findParameterByNamePrefix("Synth Agency")->get().cast<float>());
+  lc->knob(0, synthPtr->findParameterByNamePrefix("Synth Agency")->get().cast<float>());
 
   // Bind intent strengths to faders
   ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
   for (size_t i = 0; i < intentParameters.size(); ++i) {
     ofParameter<float>& layerParameter = intentParameters.getFloat(i);
-    lc.fader(i, layerParameter);
+    lc->fader(i, layerParameter);
+    ofLogNotice("ofApp") << "Binding MIDI fader " << i << " to Intent parameter: " << layerParameter.getName();
   };
 
+  // TODO: how best to do this. We are not adding Mod params into the Synth param group now
   // Bind knobs to audio analysis parameters
-  lc.knob(4, synthPtr->findParameterByNamePrefix("MinPitch")->get().cast<float>());
-  lc.knob(5, synthPtr->findParameterByNamePrefix("MaxPitch")->get().cast<float>());
-  lc.knob(12, synthPtr->findParameterByNamePrefix("MinRms")->get().cast<float>());
-  lc.knob(13, synthPtr->findParameterByNamePrefix("MaxRms")->get().cast<float>());
-  lc.knob(6, synthPtr->findParameterByNamePrefix("MinComplexSpectralDifference")->get().cast<float>());
-  lc.knob(7, synthPtr->findParameterByNamePrefix("MaxComplexSpectralDifference")->get().cast<float>());
-  lc.knob(14, synthPtr->findParameterByNamePrefix("MinSpectralCrest")->get().cast<float>());
-  lc.knob(15, synthPtr->findParameterByNamePrefix("MaxSpectralCrest")->get().cast<float>());
-  lc.knob(22, synthPtr->findParameterByNamePrefix("MinZeroCrossingRate")->get().cast<float>());
-  lc.knob(23, synthPtr->findParameterByNamePrefix("MaxZeroCrossingRate")->get().cast<float>());
+//  lc->knob(4, synthPtr->findParameterByNamePrefix("MinPitch")->get().cast<float>());
+//  lc->knob(5, synthPtr->findParameterByNamePrefix("MaxPitch")->get().cast<float>());
+//  lc->knob(12, synthPtr->findParameterByNamePrefix("MinRms")->get().cast<float>());
+//  lc->knob(13, synthPtr->findParameterByNamePrefix("MaxRms")->get().cast<float>());
+//  lc->knob(6, synthPtr->findParameterByNamePrefix("MinComplexSpectralDifference")->get().cast<float>());
+//  lc->knob(7, synthPtr->findParameterByNamePrefix("MaxComplexSpectralDifference")->get().cast<float>());
+//  lc->knob(14, synthPtr->findParameterByNamePrefix("MinSpectralCrest")->get().cast<float>());
+//  lc->knob(15, synthPtr->findParameterByNamePrefix("MaxSpectralCrest")->get().cast<float>());
+//  lc->knob(22, synthPtr->findParameterByNamePrefix("MinZeroCrossingRate")->get().cast<float>());
+//  lc->knob(23, synthPtr->findParameterByNamePrefix("MaxZeroCrossingRate")->get().cast<float>());
 }
 
 //--------------------------------------------------------------
@@ -104,8 +125,16 @@ void ofApp::drawGui(ofEventArgs& args){
 
 //--------------------------------------------------------------
 void ofApp::exit(){
-  synthPtr->shutdown();
-  lc.close(); // close midi ports
+  if (synthPtr) {
+    ofRemoveListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload);
+    ofRemoveListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad);
+    synthPtr->shutdown();
+  }
+
+  if (lc) {
+    lc->close();
+    lc.reset();
+  }
 }
 
 //--------------------------------------------------------------
