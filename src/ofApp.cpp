@@ -15,6 +15,10 @@ void ofApp::setup(){
   
   ResourceManager resources;
   resources.add("performanceConfigRootPath", PERFORMANCE_CONFIG_ROOT_PATH);
+  resources.add("performanceArtefactRootPath", PERFORMANCE_ARTEFACT_ROOT_PATH);
+  
+//  resources.add("compositeSize", COMPOSITE_SIZE);
+  resources.add("compositePanelGapPx", COMPOSITE_PANEL_GAP_PX);
   // --- Audio Input Resources ---
   // For file playback mode:
 #ifdef AUDIO_FILE_PLAYBACK
@@ -48,7 +52,7 @@ void ofApp::setup(){
   resources.add("textSourcesPath", ofToDataPath(TEXT_SOURCES_PATH));
 
   synthPtr = std::make_shared<ofxMarkSynth::Synth>("fingerprint2", ofxMarkSynth::ModConfig {
-  }, START_PAUSED, SYNTH_COMPOSITE_SIZE, resources);
+  }, START_PAUSED, COMPOSITE_SIZE, resources);
   synthPtr->configureGui(guiWindowPtr);
   setupMidiController();
   

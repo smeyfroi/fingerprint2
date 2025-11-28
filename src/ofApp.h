@@ -6,16 +6,27 @@
 
 
 
-const std::filesystem::path ROOT_PERFORMANCE_PATH { "/Users/steve/Documents/MarkSynth-performances" };
-const std::filesystem::path PERFORMANCE_CONFIG_ROOT_PATH { ROOT_PERFORMANCE_PATH/"config" };
+// Missing:
+// imgui? looks empty
 
 const std::filesystem::path ROOT_SOURCE_MATERIAL_PATH { "/Users/steve/Documents/music-source-material" };
+const std::filesystem::path ROOT_PERFORMANCE_PATH { "/Users/steve/Documents/MarkSynth-performances/Practice" };
+
+// === DERIVED PATHS ===
+const std::filesystem::path PERFORMANCE_CONFIG_ROOT_PATH { ROOT_PERFORMANCE_PATH/"config" }; // must exist
+const std::filesystem::path PERFORMANCE_ARTEFACT_ROOT_PATH { ROOT_PERFORMANCE_PATH/"artefact" }; // subdirectories created by Synth
+
+// === SYNTH CONFIGURATION ===
+constexpr glm::vec2 COMPOSITE_SIZE = { 2400, 2400 }; // Todo: complete this by rippling it through all the examples
+constexpr float COMPOSITE_PANEL_GAP_PX = 28.0;
+// Config not in ResourceManager
+constexpr bool START_PAUSED = false;
+constexpr float FRAME_RATE = 30.0;
 
 // === AUDIO INPUT CONFIGURATION ===
 // Option A: Audio file playback
 #define AUDIO_FILE_PLAYBACK
 const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
-  //const std::filesystem::path SOURCE_MATERIAL_PATH { "belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Bell Plates.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Sound Bath.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "belfast/20250208-trombone-melody.wav" };
@@ -24,7 +35,7 @@ const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfa
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/nightsong.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/treganna.wav" };
 const std::string AUDIO_OUT_DEVICE_NAME = "Apple Inc.: MacBook Pro Speakers";
-constexpr int AUDIO_BUFFER_SIZE = 512;
+constexpr int AUDIO_BUFFER_SIZE = 512; // Todo: make sure these are for the source. How does it get set for the out device?
 constexpr int AUDIO_CHANNELS = 1;
 constexpr int AUDIO_SAMPLE_RATE = 48000;
 // Option B: Microphone input
@@ -33,7 +44,7 @@ const std::string MIC_DEVICE_NAME = "Apple Inc.: MacBook Pro Microphone";
 //const std::string MIC_DEVICE_NAME = "Audient: iD4";
 //const std::string MIC_DEVICE_NAME = "Apple Inc.: Steve\325s iPhone Microphone";
 constexpr bool RECORD_AUDIO = false;
-const std::filesystem::path AUDIO_RECORDING_PATH { ROOT_PERFORMANCE_PATH/"audio-recordings" };
+const std::filesystem::path AUDIO_RECORDING_PATH { PERFORMANCE_ARTEFACT_ROOT_PATH/"audio-recordings" }; // created
 
 // === VIDEO/CAMERA INPUT CONFIGURATION ===
 #define VIDEO_FILE_PLAYBACK
@@ -45,16 +56,11 @@ constexpr bool SOURCE_VIDEO_MUTE = true;
 constexpr int CAMERA_DEVICE_ID = 0;
 const glm::vec2 VIDEO_SIZE { 640, 480 };
 constexpr bool SAVE_VIDEO_RECORDING = false;
-const std::filesystem::path VIDEO_RECORDING_PATH { ROOT_PERFORMANCE_PATH/"video-recordings" };
+const std::filesystem::path VIDEO_RECORDING_PATH { PERFORMANCE_ARTEFACT_ROOT_PATH/"video-recordings" }; // created
 
 // === TEXT/FONT RESOURCES ===
-const std::filesystem::path FONT_PATH { "/System/Library/Fonts/Helvetica.ttc" };
-const std::string TEXT_SOURCES_PATH = ROOT_PERFORMANCE_PATH/"texts";
-
-// === SYNTH CONFIGURATION ===
-constexpr glm::vec2 SYNTH_COMPOSITE_SIZE = { 2400, 2400 };
-constexpr bool START_PAUSED = false;
-constexpr float FRAME_RATE = 30.0;
+const std::filesystem::path FONT_PATH { "/System/Library/Fonts/Helvetica.ttc" }; // FIXME: should be in Synth config json?
+const std::string TEXT_SOURCES_PATH = PERFORMANCE_CONFIG_ROOT_PATH/"text"; // must exist
 
 
 
