@@ -83,6 +83,7 @@ int main( ){
   mainApp->setGuiWindowPtr(guiWindow);
   ofAddListener(guiWindow->events().draw, mainApp.get(), &ofApp::drawGui);
   ofAddListener(guiWindow->events().keyPressed, mainApp.get(), &ofApp::keyPressedEvent); // needs adapter because keyPressed doesn't take an ofEventArgs& parameter
+  ofAddListener(guiWindow->events().keyReleased, mainApp.get(), &ofApp::keyReleasedEvent); // needs adapter because keyReleased doesn't take an ofEventArgs& parameter
 	ofRunApp(mainWindow, mainApp);
 	ofRunMainLoop();
 }
