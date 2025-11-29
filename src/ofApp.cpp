@@ -12,7 +12,9 @@ void ofApp::setup(){
   ofSetBackgroundColor(0);
   ofSetFrameRate(FRAME_RATE);
   TIME_SAMPLE_SET_FRAMERATE(FRAME_RATE);
-  
+  TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_BOTTOM_LEFT);
+  TIME_SAMPLE_DISABLE(); // *********************************
+
   ResourceManager resources;
   resources.add("performanceConfigRootPath", PERFORMANCE_CONFIG_ROOT_PATH);
   resources.add("performanceArtefactRootPath", PERFORMANCE_ARTEFACT_ROOT_PATH);
