@@ -49,7 +49,7 @@ void ofApp::setup(){
 #endif
   // --- Text/Font Resources ---
   resources.add("fontPath", FONT_PATH);
-  resources.add("textSourcesPath", ofToDataPath(TEXT_SOURCES_PATH));
+  resources.add("textSourcesPath", TEXT_SOURCES_PATH);
 
   synthPtr = std::make_shared<ofxMarkSynth::Synth>("fingerprint2", ofxMarkSynth::ModConfig {
   }, START_PAUSED, COMPOSITE_SIZE, resources);
