@@ -21,6 +21,8 @@ void ofApp::setup(){
   
 //  resources.add("compositeSize", COMPOSITE_SIZE);
   resources.add("compositePanelGapPx", COMPOSITE_PANEL_GAP_PX);
+  resources.add("recorderCompositeSize", VIDEO_RECORDER_SIZE);
+  resources.add("ffmpegBinaryPath", FFMPEG_BINARY_PATH);
   // --- Audio Input Resources ---
   // For file playback mode:
 #ifdef AUDIO_FILE_PLAYBACK

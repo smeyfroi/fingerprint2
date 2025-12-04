@@ -4,6 +4,7 @@
 #include "ofxLaunchControllers.h"
 #include "ofxMarkSynth.h"
 
+const std::filesystem::path FFMPEG_BINARY_PATH { "/opt/homebrew/bin/ffmpeg" };
 
 // === ROOT PATHS ===
 const std::filesystem::path ROOT_SOURCE_MATERIAL_PATH { "/Users/steve/Documents/music-source-material" };
@@ -14,20 +15,21 @@ const std::filesystem::path PERFORMANCE_CONFIG_ROOT_PATH { ROOT_PERFORMANCE_PATH
 const std::filesystem::path PERFORMANCE_ARTEFACT_ROOT_PATH { ROOT_PERFORMANCE_PATH/"artefact" }; // subdirectories created by Synth
 
 // === SYNTH CONFIGURATION ===
-constexpr glm::vec2 COMPOSITE_SIZE = { 2400, 2400 }; // Todo: complete this by rippling it through all the examples
+constexpr glm::vec2 COMPOSITE_SIZE { 7200, 7200 }; // Todo: complete this by rippling it through all the examples
 constexpr float COMPOSITE_PANEL_GAP_PX = 28.0;
 // Config not in ResourceManager
 constexpr bool START_PAUSED = false;
 constexpr float FRAME_RATE = 30.0;
+constexpr glm::vec2 VIDEO_RECORDER_SIZE { 1280, 720 };
 
 // === AUDIO INPUT CONFIGURATION ===
 // Option A: Audio file playback
 #define AUDIO_FILE_PLAYBACK
-const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
+const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"cork/audio-2025-06-14-16-38-50-531.wav" };
+//const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Bell Plates.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Sound Bath.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "belfast/20250208-trombone-melody.wav" };
-  //const std::filesystem::path SOURCE_MATERIAL_PATH { "cork/audio-2025-06-16-11-16-14-782.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "cork/audio-2025-06-16-11-25-03-931.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/nightsong.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/treganna.wav" };
@@ -56,7 +58,7 @@ constexpr bool SAVE_VIDEO_RECORDING = false;
 const std::filesystem::path VIDEO_RECORDING_PATH { PERFORMANCE_ARTEFACT_ROOT_PATH/"video-recordings" }; // created
 
 // === TEXT/FONT RESOURCES ===
-const std::filesystem::path FONT_PATH { "/System/Library/Fonts/Helvetica.ttc" }; // FIXME: should be in Synth config json?
+const std::filesystem::path FONT_PATH { "PlayfairDisplay-Regular.ttf" }; // FIXME: should be in Synth config json?
 const std::string TEXT_SOURCES_PATH = PERFORMANCE_CONFIG_ROOT_PATH/"text"; // must exist
 
 
