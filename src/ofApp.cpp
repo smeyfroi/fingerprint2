@@ -55,7 +55,7 @@ void ofApp::setup(){
   resources.add("fontPath", FONT_PATH);
   resources.add("textSourcesPath", TEXT_SOURCES_PATH);
 
-  synthPtr = std::make_shared<ofxMarkSynth::Synth>("fingerprint2", ofxMarkSynth::ModConfig {
+  synthPtr = ofxMarkSynth::Synth::create("fingerprint2", ofxMarkSynth::ModConfig {
   }, START_PAUSED, COMPOSITE_SIZE, resources);
   synthPtr->loadFirstPerformanceConfig();
   ofAddListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload); // before configureGui
