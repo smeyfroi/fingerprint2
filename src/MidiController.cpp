@@ -1,11 +1,47 @@
 #include "MidiController.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 
 #include "ofMain.h"
 
+MidiController::MidiController() {
+  intentLayerToggleParameter.addListener(this, &MidiController::onIntentLayerToggleChanged);
+}
+
+void MidiController::onIntentLayerToggleChanged(bool& value) {
+  ofLogNotice() << "MIDI Intent/Layer toggle changed to " << (value ? "Layer Alpha control" : "Intent Strength control");
+  applyFaderBank();
+}
+
+void MidiController::applyFaderBank() {
+  if (!lc || !synthPtr) return;
+
+  lc->clearFaders();
+
+  if (intentLayerToggleParameter) {
+    ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
+    size_t count = std::min<size_t>(8, layerAlphaParameters.size());
+    for (size_t i = 0; i < count; ++i) {
+      ofParameter<float>& layerParameter = layerAlphaParameters.getFloat(i);
+      lc->fader((int)i, layerParameter);
+      ofLogNotice("MidiController") << "Binding MIDI fader " << i << " to Layer alpha parameter: " << layerParameter.getName();
+    };
+  } else {
+    ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
+    size_t count = std::min<size_t>(8, intentParameters.size());
+    for (size_t i = 0; i < count; ++i) {
+      ofParameter<float>& intentParameter = intentParameters.getFloat(i);
+      lc->fader((int)i, intentParameter);
+      ofLogNotice("MidiController") << "Binding MIDI fader " << i << " to Intent parameter: " << intentParameter.getName();
+    };
+  }
+}
+
 void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr) {
+  this->synthPtr = synthPtr;
+
   lc = std::make_unique<ofxLaunchControlXL>();
   ofLogNotice() << "Setting up Launch Control XL MIDI controller";
 
@@ -20,21 +56,11 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
   // Make a toggle-button for whether the faders control Intent or Layer alphas
   // Same for "Load Snapshot" function keys versus Layer active toggle keys
 
-  // Bind intent strengths to faders
-  //  ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
-  //  for (size_t i = 0; i < intentParameters.size(); ++i) {
-  //    ofParameter<float>& intentParameter = intentParameters.getFloat(i);
-  //    lc->fader(i, intentParameter);
-  //    ofLogNotice("ofApp") << "Binding MIDI fader " << i << " to Intent parameter: " << intentParameter.getName();
-  //  };
+  // Intent/Layer toggle button
+  lc->toggleButton(47, intentLayerToggleParameter);
 
-  // Bind layer alphas to faders
-  ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
-  for (size_t i = 0; i < layerAlphaParameters.size(); ++i) {
-    ofParameter<float>& layerParameter = layerAlphaParameters.getFloat(i);
-    lc->fader(i, layerParameter);
-    ofLogNotice("ofApp") << "Binding MIDI fader " << i << " to Intent parameter: " << layerParameter.getName();
-  };
+  // Bind faders to whichever bank is active.
+  applyFaderBank();
 
   // Bind knobs to audio analysis parameters if the param exist for this Synth
   auto bindKnob = [&](const std::string& name, int knobId) {
@@ -44,18 +70,19 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
 
   bindKnob("MinPitch", 2);
   bindKnob("MaxPitch", 3);
-  bindKnob("MinRms", 12);
-  bindKnob("MaxRms", 13);
+  bindKnob("MinRms", 10);
+  bindKnob("MaxRms", 11);
   bindKnob("MinComplexSpectralDifference", 4);
   bindKnob("MaxComplexSpectralDifference", 5);
-  bindKnob("MinSpectralCrest", 14);
-  bindKnob("MaxSpectralCrest", 15);
-  bindKnob("MinZeroCrossingRate", 22);
-  bindKnob("MaxZeroCrossingRate", 23);
+  bindKnob("MinSpectralCrest", 12);
+  bindKnob("MaxSpectralCrest", 13);
+  bindKnob("MinZeroCrossingRate", 14);
+  bindKnob("MaxZeroCrossingRate", 15);
 }
 
 void MidiController::onSynthWillUnload() {
   lc.reset();
+  synthPtr.reset();
 }
 
 void MidiController::exit() {
