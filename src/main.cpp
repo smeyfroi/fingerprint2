@@ -58,11 +58,12 @@ int main( ){
 #ifdef FULLSCREEN
   settings.setPosition({0, 0});
   settings.setSize(mainWindowW, mainWindowH); // TODO: disable game mode notification
-#else
-  settings.setPosition({255, 0});
-  settings.setSize(MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT);
-#endif
   settings.decorated = false;
+#else
+  settings.setPosition({128, 0});
+  settings.setSize(MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT);
+  settings.decorated = true;
+#endif
   settings.resizable = false;
   auto mainWindow = ofCreateWindow(settings);
   
