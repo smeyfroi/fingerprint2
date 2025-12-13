@@ -11,10 +11,11 @@ void ofApp::setup(){
   glEnable(GL_PROGRAM_POINT_SIZE);
   ofSetBackgroundColor(0);
   ofSetFrameRate(FRAME_RATE);
+//  ofSetLogLevel(OF_LOG_VERBOSE);
   TIME_SAMPLE_SET_FRAMERATE(FRAME_RATE);
   TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_BOTTOM_LEFT);
   TIME_SAMPLE_DISABLE(); // *********************************
-
+  
   ResourceManager resources;
   resources.add("performanceConfigRootPath", PERFORMANCE_CONFIG_ROOT_PATH);
   resources.add("performanceArtefactRootPath", PERFORMANCE_ARTEFACT_ROOT_PATH);
@@ -54,6 +55,8 @@ void ofApp::setup(){
   // --- Text/Font Resources ---
   resources.add("fontPath", FONT_PATH);
   resources.add("textSourcesPath", TEXT_SOURCES_PATH);
+  // --- Start at config ---
+  resources.add("startupPerformanceConfigName", SYNTH_CONFIG);
 
   synthPtr = ofxMarkSynth::Synth::create("fingerprint2", ofxMarkSynth::ModConfig {
   }, START_PAUSED, COMPOSITE_SIZE, resources);
@@ -64,52 +67,11 @@ void ofApp::setup(){
 }
 
 void ofApp::onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e) {
-  if (lc) {
-    lc->close();
-    lc.reset();
-  }
+  midiController.onSynthWillUnload();
 }
 
 void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
-  setupMidiController();
-}
-
-// TODO: refactor the MIDI controller setup into a separate class when we know more about it
-void ofApp::setupMidiController() {
-  if (lc) {
-    lc->close();
-    lc.reset();
-    ofLogNotice() << "Re-setting up Launch Control XL MIDI controller after config load";
-  }
-  lc = std::make_unique<ofxLaunchControlXL>();
-  ofLogNotice() << "Setting up Launch Control XL MIDI controller";
-
-  lc->listDevices();
-  //lc->setup(1); // sewtup with a defined id
-  if (!lc->setup()) return; // setup with automatic id finding
-    
-  // Global agency knob
-  lc->knob(0, synthPtr->findParameterByNamePrefix("Synth Agency")->get().cast<float>());
-
-  // Bind intent strengths to faders
-  ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
-  for (size_t i = 0; i < intentParameters.size(); ++i) {
-    ofParameter<float>& layerParameter = intentParameters.getFloat(i);
-    lc->fader(i, layerParameter);
-    ofLogNotice("ofApp") << "Binding MIDI fader " << i << " to Intent parameter: " << layerParameter.getName();
-  };
-
-  // Bind knobs to audio analysis parameters
-  lc->knob(4, synthPtr->findParameterByNamePrefix("MinPitch")->get().cast<float>());
-  lc->knob(5, synthPtr->findParameterByNamePrefix("MaxPitch")->get().cast<float>());
-  lc->knob(12, synthPtr->findParameterByNamePrefix("MinRms")->get().cast<float>());
-  lc->knob(13, synthPtr->findParameterByNamePrefix("MaxRms")->get().cast<float>());
-  lc->knob(6, synthPtr->findParameterByNamePrefix("MinComplexSpectralDifference")->get().cast<float>());
-  lc->knob(7, synthPtr->findParameterByNamePrefix("MaxComplexSpectralDifference")->get().cast<float>());
-  lc->knob(14, synthPtr->findParameterByNamePrefix("MinSpectralCrest")->get().cast<float>());
-  lc->knob(15, synthPtr->findParameterByNamePrefix("MaxSpectralCrest")->get().cast<float>());
-  lc->knob(22, synthPtr->findParameterByNamePrefix("MinZeroCrossingRate")->get().cast<float>());
-  lc->knob(23, synthPtr->findParameterByNamePrefix("MaxZeroCrossingRate")->get().cast<float>());
+  midiController.onSynthDidLoad(synthPtr);
 }
 
 //--------------------------------------------------------------
@@ -134,10 +96,7 @@ void ofApp::exit(){
     synthPtr->shutdown();
   }
 
-  if (lc) {
-    lc->close();
-    lc.reset();
-  }
+  midiController.exit();
 }
 
 //--------------------------------------------------------------

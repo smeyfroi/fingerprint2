@@ -1,9 +1,16 @@
 #pragma once
 
 #include <memory>
-#include "ofxLaunchControllers.h"
+
+#include "MidiController.h"
 #include "ofxMarkSynth.h"
 
+// === RECORDED MATERIAL FOR DEVELOPMENT
+const std::string SYNTH_CONFIG = "00-movement1-source";
+const std::string AUDIO_FILE = "cork/audio-2025-06-14-16-38-50-531.wav";
+const std::string VIDEO_FILE = "belfast/trombone-trimmed.mov";
+
+// === ffmpeg installed via `brew install ffmpeg`
 const std::filesystem::path FFMPEG_BINARY_PATH { "/opt/homebrew/bin/ffmpeg" };
 
 // === ROOT PATHS ===
@@ -25,7 +32,7 @@ constexpr glm::vec2 VIDEO_RECORDER_SIZE { 1280, 720 };
 // === AUDIO INPUT CONFIGURATION ===
 // Option A: Audio file playback
 #define AUDIO_FILE_PLAYBACK
-const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"cork/audio-2025-06-14-16-38-50-531.wav" };
+const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/AUDIO_FILE };
 //const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Bell Plates.wav" };
   //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Sound Bath.wav" };
@@ -36,7 +43,7 @@ const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"cork/
 const std::string AUDIO_OUT_DEVICE_NAME = "Apple Inc.: MacBook Pro Speakers";
 constexpr int AUDIO_BUFFER_SIZE = 512; // Todo: make sure these are for the source. How does it get set for the out device?
 constexpr int AUDIO_CHANNELS = 1;
-constexpr int AUDIO_SAMPLE_RATE = 48000;
+constexpr int AUDIO_SAMPLE_RATE = 44100; //48000;
 // Option B: Microphone input
 #undef MICROPHONE_INPUT
 const std::string MIC_DEVICE_NAME = "Apple Inc.: MacBook Pro Microphone";
@@ -48,7 +55,7 @@ const std::filesystem::path AUDIO_RECORDING_PATH { PERFORMANCE_ARTEFACT_ROOT_PAT
 // === VIDEO/CAMERA INPUT CONFIGURATION ===
 #define VIDEO_FILE_PLAYBACK
 // Option A: Video file playback
-const std::filesystem::path SOURCE_VIDEO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/trombone-trimmed.mov" };
+const std::filesystem::path SOURCE_VIDEO_PATH { ROOT_SOURCE_MATERIAL_PATH/VIDEO_FILE };
 constexpr bool SOURCE_VIDEO_MUTE = true;
 // Option B: Camera input
 #undef VIDEO_CAMERA_INPUT
@@ -68,7 +75,6 @@ class ofApp : public ofBaseApp{
 public:
   void setup() override;
   void setGuiWindowPtr(std::shared_ptr<ofAppBaseWindow> windowPtr) { guiWindowPtr = windowPtr; }
-  void setupMidiController();
   void onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e);
   void onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e);
   void update() override;
@@ -94,5 +100,5 @@ public:
 private:
   std::shared_ptr<ofAppBaseWindow> guiWindowPtr;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
-  std::unique_ptr<ofxLaunchControlXL> lc;
+  MidiController midiController;
 };
