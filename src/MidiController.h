@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <memory>
 
 #include "ofxLaunchControllers.h"
@@ -19,4 +20,7 @@ private:
   std::unique_ptr<ofxLaunchControlXL> lc;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
   ofParameter<bool> intentLayerToggleParameter { "Intent/Layer Toggle", false };
+
+  std::array<ofParameter<bool>, 8> functionButtonPressedParameters;
+  std::array<std::unique_ptr<of::priv::AbstractEventToken>, 8> functionButtonListenerTokens;
 };

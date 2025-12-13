@@ -8,10 +8,25 @@
 
 MidiController::MidiController() {
   intentLayerToggleParameter.addListener(this, &MidiController::onIntentLayerToggleChanged);
+
+  for (int i = 0; i < 8; ++i) {
+    functionButtonPressedParameters[i].set("Function Button " + std::to_string(i + 1), false);
+    functionButtonListenerTokens[i] = functionButtonPressedParameters[i].newListener([this, i](bool& value) {
+      if (!value) return;
+      if (!synthPtr) return;
+
+      if (!intentLayerToggleParameter) {
+        synthPtr->loadModSnapshotSlot(i);
+      } else {
+        synthPtr->toggleLayerPauseSlot(i);
+      }
+    });
+  }
 }
 
 void MidiController::onIntentLayerToggleChanged(bool& value) {
-  ofLogNotice() << "MIDI Intent/Layer toggle changed to " << (value ? "Layer Alpha control" : "Intent Strength control");
+  ofLogNotice() << "MIDI Intent/Layer toggle changed to "
+                << (value ? "Layer mode (layer alpha + layer pause)" : "Intent mode (intent strength + snapshot load)");
   applyFaderBank();
 }
 
@@ -58,6 +73,11 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
 
   // Intent/Layer toggle button
   lc->toggleButton(47, intentLayerToggleParameter);
+
+  // Function buttons row (CC 37-44)
+  for (int i = 0; i < 8; ++i) {
+    lc->toggleButton(37 + i, functionButtonPressedParameters[i]);
+  }
 
   // Bind faders to whichever bank is active.
   applyFaderBank();
