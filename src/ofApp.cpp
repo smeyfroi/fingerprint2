@@ -77,6 +77,7 @@ void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
 //--------------------------------------------------------------
 void ofApp::update(){
   synthPtr->update();
+  midiController.update();
 }
 
 //--------------------------------------------------------------

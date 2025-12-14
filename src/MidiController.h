@@ -5,16 +5,20 @@
 
 #include "ofxLaunchControllers.h"
 #include "ofxMarkSynth.h"
+#include "ofxMidi.h"
 
-class MidiController {
-public:
+class MidiController : public ofxMidiListener {
+ public:
   MidiController();
+  void update();
   void onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr);
   void onSynthWillUnload();
   void exit();
   void onSnapshotLayerToggleChanged(bool& value);
 
-private:
+  void newMidiMessage(ofxMidiMessage& message) override;
+
+ private:
   void applyFaderBank();
   void setLayerAlphasFullyOn();
 

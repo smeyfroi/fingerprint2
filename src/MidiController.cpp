@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "ofMain.h"
+
 
 namespace {
 constexpr int kFaderKnobOffset = 24;
@@ -26,6 +28,14 @@ MidiController::MidiController() {
       }
     });
   }
+}
+
+void MidiController::update() {
+}
+
+void MidiController::newMidiMessage(ofxMidiMessage& message) {
+  // This callback runs on the MIDI thread; keep it lightweight.
+  // Currently unused - diagnostic sysex logging removed.
 }
 
 void MidiController::onSnapshotLayerToggleChanged(bool& value) {
