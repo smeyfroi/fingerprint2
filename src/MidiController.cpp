@@ -45,12 +45,21 @@ void MidiController::applyFaderBank() {
     };
   } else {
     ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
-    size_t count = std::min<size_t>(8, intentParameters.size());
-    for (size_t i = 0; i < count; ++i) {
+    if (intentParameters.size() == 0) return;
+
+    // Intent group is ordered: activations first, master strength last.
+    size_t masterIndex = intentParameters.size() - 1;
+    size_t activationCount = std::min<size_t>(7, masterIndex);
+
+    for (size_t i = 0; i < activationCount; ++i) {
       ofParameter<float>& intentParameter = intentParameters.getFloat(i);
       lc->fader((int)i, intentParameter);
       ofLogNotice("MidiController") << "Binding MIDI fader " << i << " to Intent parameter: " << intentParameter.getName();
     };
+
+    ofParameter<float>& masterStrengthParameter = intentParameters.getFloat(masterIndex);
+    lc->fader(7, masterStrengthParameter);
+    ofLogNotice("MidiController") << "Binding MIDI fader 7 to master intent: " << masterStrengthParameter.getName();
   }
 }
 
