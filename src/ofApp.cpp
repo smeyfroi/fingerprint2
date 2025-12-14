@@ -32,6 +32,7 @@ void ofApp::setup(){
   resources.add("audioBufferSize", AUDIO_BUFFER_SIZE);
   resources.add("audioChannels", AUDIO_CHANNELS);
   resources.add("audioSampleRate", AUDIO_SAMPLE_RATE);
+  resources.add("sourceAudioStartPosition", SOURCE_AUDIO_START_POSITION);
 #endif
   // For microphone mode:
 #ifdef MICROPHONE_INPUT
@@ -44,6 +45,7 @@ void ofApp::setup(){
 #ifdef VIDEO_FILE_PLAYBACK
   resources.add("sourceVideoPath", SOURCE_VIDEO_PATH);
   resources.add("sourceVideoMute", SOURCE_VIDEO_MUTE);
+  resources.add("sourceVideoStartPosition", SOURCE_VIDEO_START_POSITION);
 #endif
   // For camera mode:
 #ifdef VIDEO_CAMERA_INPUT

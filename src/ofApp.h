@@ -5,10 +5,19 @@
 #include "MidiController.h"
 #include "ofxMarkSynth.h"
 
+
 // === RECORDED MATERIAL FOR DEVELOPMENT
 const std::string SYNTH_CONFIG = "00-movement1-source";
-const std::string AUDIO_FILE = "cork/audio-2025-06-14-16-38-50-531.wav";
-const std::string VIDEO_FILE = "belfast/trombone-trimmed.mov";
+//const std::string AUDIO_FILE = "cork/audio-2025-06-16-10-54-26-096.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:30"; // ******* Movt 1
+//const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-14-14-04-398.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "0:05"; // ******* Movt 1
+const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-07-55-682.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:09"; // ******* Movt 2
+const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-16-49-53-721.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "04:15"; // ******* Movt 2
+//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-16-14-782.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:04"; // ******* Movt 3
+//const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-17-10-00-689.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:10"; // ******* Movt 3
+//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-25-03-931.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:05"; // ******* Movt 4
+//const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-16-11-07-56-314.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:03"; // ******* Movt 4
+//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-33-11-976.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:05"; // ******* Movt 5
+//const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-16-11-25-04-661.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:36"; // ******* Movt 5
 
 // === ffmpeg installed via `brew install ffmpeg`
 const std::filesystem::path FFMPEG_BINARY_PATH { "/opt/homebrew/bin/ffmpeg" };
@@ -25,7 +34,7 @@ const std::filesystem::path PERFORMANCE_ARTEFACT_ROOT_PATH { ROOT_PERFORMANCE_PA
 constexpr glm::vec2 COMPOSITE_SIZE { 7200, 7200 }; // Todo: complete this by rippling it through all the examples
 constexpr float COMPOSITE_PANEL_GAP_PX = 28.0;
 // Config not in ResourceManager
-constexpr bool START_PAUSED = false;
+constexpr bool START_PAUSED = true;
 constexpr float FRAME_RATE = 30.0;
 constexpr glm::vec2 VIDEO_RECORDER_SIZE { 1280, 720 };
 
@@ -33,13 +42,6 @@ constexpr glm::vec2 VIDEO_RECORDER_SIZE { 1280, 720 };
 // Option A: Audio file playback
 #define AUDIO_FILE_PLAYBACK
 const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/AUDIO_FILE };
-//const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/"belfast/20250208-violin-separate-scale-vibrato-harmonics.wav" };
-  //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Bell Plates.wav" };
-  //const std::filesystem::path SOURCE_MATERIAL_PATH { "percussion/Alex Petcu Sound Bath.wav" };
-  //const std::filesystem::path SOURCE_MATERIAL_PATH { "belfast/20250208-trombone-melody.wav" };
-  //const std::filesystem::path SOURCE_MATERIAL_PATH { "cork/audio-2025-06-16-11-25-03-931.wav" };
-  //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/nightsong.wav" };
-  //const std::filesystem::path SOURCE_MATERIAL_PATH { "misc/treganna.wav" };
 const std::string AUDIO_OUT_DEVICE_NAME = "Apple Inc.: MacBook Pro Speakers";
 constexpr int AUDIO_BUFFER_SIZE = 512; // Todo: make sure these are for the source. How does it get set for the out device?
 constexpr int AUDIO_CHANNELS = 1;
