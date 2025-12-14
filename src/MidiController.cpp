@@ -6,8 +6,12 @@
 
 #include "ofMain.h"
 
+namespace {
+constexpr int kFaderKnobOffset = 24;
+}
+
 MidiController::MidiController() {
-  intentLayerToggleParameter.addListener(this, &MidiController::onIntentLayerToggleChanged);
+  snapshotLayerToggleParameter.addListener(this, &MidiController::onSnapshotLayerToggleChanged);
 
   for (int i = 0; i < 8; ++i) {
     functionButtonPressedParameters[i].set("Function Button " + std::to_string(i + 1), false);
@@ -15,7 +19,7 @@ MidiController::MidiController() {
       if (!value) return;
       if (!synthPtr) return;
 
-      if (!intentLayerToggleParameter) {
+      if (!snapshotLayerToggleParameter) {
         synthPtr->loadModSnapshotSlot(i);
       } else {
         synthPtr->toggleLayerPauseSlot(i);
@@ -24,10 +28,22 @@ MidiController::MidiController() {
   }
 }
 
-void MidiController::onIntentLayerToggleChanged(bool& value) {
-  ofLogNotice() << "MIDI Intent/Layer toggle changed to "
-                << (value ? "Layer mode (layer alpha + layer pause)" : "Intent mode (intent strength + snapshot load)");
+void MidiController::onSnapshotLayerToggleChanged(bool& value) {
+  ofLogNotice("MidiController") << "MIDI Snapshot/Layer toggle changed to "
+                               << (value ? "Layer mode (faders: layer alpha, buttons: layer pause)"
+                                         : "Snapshot mode (faders: intent, buttons: load mod snapshot)");
   applyFaderBank();
+}
+
+void MidiController::setLayerAlphasFullyOn() {
+  if (!synthPtr) return;
+
+  ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
+  size_t count = std::min<size_t>(8, layerAlphaParameters.size());
+  for (size_t i = 0; i < count; ++i) {
+    ofParameter<float>& layerParameter = layerAlphaParameters.getFloat(i);
+    layerParameter = layerParameter.getMax();
+  }
 }
 
 void MidiController::applyFaderBank() {
@@ -35,60 +51,76 @@ void MidiController::applyFaderBank() {
 
   lc->clearFaders();
 
-  if (intentLayerToggleParameter) {
+  if (snapshotLayerToggleParameter) {
     ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
     size_t count = std::min<size_t>(8, layerAlphaParameters.size());
     for (size_t i = 0; i < count; ++i) {
       ofParameter<float>& layerParameter = layerAlphaParameters.getFloat(i);
-      lc->fader((int)i, layerParameter);
-      ofLogNotice("MidiController") << "Binding MIDI fader " << i << " to Layer alpha parameter: " << layerParameter.getName();
-    };
-  } else {
-    ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
-    if (intentParameters.size() == 0) return;
-
-    // Intent group is ordered: activations first, master strength last.
-    size_t masterIndex = intentParameters.size() - 1;
-    size_t activationCount = std::min<size_t>(7, masterIndex);
-
-    for (size_t i = 0; i < activationCount; ++i) {
-      ofParameter<float>& intentParameter = intentParameters.getFloat(i);
-      lc->fader((int)i, intentParameter);
-      ofLogNotice("MidiController") << "Binding MIDI fader " << i << " to Intent parameter: " << intentParameter.getName();
-    };
-
-    ofParameter<float>& masterStrengthParameter = intentParameters.getFloat(masterIndex);
-    lc->fader(7, masterStrengthParameter);
-    ofLogNotice("MidiController") << "Binding MIDI fader 7 to master intent: " << masterStrengthParameter.getName();
+      int knobIndex = kFaderKnobOffset + (int)i;
+      lc->knobPickup(knobIndex, layerParameter);
+      ofLogNotice("MidiController") << "Binding MIDI fader " << i << " (knob index " << knobIndex
+                                    << ") to Layer alpha parameter (pickup): " << layerParameter.getName();
+    }
+    return;
   }
+
+  ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
+  if (intentParameters.size() == 0) return;
+
+  // Intent group is ordered: activations first, master strength last.
+  size_t masterIndex = intentParameters.size() - 1;
+  size_t activationCount = std::min<size_t>(7, masterIndex);
+
+  for (size_t i = 0; i < activationCount; ++i) {
+    ofParameter<float>& intentParameter = intentParameters.getFloat(i);
+    int knobIndex = kFaderKnobOffset + (int)i;
+    lc->knobPickup(knobIndex, intentParameter);
+    ofLogNotice("MidiController") << "Binding MIDI fader " << i << " (knob index " << knobIndex
+                                  << ") to Intent parameter (pickup): " << intentParameter.getName();
+  }
+
+  ofParameter<float>& masterStrengthParameter = intentParameters.getFloat(masterIndex);
+  lc->knobPickup(kFaderKnobOffset + 7, masterStrengthParameter);
+  ofLogNotice("MidiController") << "Binding MIDI fader 7 (knob index " << (kFaderKnobOffset + 7)
+                                << ") to master intent (pickup): " << masterStrengthParameter.getName();
 }
 
 void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr) {
   this->synthPtr = synthPtr;
 
-  lc = std::make_unique<ofxLaunchControlXL>();
+  if (!lc) {
+    lc = std::make_unique<ofxLaunchControlXL>();
+  } else {
+    // Defensive: ensure we don't accumulate event listeners across config reloads.
+    lc->shutdown();
+  }
+
   ofLogNotice() << "Setting up Launch Control XL MIDI controller";
 
   lc->listDevices();
   //lc->setup(1); // setup with a defined id
   if (!lc->setup()) return; // setup with automatic id finding
 
+  // Explicitly keep the 3rd row of rotaries (17-24) unbound.
+  for (int i = 0; i < 8; ++i) {
+    lc->clearKnob(16 + i);
+  }
+
   // Global agency knob
   lc->knob(0, synthPtr->findParameterByNamePrefix("Synth Agency")->get().cast<float>());
 
-  // TODO:
-  // Make a toggle-button for whether the faders control Intent or Layer alphas
-  // Same for "Load Snapshot" function keys versus Layer active toggle keys
-
-  // Intent/Layer toggle button
-  lc->toggleButton(47, intentLayerToggleParameter);
+  // Snapshot/Layer toggle button
+  lc->toggleButton(47, snapshotLayerToggleParameter);
 
   // Function buttons row (CC 37-44)
   for (int i = 0; i < 8; ++i) {
     lc->toggleButton(37 + i, functionButtonPressedParameters[i]);
   }
 
-  // Bind faders to whichever bank is active.
+  // On each config load, start layer alpha fully on.
+  setLayerAlphasFullyOn();
+
+  // Apply the active fader bank (intent vs layer alpha).
   applyFaderBank();
 
   // Bind knobs to audio analysis parameters if the param exist for this Synth
@@ -110,13 +142,20 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
 }
 
 void MidiController::onSynthWillUnload() {
-  lc.reset();
+  // During config switching, Synth-owned parameters are destroyed/recreated.
+  // We must drop all bindings immediately so we don't dereference stale params.
+  //
+  // Keeping the controller object alive (vs deleting it) avoids teardown races
+  // with any in-flight MIDI callbacks.
+  if (lc) {
+    lc->shutdown();
+  }
   synthPtr.reset();
 }
 
 void MidiController::exit() {
   if (lc) {
-    lc->close();
+    lc->shutdown();
     lc.reset();
   }
 }

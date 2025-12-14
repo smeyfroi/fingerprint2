@@ -12,14 +12,15 @@ public:
   void onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr);
   void onSynthWillUnload();
   void exit();
-  void onIntentLayerToggleChanged(bool& value);
+  void onSnapshotLayerToggleChanged(bool& value);
 
 private:
   void applyFaderBank();
+  void setLayerAlphasFullyOn();
 
   std::unique_ptr<ofxLaunchControlXL> lc;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
-  ofParameter<bool> intentLayerToggleParameter { "Intent/Layer Toggle", false };
+  ofParameter<bool> snapshotLayerToggleParameter { "Snapshot/Layer Toggle", false };
 
   std::array<ofParameter<bool>, 8> functionButtonPressedParameters;
   std::array<std::unique_ptr<of::priv::AbstractEventToken>, 8> functionButtonListenerTokens;
