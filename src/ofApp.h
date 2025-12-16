@@ -9,9 +9,9 @@
 // === RECORDED MATERIAL FOR DEVELOPMENT
 const std::string SYNTH_CONFIG = "00-movement1-source";
 //const std::string AUDIO_FILE = "cork/audio-2025-06-16-10-54-26-096.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:30"; // ******* Movt 1
-//const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-14-14-04-398.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "0:05"; // ******* Movt 1
+const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-14-14-04-398.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "0:05"; // ******* Movt 1
 const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-07-55-682.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:09"; // ******* Movt 2
-const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-16-49-53-721.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "04:15"; // ******* Movt 2
+//const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-16-49-53-721.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "04:15";  ******* Movt 2
 //const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-16-14-782.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:04"; // ******* Movt 3
 //const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-17-10-00-689.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:10"; // ******* Movt 3
 //const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-25-03-931.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:05"; // ******* Movt 4
@@ -43,7 +43,7 @@ constexpr glm::vec2 VIDEO_RECORDER_SIZE { 1280, 720 };
 #define AUDIO_FILE_PLAYBACK
 const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/AUDIO_FILE };
 const std::string AUDIO_OUT_DEVICE_NAME = "Apple Inc.: MacBook Pro Speakers";
-constexpr int AUDIO_BUFFER_SIZE = 512; // Todo: make sure these are for the source. How does it get set for the out device?
+constexpr int AUDIO_BUFFER_SIZE = 512;
 constexpr int AUDIO_CHANNELS = 1;
 constexpr int AUDIO_SAMPLE_RATE = 44100; //48000;
 // Option B: Microphone input
