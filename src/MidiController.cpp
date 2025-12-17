@@ -1,17 +1,19 @@
 #include "MidiController.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <optional>
 #include <string>
 
 #include "ofMain.h"
+#include "util/SaveToFileThread.hpp"
 
 namespace {
 constexpr int kFaderKnobOffset = 24;
 }
 
 MidiController::MidiController() {
-  agencyLayerToggleParameter.addListener(this, &MidiController::onAgencyLayerToggleChanged);
+  shiftModeParameter.addListener(this, &MidiController::onShiftModeChanged);
 }
 
 void MidiController::update() {
@@ -19,8 +21,19 @@ void MidiController::update() {
   int writeIndex = buttonEventWriteIndex.load();
   while (buttonEventReadIndex != writeIndex) {
     const auto& event = buttonEventBuffer[buttonEventReadIndex];
-    handleButtonCC(event.cc, event.value);
+    handleButtonCC(event.channel, event.cc, event.value);
     buttonEventReadIndex = (buttonEventReadIndex + 1) % kButtonEventBufferSize;
+  }
+
+  // Poll recording and saving states, update display when either changes
+  if (synthPtr) {
+    bool currentRecordingState = synthPtr->isRecording();
+    bool currentSavingState = SaveToFileThread::getActiveThreadCount() > 0;
+    if (currentRecordingState != lastRecordingState || currentSavingState != lastSavingState) {
+      lastRecordingState = currentRecordingState;
+      lastSavingState = currentSavingState;
+      updateStationaryDisplay();
+    }
   }
 }
 
@@ -29,63 +42,118 @@ void MidiController::newMidiMessage(ofxMidiMessage& message) {
   // This avoids threading issues with OpenGL calls (e.g., video recording).
   if (message.status == MIDI_CONTROL_CHANGE) {
     int writeIndex = buttonEventWriteIndex.load();
-    buttonEventBuffer[writeIndex] = {message.control, message.value};
+    buttonEventBuffer[writeIndex] = {message.channel, message.control, message.value};
     int nextIndex = (writeIndex + 1) % kButtonEventBufferSize;
     buttonEventWriteIndex.store(nextIndex);
   }
 }
 
-void MidiController::handleButtonCC(int cc, int value) {
+void MidiController::handleButtonCC(int channel, int cc, int value) {
   bool pressed = value > 64;
 
-  // Agency/Layer toggle (CC 47) - latching behavior
-  if (cc == kToggleButtonCC) {
+  // === Shift button (CC 63 on channel 7) - latching toggle ===
+  if (cc == kShiftButtonCC && channel == kShiftButtonChannel) {
     if (pressed) {
-      agencyLayerToggleParameter = !agencyLayerToggleParameter;
-      // LED update happens in onAgencyLayerToggleChanged
+      shiftModeParameter = !shiftModeParameter;
+      // LED update and display update happen in onShiftModeChanged
     }
     return;
   }
 
-  // Top row function buttons (CC 37-44)
+  // === Top row function buttons (CC 37-44) ===
   if (cc >= kFunctionButtonCCFirst && cc <= kFunctionButtonCCLast) {
     int index = cc - kFunctionButtonCCFirst;
     if (pressed) {
       setButtonLedByCC(cc, kButtonPressedColor);
       if (synthPtr) {
-        if (!agencyLayerToggleParameter) {
+        if (!shiftModeParameter) {
+          // Snapshot mode: load snapshot
           synthPtr->loadModSnapshotSlot(index);
+          showTempDisplay("Snapshot", std::to_string(index + 1));
         } else {
+          // Layer mode: toggle layer pause
           synthPtr->toggleLayerPauseSlot(index);
+          showTempDisplay("Layer " + std::to_string(index + 1), "Toggle Pause");
         }
       }
     } else {
       // Restore to mode color
-      LedColor modeColor = agencyLayerToggleParameter ? kLayerModeColor : kAgencyModeColor;
+      LedColor modeColor = shiftModeParameter ? kLayerModeColor : kAgencyModeColor;
       setButtonLedByCC(cc, modeColor);
     }
     return;
   }
 
-  // Bottom row keypress buttons
-  int key = 0;
-  switch (cc) {
-    case kPauseButtonCC:      key = ' '; break;
-    case kHibernateButtonCC:  key = 'H'; break;
-    case kPrevConfigButtonCC: key = OF_KEY_LEFT; break;
-    case kNextConfigButtonCC: key = OF_KEY_RIGHT; break;
-    case kRecordButtonCC:     key = 'R'; break;
-    case kSaveButtonCC:       key = 'S'; break;
-    default: return; // Unknown CC, ignore
+  // === Transport buttons (all on channel 1, except Shift handled above) ===
+
+  // Play button (CC 116)
+  if (cc == kPlayButtonCC) {
+    if (pressed) {
+      if (!shiftModeParameter) {
+        // Pause/Play
+        sendKeyPress(' ');
+        showTempDisplay("Transport", "Pause/Play");
+      } else {
+        // Hibernate
+        sendKeyPress('H');
+        showTempDisplay("Transport", "Hibernate");
+      }
+    } else {
+      if (!shiftModeParameter) {
+        sendKeyRelease(' ');
+      } else {
+        sendKeyRelease('H');
+      }
+    }
+    return;
   }
 
-  if (pressed) {
-    setButtonLedByCC(cc, kButtonPressedColor);
-    sendKeyPress(key);
-  } else {
-    setButtonLedByCC(cc, getButtonRestoreColor(cc));
-    sendKeyRelease(key);
+  // Record button (CC 118)
+  if (cc == kRecordTransportCC) {
+    if (pressed) {
+      if (!shiftModeParameter) {
+        // Save Image
+        sendKeyPress('S');
+        showTempDisplay("Action", "Save Image");
+      } else {
+        // Start/Stop Recording - capture state before keypress toggles it
+        bool wasRecording = synthPtr && synthPtr->isRecording();
+        sendKeyPress('R');
+        showTempDisplay("Recording", wasRecording ? "Stopped" : "Started");
+      }
+    } else {
+      if (!shiftModeParameter) {
+        sendKeyRelease('S');
+      } else {
+        sendKeyRelease('R');
+      }
+    }
+    return;
   }
+
+  // Track Left button (CC 103) - Previous Config (same in both modes)
+  if (cc == kTrackLeftCC) {
+    if (pressed) {
+      sendKeyPress(OF_KEY_LEFT);
+      showTempDisplay("Config", "Previous");
+    } else {
+      sendKeyRelease(OF_KEY_LEFT);
+    }
+    return;
+  }
+
+  // Track Right button (CC 102) - Next Config (same in both modes)
+  if (cc == kTrackRightCC) {
+    if (pressed) {
+      sendKeyPress(OF_KEY_RIGHT);
+      showTempDisplay("Config", "Next");
+    } else {
+      sendKeyRelease(OF_KEY_RIGHT);
+    }
+    return;
+  }
+
+  // Bottom row buttons (CC 45-52) - now unused, ignore
 }
 
 void MidiController::setButtonLedByCC(int cc, const LedColor& color) {
@@ -94,12 +162,12 @@ void MidiController::setButtonLedByCC(int cc, const LedColor& color) {
 
   // Convert CC to button number (1-16)
   // Top row: CC 37-44 → buttons 1-8
-  // Bottom row: CC 45-52 → buttons 9-16
+  // Bottom row: CC 45-52 → buttons 9-16 (unused but kept for potential future use)
   int buttonNum = 0;
   if (cc >= kFunctionButtonCCFirst && cc <= kFunctionButtonCCLast) {
     buttonNum = cc - kFunctionButtonCCFirst + 1;  // 1-8
-  } else if (cc >= kPauseButtonCC && cc <= kSaveButtonCC) {
-    buttonNum = cc - kPauseButtonCC + 9;  // 9-16
+  } else if (cc >= kBottomRowButtonCCFirst && cc <= kBottomRowButtonCCLast) {
+    buttonNum = cc - kBottomRowButtonCCFirst + 9;  // 9-16
   }
 
   if (buttonNum >= 1 && buttonNum <= 16) {
@@ -129,21 +197,19 @@ void MidiController::sendKeyRelease(int key) {
   }
 }
 
-void MidiController::onAgencyLayerToggleChanged(bool& value) {
-  ofLogNotice("MidiController") << "Agency/Layer toggle changed to "
-                               << (value ? "Layer mode (green)" : "Agency mode (red)");
+void MidiController::onShiftModeChanged(bool& value) {
+  ofLogNotice("MidiController") << "Shift mode changed to "
+                               << (value ? "Layer mode (green)" : "Snapshot mode (red)");
   applyFaderBank();
   updateModeLeds();
+  showTempDisplay("Shift", value ? "On" : "Off");
 }
 
 void MidiController::updateModeLeds() {
   auto* leds = lc ? lc->getLeds() : nullptr;
   if (!leds) return;
 
-  LedColor modeColor = agencyLayerToggleParameter ? kLayerModeColor : kAgencyModeColor;
-
-  // Toggle button (CC 47 → button 11)
-  leds->setButtonLED(11, modeColor);
+  LedColor modeColor = shiftModeParameter ? kLayerModeColor : kAgencyModeColor;
 
   // Top row buttons (CC 37-44 → buttons 1-8)
   for (int i = 1; i <= 8; ++i) {
@@ -155,31 +221,15 @@ void MidiController::setupInitialLeds() {
   auto* leds = lc ? lc->getLeds() : nullptr;
   if (!leds) return;
 
-  // === Toggle button (CC 47 → button 11) - starts in Agency mode (red) ===
-  leds->setButtonLED(11, kAgencyModeColor);
-
-  // === Top row (CC 37-44 → buttons 1-8) - Agency mode color (red) ===
+  // === Top row (CC 37-44 → buttons 1-8) - Snapshot mode color (red) ===
   for (int i = 1; i <= 8; ++i) {
     leds->setButtonLED(i, kAgencyModeColor);
   }
 
-  // === Bottom row keypress buttons ===
-  leds->setButtonLED(9, kPauseButtonColor);       // CC 45 - space
-  leds->setButtonLED(10, kHibernateButtonColor);  // CC 46 - H
-  // Button 11 (CC 47) is toggle, already set above
-  leds->setButtonLED(12, kPrevConfigButtonColor); // CC 48 - left arrow
-  leds->setButtonLED(13, kNextConfigButtonColor); // CC 49 - right arrow
-  leds->setButtonLED(14, kOffColor);              // CC 50 - unassigned
-  leds->setButtonLED(15, kRecordButtonColor);     // CC 51 - R
-  leds->setButtonLED(16, kSaveButtonColor);       // CC 52 - S
-
-  // Store restore colors for keypress buttons
-  buttonRestoreColors[kPauseButtonCC] = kPauseButtonColor;
-  buttonRestoreColors[kHibernateButtonCC] = kHibernateButtonColor;
-  buttonRestoreColors[kPrevConfigButtonCC] = kPrevConfigButtonColor;
-  buttonRestoreColors[kNextConfigButtonCC] = kNextConfigButtonColor;
-  buttonRestoreColors[kRecordButtonCC] = kRecordButtonColor;
-  buttonRestoreColors[kSaveButtonCC] = kSaveButtonColor;
+  // === Bottom row buttons (9-16) - all off (unused, transport handled by hardware) ===
+  for (int i = 9; i <= 16; ++i) {
+    leds->setButtonLED(i, kOffColor);
+  }
 
   // === Encoder LEDs (1-based numbering, encoders 1-24) ===
   // Row 1 (encoders 1-8): indices 0-7 in addon terminology
@@ -224,7 +274,7 @@ void MidiController::applyFaderBank() {
 
   lc->clearFaders();
 
-  if (agencyLayerToggleParameter) {
+  if (shiftModeParameter) {
     ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
     size_t count = std::min<size_t>(8, layerAlphaParameters.size());
     for (size_t i = 0; i < count; ++i) {
@@ -323,6 +373,15 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
 
   // Set initial LED colors for all controls.
   setupInitialLeds();
+
+  // Setup OLED display (shares MIDI output with LED controller)
+  if (auto* leds = lc->getLeds()) {
+    if (auto* midiOut = leds->getMidiOut()) {
+      display = std::make_unique<ofxLaunchControlXL3Display>();
+      display->setup(midiOut);
+      updateStationaryDisplay();
+    }
+  }
 }
 
 void MidiController::onSynthWillUnload() {
@@ -345,5 +404,35 @@ void MidiController::exit() {
     lc->shutdown();
     lc.reset();
   }
+  display.reset();
   heldKeys.clear();
+}
+
+void MidiController::updateStationaryDisplay() {
+  if (!display || !synthPtr) return;
+
+  // Line 1: config filename (extract from path string)
+  std::string configName;
+  const std::string& configPath = synthPtr->getCurrentConfigPath();
+  if (!configPath.empty()) {
+    std::filesystem::path p(configPath);
+    configName = p.filename().string();
+  }
+
+  // Line 2: status indicators (REC, SAV)
+  std::string statusLine;
+  if (synthPtr->isRecording()) {
+    statusLine = "REC";
+  }
+  if (SaveToFileThread::getActiveThreadCount() > 0) {
+    if (!statusLine.empty()) statusLine += " ";
+    statusLine += "SAV";
+  }
+
+  display->setStationary(configName, statusLine);
+}
+
+void MidiController::showTempDisplay(const std::string& name, const std::string& value) {
+  if (!display) return;
+  display->showTemporary(name, value);
 }

@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -44,26 +45,28 @@ class MidiController : public ofxMidiListener {
   static constexpr LedColor kMagentaEncoderColor = {127, 0, 127}; // Magenta (encoders 5, 13, 15)
 
   // === Button CC Constants ===
-  // Top row function buttons
+  // Top row function buttons (CC 37-44 on channel 1)
   static constexpr int kFunctionButtonCCFirst = 37;
   static constexpr int kFunctionButtonCCLast = 44;
 
-  // Bottom row buttons
-  static constexpr int kPauseButtonCC = 45;       // Space - pause/unpause
-  static constexpr int kHibernateButtonCC = 46;   // H - hibernate
-  static constexpr int kToggleButtonCC = 47;      // Agency/Layer toggle
-  static constexpr int kPrevConfigButtonCC = 48;  // Left arrow - prev config
-  static constexpr int kNextConfigButtonCC = 49;  // Right arrow - next config
-  // CC 50 is unassigned
-  static constexpr int kRecordButtonCC = 51;      // R - start/stop recording
-  static constexpr int kSaveButtonCC = 52;        // S - save snapshot
+  // Bottom row buttons (CC 45-52 on channel 1) - now unused
+  static constexpr int kBottomRowButtonCCFirst = 45;
+  static constexpr int kBottomRowButtonCCLast = 52;
+
+  // Hardware transport buttons
+  static constexpr int kShiftButtonCC = 63;          // Shift (channel 7)
+  static constexpr int kShiftButtonChannel = 7;      // Shift is on channel 7
+  static constexpr int kPlayButtonCC = 116;          // Play (channel 1)
+  static constexpr int kRecordTransportCC = 118;     // Record (channel 1)
+  static constexpr int kTrackLeftCC = 103;           // Track Left (channel 1)
+  static constexpr int kTrackRightCC = 102;          // Track Right (channel 1)
 
   MidiController();
   void update();
   void onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr);
   void onSynthWillUnload();
   void exit();
-  void onAgencyLayerToggleChanged(bool& value);
+  void onShiftModeChanged(bool& value);
 
   void newMidiMessage(ofxMidiMessage& message) override;
 
@@ -72,15 +75,20 @@ class MidiController : public ofxMidiListener {
   void setLayerAlphasFullyOn();
   void setupInitialLeds();
   void updateModeLeds();
-  void handleButtonCC(int cc, int value);
+  void handleButtonCC(int channel, int cc, int value);
   void setButtonLedByCC(int cc, const LedColor& color);
   LedColor getButtonRestoreColor(int cc) const;
   void sendKeyPress(int key);
   void sendKeyRelease(int key);
+  void updateStationaryDisplay();
+  void showTempDisplay(const std::string& name, const std::string& value);
 
   std::unique_ptr<ofxLaunchControlXL> lc;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
-  ofParameter<bool> agencyLayerToggleParameter { "Agency/Layer Toggle", false };
+  ofParameter<bool> shiftModeParameter { "Shift Mode", false };  // false = Snapshot mode, true = Layer mode
+  std::unique_ptr<ofxLaunchControlXL3Display> display;
+  bool lastRecordingState = false;  // For polling recording state changes
+  bool lastSavingState = false;     // For polling save-in-progress state changes
 
   // LED state tracking for restore after momentary press feedback
   std::unordered_map<int, LedColor> buttonRestoreColors;
@@ -90,6 +98,7 @@ class MidiController : public ofxMidiListener {
 
   // Thread-safe ring buffer for button CC events (MIDI thread → main thread)
   struct ButtonEvent {
+    int channel;
     int cc;
     int value;
   };
