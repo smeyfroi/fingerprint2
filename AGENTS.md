@@ -18,3 +18,4 @@ Optionals/null: check before dereference; prefer early-return guard clauses.
 Error handling: prefer `ofLogNotice/ofLogWarning/ofLogError`; avoid throwing across oF callbacks.
 Paths: prefer `data/` + `ofToDataPath`; avoid adding new hard-coded absolute user paths.
 Editor rules: no `.cursor/rules`, `.cursorrules`, or `.github/copilot-instructions.md` present.
+Intent system: see `addons/ofxMarkSynth/docs/intent-implementation.md` for the fluent `IntentMap` API used in `Mod::applyIntent()`.
