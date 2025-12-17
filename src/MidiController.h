@@ -25,24 +25,16 @@ class MidiController : public ofxMidiListener {
   // static constexpr LedColor kAgencyModeColor = {64, 0, 0};
   // static constexpr LedColor kLayerModeColor = {0, 64, 0};
 
-  // Bottom row keypress button colors
-  static constexpr LedColor kPauseButtonColor = {64, 32, 0};      // Dim orange (CC 45, space)
-  static constexpr LedColor kHibernateButtonColor = {127, 64, 0}; // Bright orange (CC 46, H)
-  static constexpr LedColor kPrevConfigButtonColor = {64, 64, 0}; // Dim yellow (CC 48, left)
-  static constexpr LedColor kNextConfigButtonColor = {127, 127, 0}; // Bright yellow (CC 49, right)
-  static constexpr LedColor kRecordButtonColor = {64, 0, 64};     // Dim magenta (CC 51, R)
-  static constexpr LedColor kSaveButtonColor = {127, 0, 127};     // Bright magenta (CC 52, S)
-
   // Feedback and utility colors
   static constexpr LedColor kButtonPressedColor = {127, 127, 127}; // White
   static constexpr LedColor kOffColor = {0, 0, 0};
 
   // Encoder colors
-  static constexpr LedColor kAgencyEncoderColor = {127, 0, 0};    // Red (encoder 0)
-  static constexpr LedColor kBlueEncoderColor = {0, 0, 127};      // Blue (encoders 2, 10)
-  static constexpr LedColor kCyanEncoderColor = {0, 127, 127};    // Cyan (encoders 3, 11)
-  static constexpr LedColor kPurpleEncoderColor = {64, 0, 127};   // Purple (encoders 4, 12, 14)
-  static constexpr LedColor kMagentaEncoderColor = {127, 0, 127}; // Magenta (encoders 5, 13, 15)
+  static constexpr LedColor kAgencyEncoderColor = {64, 0, 0};    // Red (encoder 0)
+  static constexpr LedColor kBlueEncoderColor = {0, 0, 32};      // Blue (encoders 2, 10)
+  static constexpr LedColor kCyanEncoderColor = {0, 32, 32};    // Cyan (encoders 3, 11)
+  static constexpr LedColor kPurpleEncoderColor = {32, 0, 64};   // Purple (encoders 4, 12, 14)
+  static constexpr LedColor kMagentaEncoderColor = {64, 0, 64}; // Magenta (encoders 5, 13, 15)
 
   // === Button CC Constants ===
   // Top row function buttons (CC 37-44 on channel 1)
@@ -89,6 +81,8 @@ class MidiController : public ofxMidiListener {
   std::unique_ptr<ofxLaunchControlXL3Display> display;
   bool lastRecordingState = false;  // For polling recording state changes
   bool lastSavingState = false;     // For polling save-in-progress state changes
+  int lastDisplayedTimerSeconds = -1;  // For polling main timer changes
+  int lastDisplayedSplitTimerSeconds = -1;  // For polling split timer changes
 
   // LED state tracking for restore after momentary press feedback
   std::unordered_map<int, LedColor> buttonRestoreColors;

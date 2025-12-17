@@ -8,15 +8,16 @@
 
 // === RECORDED MATERIAL FOR DEVELOPMENT
 const std::string SYNTH_CONFIG = "00-movement1-source";
+// ***** I've allowed 5 seconds before the audio for the title *****
 //const std::string AUDIO_FILE = "cork/audio-2025-06-16-10-54-26-096.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:30"; // ******* Movt 1
 const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-14-14-04-398.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "0:05"; // ******* Movt 1
-const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-07-55-682.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:09"; // ******* Movt 2
+const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-07-55-682.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:04"; // ******* Movt 2
 //const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-16-49-53-721.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "04:15";  ******* Movt 2
-//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-16-14-782.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:04"; // ******* Movt 3
+//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-16-14-782.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:00"; // ******* Movt 3
 //const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-15-17-10-00-689.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:10"; // ******* Movt 3
-//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-25-03-931.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:05"; // ******* Movt 4
+//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-25-03-931.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:00"; // ******* Movt 4
 //const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-16-11-07-56-314.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:03"; // ******* Movt 4
-//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-33-11-976.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:05"; // ******* Movt 5
+//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-33-11-976.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:00"; // ******* Movt 5
 //const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-16-11-25-04-661.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:36"; // ******* Movt 5
 
 // === ffmpeg installed via `brew install ffmpeg`

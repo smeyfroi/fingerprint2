@@ -25,13 +25,24 @@ void MidiController::update() {
     buttonEventReadIndex = (buttonEventReadIndex + 1) % kButtonEventBufferSize;
   }
 
-  // Poll recording and saving states, update display when either changes
+  // Poll recording, saving states, and timers - update display when any change
   if (synthPtr) {
     bool currentRecordingState = synthPtr->isRecording();
     bool currentSavingState = SaveToFileThread::getActiveThreadCount() > 0;
-    if (currentRecordingState != lastRecordingState || currentSavingState != lastSavingState) {
+    
+    // Get current timer values (total seconds)
+    auto& nav = synthPtr->getPerformanceNavigator();
+    int currentTimerSeconds = nav.getElapsedMinutes() * 60 + nav.getElapsedSeconds();
+    int currentSplitTimerSeconds = nav.getSplitElapsedMinutes() * 60 + nav.getSplitElapsedSeconds();
+    
+    if (currentRecordingState != lastRecordingState || 
+        currentSavingState != lastSavingState ||
+        currentTimerSeconds != lastDisplayedTimerSeconds ||
+        currentSplitTimerSeconds != lastDisplayedSplitTimerSeconds) {
       lastRecordingState = currentRecordingState;
       lastSavingState = currentSavingState;
+      lastDisplayedTimerSeconds = currentTimerSeconds;
+      lastDisplayedSplitTimerSeconds = currentSplitTimerSeconds;
       updateStationaryDisplay();
     }
   }
@@ -411,7 +422,7 @@ void MidiController::exit() {
 void MidiController::updateStationaryDisplay() {
   if (!display || !synthPtr) return;
 
-  // Line 1: config filename (extract from path string)
+  // Line 1 (Title): config filename
   std::string configName;
   const std::string& configPath = synthPtr->getCurrentConfigPath();
   if (!configPath.empty()) {
@@ -419,7 +430,18 @@ void MidiController::updateStationaryDisplay() {
     configName = p.filename().string();
   }
 
-  // Line 2: status indicators (REC, SAV)
+  // Line 2 (Name): main timer and split timer (MM:SS / MM:SS)
+  auto& nav = synthPtr->getPerformanceNavigator();
+  int minutes = nav.getElapsedMinutes();
+  int seconds = nav.getElapsedSeconds();
+  int splitMinutes = nav.getSplitElapsedMinutes();
+  int splitSeconds = nav.getSplitElapsedSeconds();
+  char timerBuf[32];
+  std::snprintf(timerBuf, sizeof(timerBuf), "%02d:%02d / %02d:%02d", 
+                minutes, seconds, splitMinutes, splitSeconds);
+  std::string timerStr = timerBuf;
+
+  // Line 3 (Value): status indicators
   std::string statusLine;
   if (synthPtr->isRecording()) {
     statusLine = "REC";
@@ -429,7 +451,7 @@ void MidiController::updateStationaryDisplay() {
     statusLine += "SAV";
   }
 
-  display->setStationary(configName, statusLine);
+  display->setStationary3Line(configName, timerStr, statusLine);
 }
 
 void MidiController::showTempDisplay(const std::string& name, const std::string& value) {
