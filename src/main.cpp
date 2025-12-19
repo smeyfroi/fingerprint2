@@ -5,9 +5,9 @@
 
 // ***********************************************
 // ***********************************************
-// #define FULLSCREEN
-const int MAIN_MONITOR_ID = 0;
-const int GUI_MONITOR_ID = 1;
+#define FULLSCREEN
+const int MAIN_MONITOR_ID = 1;
+const int GUI_MONITOR_ID = 0;
 
 // Window sizes when not fullscreen
 const int MAIN_WINDOW_WIDTH = 1960;
@@ -56,7 +56,7 @@ int main( ){
   settings.setGLVersion(4, 1);
 
 #ifdef FULLSCREEN
-  settings.setPosition({0, 0});
+  settings.setPosition({mainWindowX, mainWindowY});
   settings.setSize(mainWindowW, mainWindowH); // TODO: disable game mode notification
   settings.decorated = false;
 #else
