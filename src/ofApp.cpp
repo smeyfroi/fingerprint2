@@ -55,7 +55,9 @@ void ofApp::setup(){
   resources.add("videoRecordingPath", VIDEO_RECORDING_PATH);
 #endif
   // --- Text/Font Resources ---
-  resources.add("fontPath", FONT_PATH);
+  FontCache fontCache(ofToDataPath(FONT_PATH.string()));
+  fontCache.preloadAll();
+  resources.add("fontCache", fontCache);
   resources.add("textSourcesPath", TEXT_SOURCES_PATH);
   // --- Start at config ---
   resources.add("startupPerformanceConfigName", SYNTH_CONFIG);
