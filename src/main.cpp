@@ -48,7 +48,7 @@ int main( ){
   int mainWindowH = monitorSizes[MAIN_MONITOR_ID].y;
   int guiWindowX = monitorPositions[GUI_MONITOR_ID].x;
   int guiWindowY = monitorPositions[GUI_MONITOR_ID].y;
-  int guiWindowW = 300; //monitorSizes[guiMonitorId].x;
+  int guiWindowW = monitorSizes[GUI_MONITOR_ID].x;
   int guiWindowH = monitorSizes[GUI_MONITOR_ID].y;
 #endif
   
