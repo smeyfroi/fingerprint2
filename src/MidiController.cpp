@@ -430,15 +430,25 @@ void MidiController::updateStationaryDisplay() {
     configName = p.filename().string();
   }
 
-  // Line 2 (Name): main timer and split timer (MM:SS / MM:SS)
+  // Line 2 (Name): split timer with countdown if duration is configured
   auto& nav = synthPtr->getPerformanceNavigator();
-  int minutes = nav.getElapsedMinutes();
-  int seconds = nav.getElapsedSeconds();
   int splitMinutes = nav.getSplitElapsedMinutes();
   int splitSeconds = nav.getSplitElapsedSeconds();
   char timerBuf[32];
-  std::snprintf(timerBuf, sizeof(timerBuf), "%02d:%02d / %02d:%02d", 
-                minutes, seconds, splitMinutes, splitSeconds);
+  
+  if (nav.hasConfigDuration()) {
+    int countdownMin = nav.getCountdownMinutes();
+    int countdownSec = nav.getCountdownSeconds();
+    const char* sign = nav.isCountdownNegative() ? "-" : "";
+    std::snprintf(timerBuf, sizeof(timerBuf), "%02d:%02d / %s%02d:%02d", 
+                  splitMinutes, splitSeconds, sign, countdownMin, countdownSec);
+  } else {
+    // No duration: show main timer / split timer
+    int minutes = nav.getElapsedMinutes();
+    int seconds = nav.getElapsedSeconds();
+    std::snprintf(timerBuf, sizeof(timerBuf), "%02d:%02d / %02d:%02d", 
+                  minutes, seconds, splitMinutes, splitSeconds);
+  }
   std::string timerStr = timerBuf;
 
   // Line 3 (Value): status indicators
