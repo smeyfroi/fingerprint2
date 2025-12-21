@@ -35,7 +35,7 @@ const std::filesystem::path PERFORMANCE_ARTEFACT_ROOT_PATH { ROOT_PERFORMANCE_PA
 constexpr glm::vec2 COMPOSITE_SIZE { 7200, 7200 }; // Todo: complete this by rippling it through all the examples
 constexpr float COMPOSITE_PANEL_GAP_PX = 28.0;
 // Config not in ResourceManager
-constexpr bool START_PAUSED = true;
+constexpr bool START_HIBERNATED = true;  // Start in hibernated state (black screen, press H to start)
 constexpr float FRAME_RATE = 30.0;
 constexpr glm::vec2 VIDEO_RECORDER_SIZE { 1280, 720 };
 

@@ -81,8 +81,7 @@ class MidiController : public ofxMidiListener {
   std::unique_ptr<ofxLaunchControlXL3Display> display;
   bool lastRecordingState = false;  // For polling recording state changes
   bool lastSavingState = false;     // For polling save-in-progress state changes
-  int lastDisplayedTimerSeconds = -1;  // For polling main timer changes
-  int lastDisplayedSplitTimerSeconds = -1;  // For polling split timer changes
+  int lastDisplayedConfigTimeSeconds = -1;  // For polling config timer changes
 
   // LED state tracking for restore after momentary press feedback
   std::unordered_map<int, LedColor> buttonRestoreColors;

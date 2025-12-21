@@ -30,19 +30,15 @@ void MidiController::update() {
     bool currentRecordingState = synthPtr->isRecording();
     bool currentSavingState = SaveToFileThread::getActiveThreadCount() > 0;
     
-    // Get current timer values (total seconds)
-    auto& nav = synthPtr->getPerformanceNavigator();
-    int currentTimerSeconds = nav.getElapsedMinutes() * 60 + nav.getElapsedSeconds();
-    int currentSplitTimerSeconds = nav.getSplitElapsedMinutes() * 60 + nav.getSplitElapsedSeconds();
+    // Get current config timer values (total seconds)
+    int currentConfigTimeSeconds = synthPtr->getConfigRunningMinutes() * 60 + synthPtr->getConfigRunningSeconds();
     
     if (currentRecordingState != lastRecordingState || 
         currentSavingState != lastSavingState ||
-        currentTimerSeconds != lastDisplayedTimerSeconds ||
-        currentSplitTimerSeconds != lastDisplayedSplitTimerSeconds) {
+        currentConfigTimeSeconds != lastDisplayedConfigTimeSeconds) {
       lastRecordingState = currentRecordingState;
       lastSavingState = currentSavingState;
-      lastDisplayedTimerSeconds = currentTimerSeconds;
-      lastDisplayedSplitTimerSeconds = currentSplitTimerSeconds;
+      lastDisplayedConfigTimeSeconds = currentConfigTimeSeconds;
       updateStationaryDisplay();
     }
   }
@@ -430,24 +426,22 @@ void MidiController::updateStationaryDisplay() {
     configName = p.filename().string();
   }
 
-  // Line 2 (Name): split timer with countdown if duration is configured
+  // Line 2 (Name): countdown (time remaining) if duration configured, else config time
   auto& nav = synthPtr->getPerformanceNavigator();
-  int splitMinutes = nav.getSplitElapsedMinutes();
-  int splitSeconds = nav.getSplitElapsedSeconds();
   char timerBuf[32];
   
   if (nav.hasConfigDuration()) {
     int countdownMin = nav.getCountdownMinutes();
     int countdownSec = nav.getCountdownSeconds();
     const char* sign = nav.isCountdownNegative() ? "-" : "";
-    std::snprintf(timerBuf, sizeof(timerBuf), "%02d:%02d / %s%02d:%02d", 
-                  splitMinutes, splitSeconds, sign, countdownMin, countdownSec);
+    std::snprintf(timerBuf, sizeof(timerBuf), "%s%02d:%02d", 
+                  sign, countdownMin, countdownSec);
   } else {
-    // No duration: show main timer / split timer
-    int minutes = nav.getElapsedMinutes();
-    int seconds = nav.getElapsedSeconds();
-    std::snprintf(timerBuf, sizeof(timerBuf), "%02d:%02d / %02d:%02d", 
-                  minutes, seconds, splitMinutes, splitSeconds);
+    // No duration: show config time
+    int configMinutes = synthPtr->getConfigRunningMinutes();
+    int configSeconds = synthPtr->getConfigRunningSeconds();
+    std::snprintf(timerBuf, sizeof(timerBuf), "%02d:%02d", 
+                  configMinutes, configSeconds);
   }
   std::string timerStr = timerBuf;
 
