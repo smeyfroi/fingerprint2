@@ -6,7 +6,6 @@
 #include <string>
 
 #include "ofMain.h"
-#include "util/SaveToFileThread.hpp"
 
 namespace {
 constexpr int kFaderKnobOffset = 24;
@@ -28,7 +27,7 @@ void MidiController::update() {
   // Poll recording, saving states, and timers - update display when any change
   if (synthPtr) {
     bool currentRecordingState = synthPtr->isRecording();
-    bool currentSavingState = SaveToFileThread::getActiveThreadCount() > 0;
+    bool currentSavingState = synthPtr->getActiveSaveCount() > 0;
     
     // Get current config timer values (total seconds)
     int currentConfigTimeSeconds = synthPtr->getConfigRunningMinutes() * 60 + synthPtr->getConfigRunningSeconds();
@@ -450,7 +449,7 @@ void MidiController::updateStationaryDisplay() {
   if (synthPtr->isRecording()) {
     statusLine = "REC";
   }
-  if (SaveToFileThread::getActiveThreadCount() > 0) {
+  if (synthPtr->getActiveSaveCount() > 0) {
     if (!statusLine.empty()) statusLine += " ";
     statusLine += "SAV";
   }
