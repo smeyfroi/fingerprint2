@@ -371,9 +371,6 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
   // NOTE: We do NOT use addon's toggleButton() for any buttons.
   // All button handling is done manually in handleButtonCC().
 
-  // On each config load, start layer alpha fully on.
-  setLayerAlphasFullyOn();
-
   // Apply the active fader bank (intent vs layer alpha).
   applyFaderBank();
 
