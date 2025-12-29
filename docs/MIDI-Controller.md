@@ -13,7 +13,7 @@ The controller has two modes controlled by the **Shift** button:
 | Mode | Top Row Buttons | Faders | Play Button | Record Button |
 |------|-----------------|--------|-------------|---------------|
 | **Off** (Red LEDs) | Load Snapshot 1-8 | Intent Parameters | Pause/Play | Save Image |
-| **On** (Green LEDs) | Toggle Layer Pause 1-8 | Layer Alpha 1-8 | Hibernate | Start/Stop Recording |
+| **On** (Green LEDs) | Toggle Layer Pause 1-8 | Layer Alpha 1-8 | Hibernate | Save Image |
 
 ---
 
@@ -23,7 +23,7 @@ The controller has two modes controlled by the **Shift** button:
 |--------|-----------|----------|
 | **Shift** | Toggle to Shift On | Toggle to Shift Off |
 | **Play** | Pause/Play | Hibernate |
-| **Record** | Save Image | Start/Stop Recording |
+| **Record** | Save Image | Save Image |
 | **Track Left** | Previous Config | Previous Config |
 | **Track Right** | Next Config | Next Config |
 
@@ -108,7 +108,7 @@ Shows briefly when controls are used:
 - **Snapshot**: "Snapshot" / "1-8"
 - **Layer**: "Layer 1-8" / "Toggle Pause"
 - **Transport**: "Transport" / "Pause/Play" or "Hibernate"
-- **Recording**: "Recording" / "Started" or "Stopped"
+
 - **Save**: "Action" / "Save Image"
 - **Config**: "Config" / "Previous" or "Next"
 
@@ -139,6 +139,7 @@ Shows briefly when controls are used:
 ## Technical Notes
 
 - Controller runs in **DAW mode** for LED and display control
+- Auto-temp-display is disabled for all faders, encoders, and buttons (only our custom temporary overlays are shown)
 - All button CCs are on MIDI channel 1, except Shift (channel 7)
 - Transport button CCs: Shift=63, Play=116, Record=118, Track Left=103, Track Right=102
 - Top row button CCs: 37-44

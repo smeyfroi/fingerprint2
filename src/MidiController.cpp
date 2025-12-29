@@ -114,25 +114,13 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
     return;
   }
 
-  // Record button (CC 118)
+  // Record button (CC 118) - Save Image in both modes
   if (cc == kRecordTransportCC) {
     if (pressed) {
-      if (!shiftModeParameter) {
-        // Save Image
-        sendKeyPress('S');
-        showTempDisplay("Action", "Save Image");
-      } else {
-        // Start/Stop Recording - capture state before keypress toggles it
-        bool wasRecording = synthPtr && synthPtr->isRecording();
-        sendKeyPress('R');
-        showTempDisplay("Recording", wasRecording ? "Stopped" : "Started");
-      }
+      sendKeyPress('S');
+      showTempDisplay("Action", "Save Image");
     } else {
-      if (!shiftModeParameter) {
-        sendKeyRelease('S');
-      } else {
-        sendKeyRelease('R');
-      }
+      sendKeyRelease('S');
     }
     return;
   }
@@ -382,6 +370,7 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
     if (auto* midiOut = leds->getMidiOut()) {
       display = std::make_unique<ofxLaunchControlXL3Display>();
       display->setup(midiOut);
+      disableControlAutoDisplays();
       updateStationaryDisplay();
     }
   }
@@ -457,4 +446,23 @@ void MidiController::updateStationaryDisplay() {
 void MidiController::showTempDisplay(const std::string& name, const std::string& value) {
   if (!display) return;
   display->showTemporary(name, value);
+}
+
+void MidiController::disableControlAutoDisplays() {
+  if (!display) return;
+
+  // Disable auto-temp-display for all faders (targets 5-12)
+  for (uint8_t i = 5; i <= 12; ++i) {
+    display->cancelControlDisplay(i);
+  }
+
+  // Disable auto-temp-display for all encoders (targets 13-36)
+  for (uint8_t i = 13; i <= 36; ++i) {
+    display->cancelControlDisplay(i);
+  }
+
+  // Disable auto-temp-display for all buttons (targets 37-52)
+  for (uint8_t i = 37; i <= 52; ++i) {
+    display->cancelControlDisplay(i);
+  }
 }

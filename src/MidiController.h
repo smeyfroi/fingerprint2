@@ -74,6 +74,7 @@ class MidiController : public ofxMidiListener {
   void sendKeyRelease(int key);
   void updateStationaryDisplay();
   void showTempDisplay(const std::string& name, const std::string& value);
+  void disableControlAutoDisplays();
 
   std::unique_ptr<ofxLaunchControlXL> lc;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
