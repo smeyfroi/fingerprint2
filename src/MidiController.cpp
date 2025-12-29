@@ -435,9 +435,10 @@ void MidiController::updateStationaryDisplay() {
   if (synthPtr->isRecording()) {
     statusLine = "REC";
   }
-  if (synthPtr->getActiveSaveCount() > 0) {
+  int activeSaveCount = synthPtr->getActiveSaveCount();
+  if (activeSaveCount > 0) {
     if (!statusLine.empty()) statusLine += " ";
-    statusLine += "SAV";
+    statusLine += std::to_string(activeSaveCount) + " SAV";
   }
 
   display->setStationary3Line(configName, timerStr, statusLine);
