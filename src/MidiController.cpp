@@ -24,6 +24,14 @@ void MidiController::update() {
     buttonEventReadIndex = (buttonEventReadIndex + 1) % kButtonEventBufferSize;
   }
 
+  // Dismiss temporary display after timeout
+  if (tempDisplayDismissTimeMs > 0 && ofGetElapsedTimeMillis() >= tempDisplayDismissTimeMs) {
+    tempDisplayDismissTimeMs = 0;
+    if (display) {
+      display->clearTemporary();
+    }
+  }
+
   // Poll recording, saving states, and timers - update display when any change
   if (synthPtr) {
     bool currentRecordingState = synthPtr->isRecording();
@@ -447,6 +455,7 @@ void MidiController::updateStationaryDisplay() {
 void MidiController::showTempDisplay(const std::string& name, const std::string& value) {
   if (!display) return;
   display->showTemporary(name, value);
+  tempDisplayDismissTimeMs = ofGetElapsedTimeMillis() + kTempDisplayDurationMs;
 }
 
 void MidiController::disableControlAutoDisplays() {

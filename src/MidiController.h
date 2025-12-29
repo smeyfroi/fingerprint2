@@ -53,6 +53,9 @@ class MidiController : public ofxMidiListener {
   static constexpr int kTrackLeftCC = 103;           // Track Left (channel 1)
   static constexpr int kTrackRightCC = 102;          // Track Right (channel 1)
 
+  // Temporary display duration (milliseconds)
+  static constexpr uint64_t kTempDisplayDurationMs = 1000;
+
   MidiController();
   void update();
   void onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr);
@@ -83,6 +86,7 @@ class MidiController : public ofxMidiListener {
   bool lastRecordingState = false;  // For polling recording state changes
   bool lastSavingState = false;     // For polling save-in-progress state changes
   int lastDisplayedConfigTimeSeconds = -1;  // For polling config timer changes
+  uint64_t tempDisplayDismissTimeMs = 0;  // When to dismiss temp display (0 = none pending)
 
   // LED state tracking for restore after momentary press feedback
   std::unordered_map<int, LedColor> buttonRestoreColors;
