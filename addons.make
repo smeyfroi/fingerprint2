@@ -12,6 +12,7 @@ ofxRenderer
 ofxDividedArea
 ofxFFmpegRecorder
 ofxFatLines
+ofxFontStash2
 ofxImGui
 ofxIntrospector
 ofxMidi
