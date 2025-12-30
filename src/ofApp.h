@@ -68,7 +68,7 @@ constexpr bool SAVE_VIDEO_RECORDING = false;
 const std::filesystem::path VIDEO_RECORDING_PATH { PERFORMANCE_ARTEFACT_ROOT_PATH/"video-recordings" }; // created
 
 // === TEXT/FONT RESOURCES ===
-const std::filesystem::path FONT_PATH { "PlayfairDisplay-Regular.ttf" }; // FIXME: should be in Synth config json?
+const std::filesystem::path FONT_PATH { PERFORMANCE_CONFIG_ROOT_PATH/"font"/"PlayfairDisplay-Regular.ttf" }; // must exist
 const std::string TEXT_SOURCES_PATH = PERFORMANCE_CONFIG_ROOT_PATH/"text"; // must exist
 
 

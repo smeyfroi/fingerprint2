@@ -54,7 +54,7 @@ void ofApp::setup(){
   resources.add("videoRecordingPath", VIDEO_RECORDING_PATH);
 #endif
   // --- Text/Font Resources ---
-  auto fontCachePtr = std::make_shared<FontStash2Cache>(ofToDataPath(FONT_PATH.string()));
+  auto fontCachePtr = std::make_shared<FontStash2Cache>(FONT_PATH.string());
   fontCachePtr->setup();
   fontCachePtr->prewarmAll();
   resources.addShared("fontCache", fontCachePtr);
