@@ -29,6 +29,11 @@ int main( ){
   
   int count;
   GLFWmonitor** monitors = glfwGetMonitors(&count);
+  if (MAIN_MONITOR_ID >= count || GUI_MONITOR_ID >= count) {
+    ofLogError() << "Not enough monitors for FULLSCREEN mode: " << "MAIN_MONITOR_ID=" << MAIN_MONITOR_ID << ", GUI_MONITOR_ID=" << GUI_MONITOR_ID << ", but only " << count << " monitor(s) detected.";
+    return -1;
+  }
+  
   vector<glm::vec2> monitorSizes(count);
   vector<glm::vec2> monitorPositions(count);
   for(int i = 0; i < count; i++){
