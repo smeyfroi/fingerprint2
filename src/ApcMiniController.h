@@ -54,9 +54,10 @@ public:
   static constexpr int kSideButtonNoteLast = 119;
   static constexpr int kSideButtonCount = 8;
 
-  // === Bottom Buttons (Notes 100-107) - RED LED ONLY, not used ===
-  // These physical buttons only support red LEDs, so we use the bottom
-  // row of the pad grid (notes 0-7) for layer toggle instead.
+  // === Track Buttons (Notes 100-107) - RED LED ONLY ===
+  // These physical buttons only support red LEDs (off/on/blink).
+  // We still use them as alternate layer-toggle inputs, and as a
+  // redundant status indicator (solid = active, blink = paused).
   static constexpr int kBottomButtonNoteFirst = 100;
   static constexpr int kBottomButtonNoteLast = 107;
   static constexpr int kBottomButtonCount = 8;
@@ -141,6 +142,7 @@ private:
   std::array<ConfigPadInfo, kPadCount> padConfigMap;
   std::array<RgbColor, kPadCount> padCurrentColors;
   int currentConfigPadNote = -1;  // Which pad has the currently loaded config
+  int lastKnownConfigIndex = -1;  // Tracks navigator changes (including non-APC switches)
 
   // === Hold State ===
   struct HoldState {

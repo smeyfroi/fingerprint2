@@ -458,24 +458,29 @@ Faders 0-7 control layer alphas, matching the Launch Control XL's Shift mode.
 - On (bright) when snapshot is available
 - Blink briefly on press
 
-### Bottom Buttons: Navigation & Utility
+### Track Buttons (Bottom Row): Layer Toggle + Status (RED-only)
 
-| Button | Note | Function |
-|--------|------|----------|
-| Volume | 100 | (Reserved - could toggle fader mode) |
-| Pan | 101 | (Reserved) |
-| Send | 102 | (Reserved) |
-| Device | 103 | (Reserved) |
-| Arrow Up | 104 | (Reserved) |
-| Arrow Down | 105 | (Reserved) |
-| Arrow Left | 106 | Previous config (hold-to-confirm) |
-| Arrow Right | 107 | Next config (hold-to-confirm) |
-| Shift | 122 | Modifier key |
+The physical Track Buttons 1-8 (notes 100-107) have **RED-only** LEDs (no RGB, no green).
 
-**Arrow Left/Right behavior:**
-- Same hold-to-confirm as pad grid
-- Calls `PerformanceNavigator::beginHold(PREV/NEXT, MIDI_SOURCE)`
-- On release: `PerformanceNavigator::endHold(MIDI_SOURCE)`
+We use them as:
+- Alternate **layer pause toggle** inputs (same as the RGB layer row on pads 0-7)
+- A redundant **status indicator** when you’re not looking at the pad grid
+
+| Button | Note | Layer | LED |
+|--------|------|-------|-----|
+| Volume | 100 | Layer 1 | Off (no layer) / Solid (active) / Blink (paused) |
+| Pan | 101 | Layer 2 | Off (no layer) / Solid (active) / Blink (paused) |
+| Send | 102 | Layer 3 | Off (no layer) / Solid (active) / Blink (paused) |
+| Device | 103 | Layer 4 | Off (no layer) / Solid (active) / Blink (paused) |
+| Arrow Up | 104 | Layer 5 | Off (no layer) / Solid (active) / Blink (paused) |
+| Arrow Down | 105 | Layer 6 | Off (no layer) / Solid (active) / Blink (paused) |
+| Arrow Left | 106 | Layer 7 | Off (no layer) / Solid (active) / Blink (paused) |
+| Arrow Right | 107 | Layer 8 | Off (no layer) / Solid (active) / Blink (paused) |
+
+**Implementation notes (per Akai protocol):**
+- Velocity `0` = LED off
+- Velocity `1` = LED on
+- Velocity `2` = LED blink
 
 ---
 
