@@ -377,7 +377,7 @@ The 8x8 pad grid is divided into two sections:
 └────┴────┴────┴────┴────┴────┴────┴────┘
 ```
 
-- **Bottom row (notes 0-7)**: Layer pause toggle buttons (RGB, using green colors)
+- **Bottom row (notes 0-7)**: Layer pause toggle buttons (RGB, using white dim/bright)
 - **Rows 1-7 (notes 8-63)**: Config selection grid (56 slots for configs)
 
 ### Layer Toggle Row (Bottom Row, Notes 0-7)
@@ -386,14 +386,14 @@ The bottom row of the pad grid is dedicated to layer pause toggle buttons.
 
 | Pad | Note | Function | LED Color |
 |-----|------|----------|-----------|
-| L1 | 0 | Toggle Layer 1 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
-| L2 | 1 | Toggle Layer 2 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
-| L3 | 2 | Toggle Layer 3 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
-| L4 | 3 | Toggle Layer 4 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
-| L5 | 4 | Toggle Layer 5 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
-| L6 | 5 | Toggle Layer 6 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
-| L7 | 6 | Toggle Layer 7 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
-| L8 | 7 | Toggle Layer 8 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
+| L1 | 0 | Toggle Layer 1 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
+| L2 | 1 | Toggle Layer 2 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
+| L3 | 2 | Toggle Layer 3 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
+| L4 | 3 | Toggle Layer 4 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
+| L5 | 4 | Toggle Layer 5 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
+| L6 | 5 | Toggle Layer 6 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
+| L7 | 6 | Toggle Layer 7 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
+| L8 | 7 | Toggle Layer 8 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
 
 ### Config Grid (Rows 1-7, Notes 8-63)
 
@@ -402,15 +402,14 @@ Each pad in rows 1-7 represents one config file from the PerformanceNavigator pl
 **Note**: Configs with `buttonGrid` coordinates at y=7 (bottom row) will be auto-assigned to a free slot since that row is reserved for layer toggles.
 
 **LED states:**
-| State | Color | Index | Animation |
-|-------|-------|-------|-----------|
-| No config at this slot | Off | 0 | None |
-| Config available | Dim gray | 1 | None |
-| Current config (playing) | Bright green | 21 | None |
-| Current config (paused) | Orange | 9 | None |
-| Current config (hibernated) | Dim orange | 10 | Slow pulse |
-| Hold-to-confirm in progress | Yellow | 13 | Pulse (progress) |
-| Config loading | White | 3 | Blink |
+| State | Color | Notes |
+|-------|-------|-------|
+| No config at this slot | Off | |
+| Config available (not current) | Dim version of config color | Uses `kConfigDimFactor` |
+| Current config (active/playing) | Full config color | |
+| Current config (hibernated) | Dim version of config color | Uses `kConfigDimFactor` |
+| Current config (fading) | Medium version of config color | Uses `kConfigFadeFactor` |
+| Hold-to-confirm in progress | Amber | Overrides everything while held |
 
 **Interaction:**
 1. Press and hold a pad to initiate jump to that config
@@ -458,29 +457,13 @@ Faders 0-7 control layer alphas, matching the Launch Control XL's Shift mode.
 - On (bright) when snapshot is available
 - Blink briefly on press
 
-### Track Buttons (Bottom Row): Layer Toggle + Status (RED-only)
+### Track Buttons (Bottom Row): Not Used (RED-only)
 
-The physical Track Buttons 1-8 (notes 100-107) have **RED-only** LEDs (no RGB, no green).
+The physical Track Buttons 1-8 (notes 100-107) have **RED-only** LEDs (no RGB).
 
-We use them as:
-- Alternate **layer pause toggle** inputs (same as the RGB layer row on pads 0-7)
-- A redundant **status indicator** when you’re not looking at the pad grid
+In practice (and per the protocol document), these are single-color LEDs and are not suitable for the green dim/bright/off feedback we want for layers.
 
-| Button | Note | Layer | LED |
-|--------|------|-------|-----|
-| Volume | 100 | Layer 1 | Off (no layer) / Solid (active) / Blink (paused) |
-| Pan | 101 | Layer 2 | Off (no layer) / Solid (active) / Blink (paused) |
-| Send | 102 | Layer 3 | Off (no layer) / Solid (active) / Blink (paused) |
-| Device | 103 | Layer 4 | Off (no layer) / Solid (active) / Blink (paused) |
-| Arrow Up | 104 | Layer 5 | Off (no layer) / Solid (active) / Blink (paused) |
-| Arrow Down | 105 | Layer 6 | Off (no layer) / Solid (active) / Blink (paused) |
-| Arrow Left | 106 | Layer 7 | Off (no layer) / Solid (active) / Blink (paused) |
-| Arrow Right | 107 | Layer 8 | Off (no layer) / Solid (active) / Blink (paused) |
-
-**Implementation notes (per Akai protocol):**
-- Velocity `0` = LED off
-- Velocity `1` = LED on
-- Velocity `2` = LED blink
+We leave them unused and keep all layer control + feedback on the **RGB pad grid bottom row** (notes 0-7).
 
 ---
 

@@ -100,14 +100,21 @@ public:
   static constexpr RgbColor kColorMediumGray = {80, 80, 80};
   static constexpr RgbColor kColorBrightWhite = {255, 255, 255};
   static constexpr RgbColor kColorAmber = {255, 140, 0};
-  static constexpr RgbColor kColorBrightGreen = {0, 255, 0};
-  static constexpr RgbColor kColorDimGreen = {0, 40, 0};
+
+  // Layer LED colors (use white to avoid confusion with config colors)
+  static constexpr RgbColor kColorBrightLayer = {160, 160, 160};
+  static constexpr RgbColor kColorDimLayer = {14, 14, 14};
+
   static constexpr RgbColor kColorDefaultConfig = {128, 128, 128};
+
+  // === Config LED Brightness ===
+  static constexpr float kConfigDimFactor = 0.09f;
 
   // === Config Grid Entry ===
   struct ConfigPadInfo {
-    int configIndex = -1;       // Index into PerformanceNavigator::getConfigs()
-    RgbColor color = kColorOff; // Color from config JSON or default
+    int configIndex = -1;             // Index into PerformanceNavigator::getConfigs()
+    std::string configPath;           // Full path to the config JSON
+    RgbColor color = kColorOff;       // Color from config JSON or default
     bool isAssigned = false;
   };
 
@@ -143,6 +150,8 @@ private:
   std::array<RgbColor, kPadCount> padCurrentColors;
   int currentConfigPadNote = -1;  // Which pad has the currently loaded config
   int lastKnownConfigIndex = -1;  // Tracks navigator changes (including non-APC switches)
+  int lastKnownHibState = -1;     // Tracks hibernation state changes
+  uint64_t lastLayerLedUpdateMs = 0;
 
   // === Hold State ===
   struct HoldState {

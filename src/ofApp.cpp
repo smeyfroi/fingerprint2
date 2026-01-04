@@ -98,14 +98,15 @@ void ofApp::drawGui(ofEventArgs& args){
 
 //--------------------------------------------------------------
 void ofApp::exit(){
+  // Clear controller LEDs before tearing down the synth.
+  midiController.exit();
+  apcMiniController.exit();
+
   if (synthPtr) {
     ofRemoveListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload);
     ofRemoveListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad);
     synthPtr->shutdown();
   }
-
-  midiController.exit();
-  apcMiniController.exit();
 }
 
 //--------------------------------------------------------------

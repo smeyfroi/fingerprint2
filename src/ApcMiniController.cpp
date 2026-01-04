@@ -90,6 +90,9 @@ bool ApcMiniController::tryConnect() {
 void ApcMiniController::disconnect() {
   if (!connected) return;
 
+  // Best-effort: clear LEDs before closing ports.
+  clearAllLeds();
+
   midiIn.removeListener(this);
   midiIn.closePort();
   midiOut.closePort();
@@ -106,7 +109,15 @@ void ApcMiniController::update() {
   {
     auto& nav = synthPtr->getPerformanceNavigator();
     int currentIdx = nav.getCurrentIndex();
-    if (currentIdx != lastKnownConfigIndex) {
+    bool needsRecompute = (currentIdx != lastKnownConfigIndex);
+    if (!needsRecompute && currentIdx >= 0) {
+      if (currentConfigPadNote < 0 || currentConfigPadNote >= kPadCount ||
+          padConfigMap[currentConfigPadNote].configIndex != currentIdx) {
+        needsRecompute = true;
+      }
+    }
+
+    if (needsRecompute) {
       int previousPad = currentConfigPadNote;
       currentConfigPadNote = -1;
       for (int i = 0; i < kPadCount; i++) {
@@ -127,6 +138,38 @@ void ApcMiniController::update() {
     }
   }
 
+  // Track hibernation state changes so current config brightness updates
+  {
+    int hibState = static_cast<int>(synthPtr->getHibernationState());
+    if (hibState != lastKnownHibState) {
+      if (currentConfigPadNote >= 0 && currentConfigPadNote < kPadCount) {
+        updatePadLed(currentConfigPadNote);
+      }
+      lastKnownHibState = hibState;
+    }
+
+    // Startup robustness: if we're not hibernated, keep the current-config pad in sync.
+    if (hibState != static_cast<int>(ofxMarkSynth::HibernationController::State::HIBERNATED)) {
+      auto& nav = synthPtr->getPerformanceNavigator();
+      int currentIdx = nav.getCurrentIndex();
+
+      if (currentIdx >= 0 && (currentConfigPadNote < 0 || currentConfigPadNote >= kPadCount ||
+                              padConfigMap[currentConfigPadNote].configIndex != currentIdx)) {
+        currentConfigPadNote = -1;
+        for (int i = 0; i < kPadCount; i++) {
+          if (padConfigMap[i].configIndex == currentIdx) {
+            currentConfigPadNote = i;
+            break;
+          }
+        }
+      }
+
+      if (currentConfigPadNote >= 0 && currentConfigPadNote < kPadCount) {
+        updatePadLed(currentConfigPadNote);
+      }
+    }
+  }
+
   // Check for hold timeout
   if (currentHold.active) {
     uint64_t elapsed = ofGetElapsedTimeMillis() - currentHold.startTimeMs;
@@ -140,19 +183,36 @@ void ApcMiniController::update() {
       currentHold.padNote = -1;
 
       if (configIndex >= 0) {
+        // Clear the controller during config transitions to avoid stale LEDs
+        clearAllLeds();
+        for (auto& c : padCurrentColors) {
+          c = kColorOff;
+        }
+
         // Now trigger the config switch
         auto& nav = synthPtr->getPerformanceNavigator();
         nav.jumpTo(configIndex);
         ofLogNotice("ApcMiniController") << "Config jump triggered to index " << configIndex;
-      }
 
-      // Refresh LEDs after ending hold
-      updatePadLed(heldPad);
+        // Don't re-light immediately; let synth events + watcher repaint
+      } else {
+        // Refresh LEDs after ending hold (if still relevant)
+        updatePadLed(heldPad);
+      }
     }
+  }
+
+  // Layer LEDs: refresh periodically (layer params can come online after load)
+  uint64_t nowMs = ofGetElapsedTimeMillis();
+  if (nowMs - lastLayerLedUpdateMs >= 200) {
+    updateAllLayerButtonLeds();
+    lastLayerLedUpdateMs = nowMs;
   }
 }
 
 void ApcMiniController::exit() {
+  // Avoid repeated/slow LED clear attempts on quit.
+  // A single best-effort clear happens in disconnect().
   disconnect();
   synthPtr.reset();
 }
@@ -178,6 +238,7 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
   currentConfigPadNote = -1;
   int currentIdx = nav.getCurrentIndex();
   lastKnownConfigIndex = currentIdx;
+  lastKnownHibState = static_cast<int>(synthPtr->getHibernationState());
   for (int i = 0; i < kPadCount; i++) {
     if (padConfigMap[i].configIndex == currentIdx) {
       currentConfigPadNote = i;
@@ -195,11 +256,24 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
 }
 
 void ApcMiniController::onSynthWillUnload() {
+  // Ensure the device is dark when no synth is active
+  if (connected) {
+    clearAllLeds();
+  }
+
   // Reset fader pickup states so they need to re-acquire on next load
   resetFaderPickupStates();
+
+  // Clear cached LED state
+  for (auto& c : padCurrentColors) {
+    c = kColorOff;
+  }
+
   synthPtr.reset();
   currentConfigPadNote = -1;
   lastKnownConfigIndex = -1;
+  lastKnownHibState = -1;
+  lastLayerLedUpdateMs = 0;
 }
 
 void ApcMiniController::newMidiMessage(ofxMidiMessage& message) {
@@ -238,12 +312,8 @@ void ApcMiniController::handleNoteOn(int note, int velocity) {
     return;
   }
 
-  // Physical Track Buttons (notes 100-107): also toggle layers
-  if (note >= kBottomButtonNoteFirst && note <= kBottomButtonNoteLast) {
-    int layerIndex = note - kBottomButtonNoteFirst;
-    onLayerButtonPressed(layerIndex);
-    return;
-  }
+  // Physical Track Buttons (notes 100-107): ignored
+  // (They still send input, but we use the RGB pad row for layer controls.)
 
   // Shift and side buttons are inactive - ignore
 }
@@ -322,7 +392,7 @@ void ApcMiniController::buildPadConfigMap() {
 
     int padNote = xyToPadNote(x, y);
     
-    // Bottom row (y=7, notes 0-7) is reserved for layer toggle buttons
+    // Bottom row (notes 0-7) is reserved for layer toggle buttons
     if (padNote < kConfigPadNoteFirst) {
       ofLogWarning("ApcMiniController") << "Config " << configPath
                                          << " uses reserved layer row (y=7), will be auto-assigned";
@@ -344,6 +414,7 @@ void ApcMiniController::buildPadConfigMap() {
     }
 
     padConfigMap[padNote].configIndex = configIdx;
+    padConfigMap[padNote].configPath = configPath;
     padConfigMap[padNote].color = color;
     padConfigMap[padNote].isAssigned = true;
     padTaken[padNote] = true;
@@ -378,6 +449,7 @@ void ApcMiniController::buildPadConfigMap() {
     }
 
     padConfigMap[freePad].configIndex = configIdx;
+    padConfigMap[freePad].configPath = configs[configIdx];
     padConfigMap[freePad].color = lastColor;  // Clone previous color
     padConfigMap[freePad].isAssigned = true;
     padTaken[freePad] = true;
@@ -417,6 +489,20 @@ void ApcMiniController::updatePadLed(int padNote) {
 ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) const {
   const auto& info = padConfigMap[padNote];
 
+  auto scale = [](RgbColor c, float factor) -> RgbColor {
+    auto clamp255 = [](float v) -> uint8_t {
+      if (v < 0.0f) return 0;
+      if (v > 255.0f) return 255;
+      return static_cast<uint8_t>(v);
+    };
+
+    return {
+      clamp255(static_cast<float>(c.r) * factor),
+      clamp255(static_cast<float>(c.g) * factor),
+      clamp255(static_cast<float>(c.b) * factor),
+    };
+  };
+
   // No config assigned
   if (!info.isAssigned) {
     return kColorOff;
@@ -427,22 +513,22 @@ ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) c
     return kColorAmber;
   }
 
-  // This is the current config
-  if (padNote == currentConfigPadNote && synthPtr) {
-    // Check synth state for different whites/grays
-    auto hibState = synthPtr->getHibernationState();
-    if (hibState == ofxMarkSynth::HibernationController::State::HIBERNATED) {
-      return kColorDimGray;  // Hibernated = dim gray
-    } else if (hibState == ofxMarkSynth::HibernationController::State::FADING_OUT ||
-               hibState == ofxMarkSynth::HibernationController::State::FADING_IN) {
-      return kColorMediumGray;  // Fading = medium gray
-    } else {
-      return kColorBrightWhite;  // Active = bright white
-    }
+  // Determine whether this pad's config is the current one.
+  // Use Synth::getCurrentConfigPath() since it's authoritative and available
+  // even when navigator index/cached pad note are briefly out of sync at startup.
+  bool isCurrentConfig = false;
+  if (synthPtr && info.isAssigned && !info.configPath.empty()) {
+    const auto& currentPath = synthPtr->getCurrentConfigPath();
+    isCurrentConfig = (!currentPath.empty() && currentPath == info.configPath);
   }
 
-  // Regular config pad - show its color
-  return info.color;
+  // Current config should always be full strength (regardless of hibernation).
+  if (isCurrentConfig) {
+    return info.color;
+  }
+
+  // Non-current configs show a dimmed version of their color.
+  return scale(info.color, kConfigDimFactor);
 }
 
 void ApcMiniController::onPadPressed(int padNote) {
@@ -472,21 +558,23 @@ void ApcMiniController::onPadReleased(int padNote) {
 // === Layer Buttons ===
 
 void ApcMiniController::onLayerButtonPressed(int buttonIndex) {
-  if (!synthPtr || buttonIndex >= kLayerPadCount) return;
+  if (!synthPtr || buttonIndex < 0 || buttonIndex >= kLayerPadCount) return;
 
-  // Check if layer exists
-  size_t layerCount = synthPtr->getLayerCount();
-  if (buttonIndex >= static_cast<int>(layerCount)) return;
+  // Use pause slots as the authoritative "layer exists" signal
+  const auto& pauseParamPtrs = synthPtr->getLayerPauseParamPtrs();
+  if (buttonIndex >= static_cast<int>(pauseParamPtrs.size()) || pauseParamPtrs[buttonIndex] == nullptr) return;
 
   // Toggle layer pause
   synthPtr->toggleLayerPauseSlot(buttonIndex);
-  updateLayerButtonLed(buttonIndex);
+
+  // Update the full row in one SysEx batch (more reliable than per-pad)
+  updateAllLayerButtonLeds();
 }
 
 void ApcMiniController::updateLayerButtonLed(int buttonIndex) {
+  // Keep per-button update for completeness, but prefer row updates
   if (!connected || buttonIndex < 0 || buttonIndex >= kLayerPadCount) return;
 
-  // Default: off
   bool layerExists = false;
   bool isPaused = false;
 
@@ -500,34 +588,45 @@ void ApcMiniController::updateLayerButtonLed(int buttonIndex) {
     }
   }
 
-  // RGB pad row (0-7): green off/dim/bright
-  if (!layerExists) {
-    setBottomButtonLed(buttonIndex, kColorOff);
-  } else {
-    setBottomButtonLed(buttonIndex, isPaused ? kColorDimGreen : kColorBrightGreen);
-  }
-
-  // Physical Track Buttons (100-107): red off/solid/blink
-  // Protocol: 0=off, 1=on, 2=blink
-  int velocity = 0;
+  RgbColor color = kColorOff;
   if (layerExists) {
-    velocity = isPaused ? 2 : 1;
+    color = isPaused ? kColorDimLayer : kColorBrightLayer;
   }
 
-  int trackNote = kBottomButtonNoteFirst + buttonIndex;
-  if (midiOutControl.isOpen()) {
-    midiOutControl.sendNoteOn(1, trackNote, velocity);
-  } else {
-    midiOut.sendNoteOn(1, trackNote, velocity);
-  }
+  setBottomButtonLed(buttonIndex, color);
 }
 
 void ApcMiniController::updateAllLayerButtonLeds() {
   if (!connected) return;
 
+  std::vector<std::pair<int, RgbColor>> updates;
+  updates.reserve(kLayerPadCount);
+
+  const auto* pauseParamPtrsPtr = synthPtr ? &synthPtr->getLayerPauseParamPtrs() : nullptr;
+
   for (int i = 0; i < kLayerPadCount; i++) {
-    updateLayerButtonLed(i);
+    bool layerExists = false;
+    bool isPaused = false;
+
+    if (pauseParamPtrsPtr) {
+      const auto& pauseParamPtrs = *pauseParamPtrsPtr;
+      layerExists = i < static_cast<int>(pauseParamPtrs.size()) && pauseParamPtrs[i] != nullptr;
+      if (layerExists) {
+        isPaused = pauseParamPtrs[i]->get();
+      }
+    }
+
+    RgbColor color = kColorOff;
+    if (layerExists) {
+      color = isPaused ? kColorDimLayer : kColorBrightLayer;
+    }
+
+    int padNote = kLayerPadNoteFirst + i;
+    updates.push_back({padNote, color});
+    padCurrentColors[padNote] = color;
   }
+
+  setPadRgbBatch(updates);
 }
 
 // === Faders ===
@@ -605,7 +704,6 @@ void ApcMiniController::clearAllLeds() {
   setPadRgbBatch(padUpdates);
 
   // Turn off physical bottom buttons (RED-only LEDs, notes 100-107)
-  // These are not used for our layer controls but we clear them for cleanliness
   if (midiOutControl.isOpen()) {
     for (int i = 0; i < kBottomButtonCount; i++) {
       midiOutControl.sendNoteOn(1, kBottomButtonNoteFirst + i, 0);
@@ -617,15 +715,18 @@ void ApcMiniController::clearAllLeds() {
     setSideButtonLed(i, kColorOff);
   }
 
-  // Clear shift button (use note-on with velocity 0)
+  // Clear shift button
   if (midiOutControl.isOpen()) {
     midiOutControl.sendNoteOn(1, kShiftButtonNote, 0);
-  } else {
+  }
+  if (midiOut.isOpen()) {
     midiOut.sendNoteOn(1, kShiftButtonNote, 0);
   }
 
   ofLogNotice("ApcMiniController") << "Cleared all LEDs";
 }
+
+
 
 void ApcMiniController::setPadRgb(int padNote, const RgbColor& color) {
   if (!connected || padNote < 0 || padNote >= kPadCount) return;
@@ -675,8 +776,8 @@ void ApcMiniController::setPadRgbBatch(const std::vector<std::pair<int, RgbColor
 }
 
 void ApcMiniController::setBottomButtonLed(int buttonIndex, const RgbColor& color) {
-  // Layer toggle buttons are now on the bottom row of the RGB pad grid (notes 0-7)
-  // NOT the physical bottom buttons (notes 100-107) which are RED-only LEDs
+  // Layer toggle buttons are on the bottom row of the RGB pad grid (notes 0-7)
+  // NOT the physical Track Buttons (notes 100-107) which are RED-only LEDs
   if (!connected || buttonIndex < 0 || buttonIndex >= kLayerPadCount) return;
 
   int padNote = kLayerPadNoteFirst + buttonIndex;  // notes 0-7
