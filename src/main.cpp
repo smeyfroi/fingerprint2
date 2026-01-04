@@ -6,14 +6,14 @@
 // ***********************************************
 // ***********************************************
 #define FULLSCREEN
-const int MAIN_MONITOR_ID = 1;
+const int MAIN_MONITOR_ID = 0;
 const int GUI_MONITOR_ID = 0;
 
 // Window sizes when not fullscreen
-const int MAIN_WINDOW_WIDTH = 1960;
-const int MAIN_WINDOW_HEIGHT = 1200;
-const int GUI_WINDOW_WIDTH = 1200;
-const int GUI_WINDOW_HEIGHT = 1200;
+//const int MAIN_WINDOW_WIDTH = 1960;
+//const int MAIN_WINDOW_HEIGHT = 1200;
+//const int GUI_WINDOW_WIDTH = 1200;
+//const int GUI_WINDOW_HEIGHT = 1200;
 
 // ***********************************************
 // ***********************************************
