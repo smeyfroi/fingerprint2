@@ -19,7 +19,7 @@ const int GUI_MONITOR_ID = 0;
 // ***********************************************
 
 //========================================================================
-int main( ){
+int main() {
 #ifdef FULLSCREEN
   // init GLFW manually (since no OF window yet)
   if(!glfwInit()){

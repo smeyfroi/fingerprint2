@@ -6,11 +6,28 @@ This document describes the implementation plan for integrating the Akai APC Min
 
 **Relationship with existing Launch Control XL:**
 - Launch Control XL: Detailed parameter control (encoders for audio analysis, faders for intents/layers, OLED display)
-- APC Mini MK2: Visual config grid navigation (64 RGB pads for config selection, faders for layer alphas)
+- APC Mini MK2: Visual config grid navigation (56 RGB pads for config selection, 8 RGB pads for layer toggle, faders for layer alphas)
 
 Both controllers can operate simultaneously, each serving a distinct purpose.
 
 **Reference implementation:** JavaScript library at `/Users/steve/Development/opensource/akai-apc-mini-mk2`
+
+---
+
+## Hardware LED Limitations
+
+**IMPORTANT:** The physical buttons on the APC Mini MK2 have single-color LEDs, NOT RGB:
+
+| Button Group | Notes | LED Color | Controllable |
+|--------------|-------|-----------|--------------|
+| Track Buttons 1-8 | 100-107 (0x64-0x6B) | **RED only** | On/Off/Blink only |
+| Scene Launch 1-8 | 112-119 (0x70-0x77) | **GREEN only** | On/Off/Blink only |
+| Shift | 122 (0x7A) | None | N/A |
+| Pad Grid | 0-63 | **Full RGB** | 128 colors or custom RGB via SysEx |
+
+Because of this limitation, **layer toggle buttons are implemented on the bottom row of the RGB pad grid (notes 0-7)** instead of the physical Track Buttons. This allows proper visual feedback with dim/bright green for paused/active states.
+
+The physical Track Buttons (100-107) are turned off and unused.
 
 ---
 
@@ -336,33 +353,53 @@ const uint32_t kApcColorPalette[128] = {
 
 ## Feature Mapping
 
-### Pad Grid: Config Playlist Navigation
+### Pad Grid Layout
 
-Each pad represents one config file from the PerformanceNavigator playlist (up to 64 configs).
+The 8x8 pad grid is divided into two sections:
 
-**Grid layout** (reading order matches file sort order):
 ```
-Config indices (left-to-right, bottom-to-top like Ableton):
 ┌────┬────┬────┬────┬────┬────┬────┬────┐
-│ 56 │ 57 │ 58 │ 59 │ 60 │ 61 │ 62 │ 63 │ Row 8
+│ 56 │ 57 │ 58 │ 59 │ 60 │ 61 │ 62 │ 63 │ Config Row 7
 ├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 48 │ 49 │ 50 │ 51 │ 52 │ 53 │ 54 │ 55 │ Row 7
+│ 48 │ 49 │ 50 │ 51 │ 52 │ 53 │ 54 │ 55 │ Config Row 6
 ├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 40 │ 41 │ 42 │ 43 │ 44 │ 45 │ 46 │ 47 │ Row 6
+│ 40 │ 41 │ 42 │ 43 │ 44 │ 45 │ 46 │ 47 │ Config Row 5
 ├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 32 │ 33 │ 34 │ 35 │ 36 │ 37 │ 38 │ 39 │ Row 5
+│ 32 │ 33 │ 34 │ 35 │ 36 │ 37 │ 38 │ 39 │ Config Row 4
 ├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 24 │ 25 │ 26 │ 27 │ 28 │ 29 │ 30 │ 31 │ Row 4
+│ 24 │ 25 │ 26 │ 27 │ 28 │ 29 │ 30 │ 31 │ Config Row 3
 ├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 16 │ 17 │ 18 │ 19 │ 20 │ 21 │ 22 │ 23 │ Row 3
+│ 16 │ 17 │ 18 │ 19 │ 20 │ 21 │ 22 │ 23 │ Config Row 2
 ├────┼────┼────┼────┼────┼────┼────┼────┤
-│  8 │  9 │ 10 │ 11 │ 12 │ 13 │ 14 │ 15 │ Row 2
+│  8 │  9 │ 10 │ 11 │ 12 │ 13 │ 14 │ 15 │ Config Row 1
 ├────┼────┼────┼────┼────┼────┼────┼────┤
-│  0 │  1 │  2 │  3 │  4 │  5 │  6 │  7 │ Row 1
+│ L1 │ L2 │ L3 │ L4 │ L5 │ L6 │ L7 │ L8 │ LAYER TOGGLE (notes 0-7)
 └────┴────┴────┴────┴────┴────┴────┴────┘
 ```
 
-**Note**: Config index maps directly to MIDI note number for simplicity.
+- **Bottom row (notes 0-7)**: Layer pause toggle buttons (RGB, using green colors)
+- **Rows 1-7 (notes 8-63)**: Config selection grid (56 slots for configs)
+
+### Layer Toggle Row (Bottom Row, Notes 0-7)
+
+The bottom row of the pad grid is dedicated to layer pause toggle buttons.
+
+| Pad | Note | Function | LED Color |
+|-----|------|----------|-----------|
+| L1 | 0 | Toggle Layer 1 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
+| L2 | 1 | Toggle Layer 2 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
+| L3 | 2 | Toggle Layer 3 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
+| L4 | 3 | Toggle Layer 4 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
+| L5 | 4 | Toggle Layer 5 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
+| L6 | 5 | Toggle Layer 6 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
+| L7 | 6 | Toggle Layer 7 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
+| L8 | 7 | Toggle Layer 8 pause | Bright green (active) / Dim green (paused) / Off (no layer) |
+
+### Config Grid (Rows 1-7, Notes 8-63)
+
+Each pad in rows 1-7 represents one config file from the PerformanceNavigator playlist (up to 56 configs).
+
+**Note**: Configs with `buttonGrid` coordinates at y=7 (bottom row) will be auto-assigned to a free slot since that row is reserved for layer toggles.
 
 **LED states:**
 | State | Color | Index | Animation |

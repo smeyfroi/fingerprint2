@@ -72,16 +72,19 @@ void ofApp::setup(){
 
 void ofApp::onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e) {
   midiController.onSynthWillUnload();
+  apcMiniController.onSynthWillUnload();
 }
 
 void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
   midiController.onSynthDidLoad(synthPtr);
+  apcMiniController.onSynthDidLoad(synthPtr);
 }
 
 //--------------------------------------------------------------
 void ofApp::update(){
   synthPtr->update();
   midiController.update();
+  apcMiniController.update();
 }
 
 //--------------------------------------------------------------
@@ -102,6 +105,7 @@ void ofApp::exit(){
   }
 
   midiController.exit();
+  apcMiniController.exit();
 }
 
 //--------------------------------------------------------------

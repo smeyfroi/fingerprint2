@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "ApcMiniController.h"
 #include "MidiController.h"
 #include "ofxMarkSynth.h"
 
@@ -109,4 +110,5 @@ private:
   std::shared_ptr<ofAppBaseWindow> guiWindowPtr;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
   MidiController midiController;
+  ApcMiniController apcMiniController;
 };
