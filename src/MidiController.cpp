@@ -9,6 +9,7 @@
 
 namespace {
 constexpr int kFaderKnobOffset = 24;
+constexpr float kIntentEpsilon = 0.0001f;
 }
 
 MidiController::MidiController() {
@@ -36,11 +37,11 @@ void MidiController::update() {
   if (synthPtr) {
     bool currentRecordingState = synthPtr->isRecording();
     bool currentSavingState = synthPtr->getActiveSaveCount() > 0;
-    
+
     // Get current config timer values (total seconds)
     int currentConfigTimeSeconds = synthPtr->getConfigRunningMinutes() * 60 + synthPtr->getConfigRunningSeconds();
-    
-    if (currentRecordingState != lastRecordingState || 
+
+    if (currentRecordingState != lastRecordingState ||
         currentSavingState != lastSavingState ||
         currentConfigTimeSeconds != lastDisplayedConfigTimeSeconds) {
       lastRecordingState = currentRecordingState;
@@ -49,6 +50,8 @@ void MidiController::update() {
       updateStationaryDisplay();
     }
   }
+
+  updateIntentIndicatorLeds();
 }
 
 void MidiController::newMidiMessage(ofxMidiMessage& message) {
@@ -75,25 +78,23 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
   }
 
   // === Top row function buttons (CC 37-44) ===
+  // Used as intent indicator LEDs only (no button actions).
   if (cc >= kFunctionButtonCCFirst && cc <= kFunctionButtonCCLast) {
-    int index = cc - kFunctionButtonCCFirst;
+    return;
+  }
+
+  // === Bottom row buttons (CC 45-52) ===
+  // Always active Mod Snapshot load (independent of shift mode).
+  if (cc >= kBottomRowButtonCCFirst && cc <= kBottomRowButtonCCLast) {
+    int index = cc - kBottomRowButtonCCFirst;
     if (pressed) {
       setButtonLedByCC(cc, kButtonPressedColor);
       if (synthPtr) {
-        if (!shiftModeParameter) {
-          // Snapshot mode: load snapshot
-          synthPtr->loadModSnapshotSlot(index);
-          showTempDisplay("Snapshot", std::to_string(index + 1));
-        } else {
-          // Layer mode: toggle layer pause
-          synthPtr->toggleLayerPauseSlot(index);
-          showTempDisplay("Layer " + std::to_string(index + 1), "Toggle Pause");
-        }
+        synthPtr->loadModSnapshotSlot(index);
+        showTempDisplay("Snapshot", std::to_string(index + 1));
       }
     } else {
-      // Restore to mode color
-      LedColor modeColor = shiftModeParameter ? kLayerModeColor : kAgencyModeColor;
-      setButtonLedByCC(cc, modeColor);
+      setButtonLedByCC(cc, kAgencyModeColor);
     }
     return;
   }
@@ -155,7 +156,7 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
     return;
   }
 
-  // Bottom row buttons (CC 45-52) - now unused, ignore
+  // Unhandled CCs ignored.
 }
 
 void MidiController::setButtonLedByCC(int cc, const LedColor& color) {
@@ -164,7 +165,7 @@ void MidiController::setButtonLedByCC(int cc, const LedColor& color) {
 
   // Convert CC to button number (1-16)
   // Top row: CC 37-44 → buttons 1-8
-  // Bottom row: CC 45-52 → buttons 9-16 (unused but kept for potential future use)
+  // Bottom row: CC 45-52 → buttons 9-16
   int buttonNum = 0;
   if (cc >= kFunctionButtonCCFirst && cc <= kFunctionButtonCCLast) {
     buttonNum = cc - kFunctionButtonCCFirst + 1;  // 1-8
@@ -211,11 +212,51 @@ void MidiController::updateModeLeds() {
   auto* leds = lc ? lc->getLeds() : nullptr;
   if (!leds) return;
 
-  LedColor modeColor = shiftModeParameter ? kLayerModeColor : kAgencyModeColor;
+  // Bottom row buttons (9-16): always Mod Snapshot buttons
+  for (int i = 9; i <= 16; ++i) {
+    leds->setButtonLED(i, kAgencyModeColor);
+  }
 
-  // Top row buttons (CC 37-44 → buttons 1-8)
-  for (int i = 1; i <= 8; ++i) {
-    leds->setButtonLED(i, modeColor);
+  // Top row buttons (1-8): intent indicators (updated per-frame)
+  updateIntentIndicatorLeds();
+}
+
+void MidiController::updateIntentIndicatorLeds() {
+  auto* leds = lc ? lc->getLeds() : nullptr;
+  if (!leds) return;
+
+  std::array<LedColor, 8> desiredColors {
+    kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor
+  };
+
+  if (synthPtr) {
+    ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
+    if (intentParameters.size() > 0) {
+      size_t masterIndex = intentParameters.size() - 1;
+      size_t activationCount = std::min<size_t>(7, masterIndex);
+
+      float masterStrength = intentParameters.getFloat(masterIndex).get();
+
+      for (size_t i = 0; i < activationCount; ++i) {
+        float value = intentParameters.getFloat(i).get();
+        if (masterStrength <= kIntentEpsilon) {
+          desiredColors[i] = kDimIntentColor;
+        } else {
+          desiredColors[i] = (value > kIntentEpsilon) ? kBrightIntentColor : kDimIntentColor;
+        }
+      }
+
+      desiredColors[7] = (masterStrength > kIntentEpsilon) ? kBrightIntentColor : kDimIntentColor;
+    }
+  }
+
+  for (size_t i = 0; i < desiredColors.size(); ++i) {
+    const LedColor& desired = desiredColors[i];
+    LedColor& current = lastIntentIndicatorColors[i];
+    if (desired.r != current.r || desired.g != current.g || desired.b != current.b) {
+      leds->setButtonLED((int)i + 1, desired);
+      current = desired;
+    }
   }
 }
 
@@ -223,14 +264,15 @@ void MidiController::setupInitialLeds() {
   auto* leds = lc ? lc->getLeds() : nullptr;
   if (!leds) return;
 
-  // === Top row (CC 37-44 → buttons 1-8) - Snapshot mode color (red) ===
+  // === Top row (buttons 1-8): intent indicator LEDs (set per-frame) ===
   for (int i = 1; i <= 8; ++i) {
-    leds->setButtonLED(i, kAgencyModeColor);
-  }
-
-  // === Bottom row buttons (9-16) - all off (unused, transport handled by hardware) ===
-  for (int i = 9; i <= 16; ++i) {
     leds->setButtonLED(i, kOffColor);
+  }
+  lastIntentIndicatorColors.fill(kOffColor);
+
+  // === Bottom row buttons (9-16): Mod Snapshot 1-8 (always active) ===
+  for (int i = 9; i <= 16; ++i) {
+    leds->setButtonLED(i, kAgencyModeColor);
   }
 
   // === Encoder LEDs (1-based numbering, encoders 1-24) ===

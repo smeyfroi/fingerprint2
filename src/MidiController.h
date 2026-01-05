@@ -29,6 +29,10 @@ class MidiController : public ofxMidiListener {
   static constexpr LedColor kButtonPressedColor = {127, 127, 127}; // White
   static constexpr LedColor kOffColor = {0, 0, 0};
 
+  // Intent indicator colors (top row)
+  static constexpr LedColor kBrightIntentColor = {127, 127, 0};  // Bright yellow
+  static constexpr LedColor kDimIntentColor = {8, 8, 0};        // Dim yellow
+
   // Encoder colors
   static constexpr LedColor kAgencyEncoderColor = {64, 0, 0};    // Red (encoder 0)
   static constexpr LedColor kBlueEncoderColor = {0, 0, 32};      // Blue (encoders 2, 10)
@@ -37,11 +41,11 @@ class MidiController : public ofxMidiListener {
   static constexpr LedColor kMagentaEncoderColor = {64, 0, 64}; // Magenta (encoders 5, 13, 15)
 
   // === Button CC Constants ===
-  // Top row function buttons (CC 37-44 on channel 1)
+  // Top row function buttons (CC 37-44 on channel 1) - used as intent indicator LEDs
   static constexpr int kFunctionButtonCCFirst = 37;
   static constexpr int kFunctionButtonCCLast = 44;
 
-  // Bottom row buttons (CC 45-52 on channel 1) - now unused
+  // Bottom row buttons (CC 45-52 on channel 1) - Mod Snapshot buttons 1-8
   static constexpr int kBottomRowButtonCCFirst = 45;
   static constexpr int kBottomRowButtonCCLast = 52;
 
@@ -70,7 +74,9 @@ class MidiController : public ofxMidiListener {
   void setLayerAlphasFullyOn();
   void setupInitialLeds();
   void updateModeLeds();
+  void updateIntentIndicatorLeds();
   void handleButtonCC(int channel, int cc, int value);
+
   void setButtonLedByCC(int cc, const LedColor& color);
   LedColor getButtonRestoreColor(int cc) const;
   void sendKeyPress(int key);
@@ -87,6 +93,11 @@ class MidiController : public ofxMidiListener {
   bool lastSavingState = false;     // For polling save-in-progress state changes
   int lastDisplayedConfigTimeSeconds = -1;  // For polling config timer changes
   uint64_t tempDisplayDismissTimeMs = 0;  // When to dismiss temp display (0 = none pending)
+
+  // Top row (buttons 1-8) intent indicator LED state cache
+  std::array<LedColor, 8> lastIntentIndicatorColors {
+    kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor
+  };
 
   // LED state tracking for restore after momentary press feedback
   std::unordered_map<int, LedColor> buttonRestoreColors;

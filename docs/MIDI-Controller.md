@@ -10,10 +10,10 @@ This document describes the MIDI controller mapping for the Novation Launch Cont
 
 The controller has two modes controlled by the **Shift** button:
 
-| Mode | Top Row Buttons | Faders | Play Button | Record Button |
-|------|-----------------|--------|-------------|---------------|
-| **Off** (Red LEDs) | Load Snapshot 1-8 | Intent Parameters | Pause/Play | Save Image |
-| **On** (Green LEDs) | Toggle Layer Pause 1-8 | Layer Alpha 1-8 | Hibernate | Save Image |
+| Mode | Top Row Buttons | Bottom Row Buttons | Faders | Play Button | Record Button |
+|------|-----------------|--------------------|--------|-------------|---------------|
+| **Off** | Intent Indicators | Load Snapshot 1-8 | Intent Parameters | Pause/Play | Save Image |
+| **On** | Intent Indicators | Load Snapshot 1-8 | Layer Alpha 1-8 | Hibernate | Save Image |
 
 ---
 
@@ -29,23 +29,31 @@ The controller has two modes controlled by the **Shift** button:
 
 ---
 
-## Top Row Buttons (1-8)
+## Top Row Buttons (1-8) - Intent Indicators
 
-These buttons change color based on shift mode:
-- **Red** = Snapshot mode (Shift Off)
-- **Green** = Layer mode (Shift On)
+These buttons are **LED indicators only** (button presses do nothing):
 
-| Button | Shift Off | Shift On |
-|--------|-----------|----------|
-| 1-8 | Load Snapshot 1-8 | Toggle Layer 1-8 Pause |
+| Button | Indicator |
+|--------|-----------|
+| 1-7 | Intent activation 1-7 |
+| 8 | Master intent strength |
 
-Buttons flash **white** when pressed.
+LED behavior:
+- **Bright yellow** = value > 0.0 and master strength > 0.0
+- **Dim yellow** = parameter exists but value == 0.0 (or master strength == 0.0)
+- **Off** = no matching intent parameter exists
 
 ---
 
-## Bottom Row Buttons (9-16)
+## Bottom Row Buttons (9-16) - Mod Snapshots
 
-Currently unused (LEDs off). Transport functions have moved to the hardware transport buttons.
+| Button | Function |
+|--------|----------|
+| 9-16 | Load Snapshot 1-8 |
+
+LED behavior:
+- **Red** = always on (snapshot buttons always active)
+- **White** = flashes while pressed
 
 ---
 
@@ -119,10 +127,11 @@ Shows briefly when controls are used:
 ### Button LEDs
 | State | Color |
 |-------|-------|
-| Snapshot Mode | Red |
-| Layer Mode | Green |
+| Snapshot Buttons (bottom row) | Red |
+| Intent > 0.0 | Bright yellow |
+| Intent == 0.0 (exists) | Dim yellow |
 | Button Pressed | White |
-| Unused | Off |
+| No intent parameter | Off |
 
 ### Encoder LEDs
 | Encoder | Color |
@@ -142,5 +151,5 @@ Shows briefly when controls are used:
 - Auto-temp-display is disabled for all faders, encoders, and buttons (only our custom temporary overlays are shown)
 - All button CCs are on MIDI channel 1, except Shift (channel 7)
 - Transport button CCs: Shift=63, Play=116, Record=118, Track Left=103, Track Right=102
-- Top row button CCs: 37-44
-- Bottom row button CCs: 45-52 (unused)
+- Top row button CCs: 37-44 (intent indicators)
+- Bottom row button CCs: 45-52 (mod snapshots)
