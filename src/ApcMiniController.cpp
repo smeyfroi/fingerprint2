@@ -232,11 +232,21 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
     return;
   }
 
+  // Always start from a known dark state before painting the pad layout.
+  // This avoids any stale LEDs surviving across performance/config loads.
+  clearAllLeds();
+  for (auto& c : padCurrentColors) {
+    c = kColorOff;
+  }
+  currentHold.active = false;
+  currentHold.padNote = -1;
+
+  auto& nav = synthPtr->getPerformanceNavigator();
+
   // Build pad-to-config mapping from the navigator's config list
   buildPadConfigMap();
 
   // Find which pad corresponds to the current config
-  auto& nav = synthPtr->getPerformanceNavigator();
   currentConfigPadNote = -1;
   int currentIdx = nav.getCurrentIndex();
   lastKnownConfigIndex = currentIdx;
@@ -786,29 +796,46 @@ void ApcMiniController::setPadRgb(int padNote, const RgbColor& color) {
 void ApcMiniController::setPadRgbBatch(const std::vector<std::pair<int, RgbColor>>& pads) {
   if (!connected || pads.empty()) return;
 
-  // Build batch sysex data - each pad needs 8 bytes
+  // Reliability: some APC Mini MK2 firmware/OS combos appear to drop or partially
+  // apply very large SysEx messages. Send in small chunks.
+  static constexpr size_t kMaxPadsPerMessage = 8;
+
   std::vector<uint8_t> data;
-  data.reserve(pads.size() * 8);
+  data.reserve(kMaxPadsPerMessage * 8);
 
-  for (const auto& [padNote, color] : pads) {
-    if (padNote < 0 || padNote >= kPadCount) continue;
+  for (size_t i = 0; i < pads.size(); ) {
+    data.clear();
 
-    auto [rMsb, rLsb] = toMsbLsb(color.r);
-    auto [gMsb, gLsb] = toMsbLsb(color.g);
-    auto [bMsb, bLsb] = toMsbLsb(color.b);
+    size_t padsAdded = 0;
+    for (; i < pads.size() && padsAdded < kMaxPadsPerMessage; ++i) {
+      const auto& [padNote, color] = pads[i];
+      if (padNote < 0 || padNote >= kPadCount) continue;
 
-    data.push_back(static_cast<uint8_t>(padNote));  // from
-    data.push_back(static_cast<uint8_t>(padNote));  // to
-    data.push_back(rMsb);
-    data.push_back(rLsb);
-    data.push_back(gMsb);
-    data.push_back(gLsb);
-    data.push_back(bMsb);
-    data.push_back(bLsb);
-  }
+      auto [rMsb, rLsb] = toMsbLsb(color.r);
+      auto [gMsb, gLsb] = toMsbLsb(color.g);
+      auto [bMsb, bLsb] = toMsbLsb(color.b);
 
-  if (!data.empty()) {
-    sendSysex(kSysexRgbMessageType, data);
+      data.push_back(static_cast<uint8_t>(padNote));  // from
+      data.push_back(static_cast<uint8_t>(padNote));  // to
+      data.push_back(rMsb);
+      data.push_back(rLsb);
+      data.push_back(gMsb);
+      data.push_back(gLsb);
+      data.push_back(bMsb);
+      data.push_back(bLsb);
+      padsAdded++;
+    }
+
+    if (!data.empty()) {
+      sendSysex(kSysexRgbMessageType, data);
+
+      // Give the device/driver a moment to consume SysEx bursts.
+      // Without this, large multi-chunk updates (like the config grid repaint)
+      // can be partially dropped, leaving stale/off LEDs.
+      if (i < pads.size()) {
+        ofSleepMillis(1);
+      }
+    }
   }
 }
 
