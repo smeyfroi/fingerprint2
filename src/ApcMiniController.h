@@ -61,6 +61,16 @@ public:
   static constexpr int kBottomButtonNoteFirst = 100;
   static constexpr int kBottomButtonNoteLast = 107;
   static constexpr int kBottomButtonCount = 8;
+
+  // Bottom button note aliases
+  static constexpr int kArrowLeftButtonNote = 106;   // Prev config (OF_KEY_LEFT)
+  static constexpr int kArrowRightButtonNote = 107;  // Next config (OF_KEY_RIGHT)
+
+  // Single-color LED velocity values
+  static constexpr int kSingleLedOff = 0;
+  static constexpr int kSingleLedOn = 1;
+  static constexpr int kSingleLedBlink = 2;
+
   static constexpr int kShiftButtonNote = 122;
 
   // === Layer Toggle Pads (Bottom row of grid, notes 0-7) ===
@@ -206,9 +216,11 @@ private:
 
   // === LED Control ===
   void clearAllLeds();
+  void restorePersistentLeds();
   void setPadRgb(int padNote, const RgbColor& color);
   void setPadRgbBatch(const std::vector<std::pair<int, RgbColor>>& pads);
   void setBottomButtonLed(int buttonIndex, const RgbColor& color);
+  void setPhysicalBottomButtonLed(int note, int velocity);
   void setSideButtonLed(int buttonIndex, const RgbColor& color);
   void dimInactiveControls();
 

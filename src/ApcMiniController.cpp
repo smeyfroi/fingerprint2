@@ -83,6 +83,7 @@ bool ApcMiniController::tryConnect() {
 
   // Clear all LEDs to known state on connection
   clearAllLeds();
+  restorePersistentLeds();
 
   return true;
 }
@@ -206,6 +207,7 @@ void ApcMiniController::update() {
   uint64_t nowMs = ofGetElapsedTimeMillis();
   if (nowMs - lastLayerLedUpdateMs >= 200) {
     updateAllLayerButtonLeds();
+    restorePersistentLeds();
     lastLayerLedUpdateMs = nowMs;
   }
 }
@@ -253,6 +255,7 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
   updateAllPadLeds();
   updateAllLayerButtonLeds();
   dimInactiveControls();
+  restorePersistentLeds();
 }
 
 void ApcMiniController::onSynthWillUnload() {
@@ -312,6 +315,23 @@ void ApcMiniController::handleNoteOn(int note, int velocity) {
     return;
   }
 
+  // Arrow buttons (physical bottom row) → same behavior as keyboard arrow keys
+  if (note == kArrowLeftButtonNote) {
+    if (synthPtr) {
+      synthPtr->keyPressed(OF_KEY_LEFT);
+    }
+    restorePersistentLeds();
+    return;
+  }
+
+  if (note == kArrowRightButtonNote) {
+    if (synthPtr) {
+      synthPtr->keyPressed(OF_KEY_RIGHT);
+    }
+    restorePersistentLeds();
+    return;
+  }
+
   // Physical Track Buttons (notes 100-107): ignored
   // (They still send input, but we use the RGB pad row for layer controls.)
 
@@ -322,6 +342,23 @@ void ApcMiniController::handleNoteOff(int note) {
   // Config pads (rows 1-7, notes 8-63) - need release for hold-to-confirm
   if (note >= kConfigPadNoteFirst && note <= kConfigPadNoteLast) {
     onPadReleased(note);
+    return;
+  }
+
+  // Arrow buttons (physical bottom row)
+  if (note == kArrowLeftButtonNote) {
+    if (synthPtr) {
+      synthPtr->keyReleased(OF_KEY_LEFT);
+    }
+    restorePersistentLeds();
+    return;
+  }
+
+  if (note == kArrowRightButtonNote) {
+    if (synthPtr) {
+      synthPtr->keyReleased(OF_KEY_RIGHT);
+    }
+    restorePersistentLeds();
     return;
   }
 
@@ -785,6 +822,25 @@ void ApcMiniController::setBottomButtonLed(int buttonIndex, const RgbColor& colo
   padCurrentColors[padNote] = color;
 }
 
+void ApcMiniController::setPhysicalBottomButtonLed(int note, int velocity) {
+  if (!connected) return;
+
+  velocity = ofClamp(velocity, 0, 127);
+
+  if (midiOutControl.isOpen()) {
+    midiOutControl.sendNoteOn(1, note, velocity);
+  } else if (midiOut.isOpen()) {
+    midiOut.sendNoteOn(1, note, velocity);
+  }
+}
+
+void ApcMiniController::restorePersistentLeds() {
+  if (!connected) return;
+
+  setPhysicalBottomButtonLed(kArrowLeftButtonNote, kSingleLedOn);
+  setPhysicalBottomButtonLed(kArrowRightButtonNote, kSingleLedOn);
+}
+
 void ApcMiniController::setSideButtonLed(int buttonIndex, const RgbColor& color) {
   if (!connected || buttonIndex < 0 || buttonIndex >= kSideButtonCount) return;
 
@@ -820,6 +876,8 @@ void ApcMiniController::dimInactiveControls() {
   } else {
     midiOut.sendNoteOn(1, kShiftButtonNote, 0);
   }
+
+  restorePersistentLeds();
 }
 
 // === Sysex Helpers ===
