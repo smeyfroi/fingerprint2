@@ -193,7 +193,14 @@ uint8_t lsb = value % 128;
 // Full message: F0 47 7F 4F 24 00 08 00 00 01 7F 01 00 00 40 F7
 ```
 
-**Batch updates**: Can set multiple pad ranges in a single sysex message. Recommended batch size is 32 pads to avoid dropped frames.
+**Batch updates**: Can set multiple pad ranges in a single sysex message.
+
+**Reliability note (important):** In practice, large RGB SysEx payloads and/or rapid back-to-back SysEx bursts can be dropped or only partially applied by the APC Mini MK2 (or the OS MIDI stack). This shows up as stale LEDs surviving a clear, or config pads failing to repaint.
+
+To keep LED updates reliable in fingerprint2:
+- Split RGB updates into small chunks (currently `8` pads per SysEx).
+- Pace chunks slightly (currently `ofSleepMillis(1)` between chunks).
+- When loading a new performance/config layout, clear all pads first, then repaint.
 
 **Read fader positions (messageType = 0x60):**
 ```cpp
