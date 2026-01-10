@@ -1,5 +1,6 @@
 #include "ApcMiniController.h"
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 
@@ -8,6 +9,7 @@
 
 ApcMiniController::ApcMiniController() {
   padCurrentColors.fill(kColorOff);
+  padLedRetryUntilMs.fill(0);
   for (auto& fs : faderStates) {
     fs.lastMidiValue = -1.0f;
     fs.targetParamValue = 0.0f;
@@ -17,6 +19,42 @@ ApcMiniController::ApcMiniController() {
 
 ApcMiniController::~ApcMiniController() {
   exit();
+}
+
+void ApcMiniController::queuePadLedUpdate(int padNote) {
+  if (padNote < 0 || padNote >= kPadCount) return;
+  std::lock_guard<std::mutex> lock(ledQueueMutex);
+  pendingPadLedUpdates.push_back(padNote);
+}
+
+void ApcMiniController::queueLayerLedRefresh() {
+  std::lock_guard<std::mutex> lock(ledQueueMutex);
+  pendingLayerLedRefresh = true;
+}
+
+void ApcMiniController::flushQueuedLedUpdates() {
+  std::vector<int> padNotes;
+  bool refreshLayer = false;
+
+  {
+    std::lock_guard<std::mutex> lock(ledQueueMutex);
+    padNotes.swap(pendingPadLedUpdates);
+    refreshLayer = pendingLayerLedRefresh;
+    pendingLayerLedRefresh = false;
+  }
+
+  if (!padNotes.empty()) {
+    std::sort(padNotes.begin(), padNotes.end());
+    padNotes.erase(std::unique(padNotes.begin(), padNotes.end()), padNotes.end());
+
+    for (int note : padNotes) {
+      updatePadLed(note);
+    }
+  }
+
+  if (refreshLayer) {
+    updateAllLayerButtonLeds();
+  }
 }
 
 bool ApcMiniController::tryConnect() {
@@ -106,6 +144,25 @@ void ApcMiniController::disconnect() {
 void ApcMiniController::update() {
   if (!synthPtr) return;
 
+  uint64_t nowMs = ofGetElapsedTimeMillis();
+
+  // Apply any LED updates requested by MIDI callbacks early.
+  // This improves perceived responsiveness for hold/amber feedback.
+  flushQueuedLedUpdates();
+
+  // While a pad is being held, resend amber at a gentle fixed rate.
+  // This makes hold feedback resilient to occasional dropped SysEx.
+  if (currentHold.active && currentHold.padNote >= 0 && currentHold.padNote < kPadCount) {
+    if (lastHoldAmberSendMs == 0 || nowMs - lastHoldAmberSendMs >= 120) {
+      setPadRgbBatch({{currentHold.padNote, kColorAmber}});
+      padCurrentColors[currentHold.padNote] = kColorAmber;
+      padLedRetryUntilMs[currentHold.padNote] = nowMs + 500;
+      lastHoldAmberSendMs = nowMs;
+    }
+  } else {
+    lastHoldAmberSendMs = 0;
+  }
+
   // Track external config changes (e.g. keyboard / other controller)
   {
     auto& nav = synthPtr->getPerformanceNavigator();
@@ -117,6 +174,7 @@ void ApcMiniController::update() {
         needsRecompute = true;
       }
     }
+
 
     if (needsRecompute) {
       int previousPad = currentConfigPadNote;
@@ -173,7 +231,7 @@ void ApcMiniController::update() {
 
   // Check for hold timeout
   if (currentHold.active) {
-    uint64_t elapsed = ofGetElapsedTimeMillis() - currentHold.startTimeMs;
+    uint64_t elapsed = nowMs - currentHold.startTimeMs;
     if (elapsed >= kHoldThresholdMs) {
       // Trigger config switch
       int heldPad = currentHold.padNote;
@@ -186,8 +244,9 @@ void ApcMiniController::update() {
       if (configIndex >= 0) {
         // Clear the controller during config transitions to avoid stale LEDs
         clearAllLeds();
-        for (auto& c : padCurrentColors) {
-          c = kColorOff;
+        for (int i = 0; i < kPadCount; i++) {
+          padCurrentColors[i] = kColorOff;
+          padLedRetryUntilMs[i] = 0;
         }
 
         // Now trigger the config switch
@@ -204,12 +263,18 @@ void ApcMiniController::update() {
   }
 
   // Layer LEDs: refresh periodically (layer params can come online after load)
-  uint64_t nowMs = ofGetElapsedTimeMillis();
   if (nowMs - lastLayerLedUpdateMs >= 200) {
     updateAllLayerButtonLeds();
     restorePersistentLeds();
     lastLayerLedUpdateMs = nowMs;
   }
+
+
+  // Keep hold feedback + recent changes reliable.
+  if (currentHold.active && currentHold.padNote >= 0 && currentHold.padNote < kPadCount) {
+    padLedRetryUntilMs[currentHold.padNote] = nowMs + 500;
+  }
+  processPadLedRetries();
 }
 
 void ApcMiniController::exit() {
@@ -330,7 +395,6 @@ void ApcMiniController::handleNoteOn(int note, int velocity) {
     if (synthPtr) {
       synthPtr->keyPressed(OF_KEY_LEFT);
     }
-    restorePersistentLeds();
     return;
   }
 
@@ -338,7 +402,6 @@ void ApcMiniController::handleNoteOn(int note, int velocity) {
     if (synthPtr) {
       synthPtr->keyPressed(OF_KEY_RIGHT);
     }
-    restorePersistentLeds();
     return;
   }
 
@@ -360,7 +423,6 @@ void ApcMiniController::handleNoteOff(int note) {
     if (synthPtr) {
       synthPtr->keyReleased(OF_KEY_LEFT);
     }
-    restorePersistentLeds();
     return;
   }
 
@@ -368,7 +430,6 @@ void ApcMiniController::handleNoteOff(int note) {
     if (synthPtr) {
       synthPtr->keyReleased(OF_KEY_RIGHT);
     }
-    restorePersistentLeds();
     return;
   }
 
@@ -508,20 +569,26 @@ void ApcMiniController::buildPadConfigMap() {
 void ApcMiniController::updateAllPadLeds() {
   if (!connected) return;
 
-  // Only update config pads. Notes 0-7 are reserved for layer toggle LEDs.
+  uint64_t nowMs = ofGetElapsedTimeMillis();
+
+  // Paint all config pads every time (56 pads).
+  // This avoids getting "stuck" when the device drops a SysEx but our cached
+  // padCurrentColors thinks it succeeded.
   std::vector<std::pair<int, RgbColor>> updates;
-  for (int i = kConfigPadNoteFirst; i <= kConfigPadNoteLast; i++) {
-    RgbColor color = getPadDisplayColor(i);
-    if (color != padCurrentColors[i]) {
-      updates.push_back({i, color});
-      padCurrentColors[i] = color;
-    }
+  updates.reserve(kConfigPadCount);
+
+  for (int padNote = kConfigPadNoteFirst; padNote <= kConfigPadNoteLast; padNote++) {
+    RgbColor color = getPadDisplayColor(padNote);
+    updates.push_back({padNote, color});
+    padCurrentColors[padNote] = color;
+
+    // Short retry window for dropped chunks.
+    padLedRetryUntilMs[padNote] = nowMs + 350;
   }
 
-  if (!updates.empty()) {
-    setPadRgbBatch(updates);
-  }
+  setPadRgbBatch(updates);
 }
+
 
 void ApcMiniController::updatePadLed(int padNote) {
   if (!connected || padNote < 0 || padNote >= kPadCount) return;
@@ -530,8 +597,54 @@ void ApcMiniController::updatePadLed(int padNote) {
   if (color != padCurrentColors[padNote]) {
     setPadRgb(padNote, color);
     padCurrentColors[padNote] = color;
+
+    // Some SysEx updates get dropped; retry for a moment.
+    padLedRetryUntilMs[padNote] = ofGetElapsedTimeMillis() + 350;
   }
 }
+
+void ApcMiniController::processPadLedRetries() {
+  if (!connected) return;
+
+  uint64_t nowMs = ofGetElapsedTimeMillis();
+
+  // Trickle retries to avoid overwhelming the device/driver.
+  if (nowMs - lastPadLedRetrySendMs < 60) return;
+
+  static constexpr size_t kMaxRetryPadsPerTick = 8;
+
+  std::vector<std::pair<int, RgbColor>> updates;
+  updates.reserve(kMaxRetryPadsPerTick);
+
+  auto maybeAdd = [&](int padNote) {
+    if (padNote < 0 || padNote >= kPadCount) return;
+    if (padLedRetryUntilMs[padNote] <= nowMs) return;
+    for (const auto& [n, _] : updates) {
+      if (n == padNote) return;
+    }
+    updates.push_back({padNote, padCurrentColors[padNote]});
+  };
+
+  // Priority: held pad and current-config pad.
+  if (currentHold.active) {
+    maybeAdd(currentHold.padNote);
+  }
+  maybeAdd(currentConfigPadNote);
+
+  // Fair scan across all pads.
+  for (int i = 0; i < kPadCount && updates.size() < kMaxRetryPadsPerTick; i++) {
+    int padNote = (retryScanStart + i) % kPadCount;
+    maybeAdd(padNote);
+  }
+
+  retryScanStart = (retryScanStart + 1) % kPadCount;
+
+  if (!updates.empty()) {
+    lastPadLedRetrySendMs = nowMs;
+    setPadRgbBatch(updates);
+  }
+}
+
 
 ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) const {
   const auto& info = padConfigMap[padNote];
@@ -561,12 +674,18 @@ ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) c
   }
 
   // Determine whether this pad's config is the current one.
-  // Use Synth::getCurrentConfigPath() since it's authoritative and available
-  // even when navigator index/cached pad note are briefly out of sync at startup.
+  // Prefer the navigator index (robust against path normalization / symlinks).
   bool isCurrentConfig = false;
-  if (synthPtr && info.isAssigned && !info.configPath.empty()) {
-    const auto& currentPath = synthPtr->getCurrentConfigPath();
-    isCurrentConfig = (!currentPath.empty() && currentPath == info.configPath);
+  if (synthPtr && info.isAssigned) {
+    const auto& nav = synthPtr->getPerformanceNavigator();
+    int currentIdx = nav.getCurrentIndex();
+    isCurrentConfig = (currentIdx >= 0 && info.configIndex == currentIdx);
+
+    // Fallback (extra safety): direct path match.
+    if (!isCurrentConfig && !info.configPath.empty()) {
+      const auto& currentPath = synthPtr->getCurrentConfigPath();
+      isCurrentConfig = (!currentPath.empty() && currentPath == info.configPath);
+    }
   }
 
   // Current config should always be full strength (regardless of hibernation).
@@ -587,19 +706,28 @@ void ApcMiniController::onPadPressed(int padNote) {
   currentHold.padNote = padNote;
   currentHold.startTimeMs = ofGetElapsedTimeMillis();
 
-  // Show amber while holding
-  updatePadLed(padNote);
+  // Force a send even if our cached color is stale.
+  padCurrentColors[padNote] = kColorOff;
+
+  // LED updates are applied on the main thread in update().
+  queuePadLedUpdate(padNote);
+
+  // If the first SysEx is dropped, keep retrying while held.
+  padLedRetryUntilMs[padNote] = ofGetElapsedTimeMillis() + 500;
 }
 
 void ApcMiniController::onPadReleased(int padNote) {
   if (currentHold.active && currentHold.padNote == padNote) {
-    // Released before threshold - cancel hold
+    // Released before threshold - cancel hold.
     currentHold.active = false;
     currentHold.padNote = -1;
+
+    // Force a send even if our cached color is stale.
+    padCurrentColors[padNote] = kColorOff;
+
+    // LED updates are applied on the main thread in update().
+    queuePadLedUpdate(padNote);
   }
-  // Always update the pad LED on release to restore correct color
-  // (handles both cancelled holds and completed holds where user releases after activation)
-  updatePadLed(padNote);
 }
 
 // === Layer Buttons ===
@@ -614,8 +742,8 @@ void ApcMiniController::onLayerButtonPressed(int buttonIndex) {
   // Toggle layer pause
   synthPtr->toggleLayerPauseSlot(buttonIndex);
 
-  // Update the full row in one SysEx batch (more reliable than per-pad)
-  updateAllLayerButtonLeds();
+  // LED updates are applied on the main thread in update().
+  queueLayerLedRefresh();
 }
 
 void ApcMiniController::updateLayerButtonLed(int buttonIndex) {
@@ -747,6 +875,7 @@ void ApcMiniController::clearAllLeds() {
   for (int i = 0; i < kPadCount; i++) {
     padUpdates.push_back({i, kColorOff});
     padCurrentColors[i] = kColorOff;
+    padLedRetryUntilMs[i] = 0;
   }
   setPadRgbBatch(padUpdates);
 

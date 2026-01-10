@@ -2,6 +2,7 @@
 
 #include <array>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -118,7 +119,7 @@ public:
   static constexpr RgbColor kColorDefaultConfig = {128, 128, 128};
 
   // === Config LED Brightness ===
-  static constexpr float kConfigDimFactor = 0.09f;
+  static constexpr float kConfigDimFactor = 0.20f;
 
   // === Config Grid Entry ===
   struct ConfigPadInfo {
@@ -158,6 +159,9 @@ private:
   // === Pad Grid State ===
   std::array<ConfigPadInfo, kPadCount> padConfigMap;
   std::array<RgbColor, kPadCount> padCurrentColors;
+  std::array<uint64_t, kPadCount> padLedRetryUntilMs;
+  uint64_t lastPadLedRetrySendMs = 0;
+  int retryScanStart = 0;
   int currentConfigPadNote = -1;  // Which pad has the currently loaded config
   int lastKnownConfigIndex = -1;  // Tracks navigator changes (including non-APC switches)
   int lastKnownHibState = -1;     // Tracks hibernation state changes
@@ -170,7 +174,17 @@ private:
     uint64_t startTimeMs = 0;
   };
   HoldState currentHold;
+  uint64_t lastHoldAmberSendMs = 0;
 
+  // === LED Update Queue (MIDI thread → main thread) ===
+  std::mutex ledQueueMutex;
+  std::vector<int> pendingPadLedUpdates;
+  bool pendingLayerLedRefresh = false;
+
+  void queuePadLedUpdate(int padNote);
+  void queueLayerLedRefresh();
+  void flushQueuedLedUpdates();
+ 
   // === Fader Pickup State ===
   struct FaderState {
     float lastMidiValue = -1.0f;  // Last value from MIDI (normalized 0-1)
@@ -192,6 +206,7 @@ private:
   void buildPadConfigMap();
   void updateAllPadLeds();
   void updatePadLed(int padNote);
+  void processPadLedRetries();
   void onPadPressed(int padNote);
   void onPadReleased(int padNote);
   RgbColor getPadDisplayColor(int padNote) const;
