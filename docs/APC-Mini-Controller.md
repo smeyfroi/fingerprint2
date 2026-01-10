@@ -88,16 +88,17 @@ The physical Track Buttons (100-107) are turned off and unused.
 #### Pad Grid (Notes 0-63)
 - **Layout**: 8 columns x 8 rows
 - **Note calculation**: `note = x + (7 - y) * 8` where x, y are 0-based
+- **Important orientation**: in `fingerprint2`, **`y=0` means the top row** (notes 56–63). The physical bottom row is `y=7` (notes 0–7).
 - **Coordinate to note examples**:
-  - Bottom-left (0,0) = Note 56
-  - Bottom-right (7,0) = Note 63
-  - Top-left (0,7) = Note 0
-  - Top-right (7,7) = Note 7
+  - Top-left (0,0) = Note 56
+  - Top-right (7,0) = Note 63
+  - Bottom-left (0,7) = Note 0
+  - Bottom-right (7,7) = Note 7
 - **JS library naming**: `pad11` to `pad88` (1-based, `padXY` where X=column, Y=row from bottom)
 
 **Note-to-coordinate conversion:**
 ```cpp
-// Note to x,y (0-based, y=0 is bottom row)
+// Note to x,y (0-based, y=0 is top row)
 int x = note % 8;
 int y = 7 - (note / 8);
 
@@ -142,6 +143,10 @@ int note = x + (7 - y) * 8;
 | 54 | 6 | `fader6` |
 | 55 | 7 | `fader7` |
 | 56 | 8 | `fader8` |
+
+In `fingerprint2`, fader mapping is:
+- CC 48-55: layer alpha (layers 1-8)
+- CC 56 (master): `Synth Agency`
 
 ---
 
@@ -201,6 +206,7 @@ To keep LED updates reliable in fingerprint2:
 - Split RGB updates into small chunks (currently `8` pads per SysEx).
 - Pace chunks slightly (currently `ofSleepMillis(1)` between chunks).
 - When loading a new performance/config layout, clear all pads first, then repaint.
+- If an individual pad gets "stuck" off, the safest recovery is to reload the performance/config (or restart the app). If the device appears to stop responding to RGB updates entirely, power-cycle the APC Mini MK2.
 
 **Read fader positions (messageType = 0x60):**
 ```cpp
@@ -406,7 +412,7 @@ The bottom row of the pad grid is dedicated to layer pause toggle buttons.
 
 Each pad in rows 1-7 represents one config file from the PerformanceNavigator playlist (up to 56 configs).
 
-**Note**: Configs with `buttonGrid` coordinates at y=7 (bottom row) will be auto-assigned to a free slot since that row is reserved for layer toggles.
+**Note**: Configs should use `buttonGrid.y` in `0..6` (7 config rows). `buttonGrid.y=7` is the physical bottom row (notes 0-7) and reserved for layer toggles, so configs that specify y=7 will be auto-assigned to a free slot.
 
 **LED states:**
 | State | Color | Notes |
@@ -420,8 +426,8 @@ Each pad in rows 1-7 represents one config file from the PerformanceNavigator pl
 
 **Interaction:**
 1. Press and hold a pad to initiate jump to that config
-2. Hold for 400ms (same as PerformanceNavigator.HOLD_THRESHOLD_MS)
-3. LED pulses during hold to show progress
+2. Hold for 400ms (same as `PerformanceNavigator::kHoldThresholdMs`)
+3. LED turns amber while held
 4. On release before threshold: cancel
 5. On threshold reached: trigger `PerformanceNavigator::jumpTo(index)`
 
