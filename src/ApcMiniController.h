@@ -85,10 +85,13 @@ public:
   static constexpr int kConfigPadCount = 56;  // 7 rows * 8 columns
 
   // === Faders (CC 48-56) ===
+  // CC 48-55: layer alpha faders
+  // CC 56: master fader (mapped to Synth Agency)
   static constexpr int kFaderCCFirst = 48;
   static constexpr int kFaderCCLast = 56;
   static constexpr int kFaderCount = 9;
-  static constexpr int kLayerFaderCount = 8;  // Only first 8 used for layers
+  static constexpr int kLayerFaderCount = 8;  // CC 48-55
+  static constexpr int kAgencyFaderCC = 56;
 
   // === Timing ===
   static constexpr uint64_t kHoldThresholdMs = 400;
@@ -148,6 +151,8 @@ public:
 
 private:
   // === MIDI I/O ===
+  // The APC Mini MK2 exposes separate MIDI ports for "Control" and "Notes".
+  // We prefer Control for input, and fall back to Notes if needed.
   ofxMidiIn midiIn;
   ofxMidiOut midiOut;        // Notes port - for pad RGB
   ofxMidiOut midiOutControl; // Control port - for buttons (test)
@@ -184,7 +189,7 @@ private:
   void queuePadLedUpdate(int padNote);
   void queueLayerLedRefresh();
   void flushQueuedLedUpdates();
- 
+
   // === Fader Pickup State ===
   struct FaderState {
     float lastMidiValue = -1.0f;  // Last value from MIDI (normalized 0-1)
@@ -192,6 +197,7 @@ private:
     bool pickedUp = false;
   };
   std::array<FaderState, kLayerFaderCount> faderStates;
+  FaderState agencyFaderState;
 
   // === Connection ===
   bool tryConnect();
@@ -226,7 +232,9 @@ private:
 
   // === Faders ===
   void onFaderMoved(int faderIndex, float normalizedValue);
+  void onAgencyFaderMoved(float normalizedValue);
   void bindFadersToLayerAlphas();
+  void bindAgencyFader();
   void resetFaderPickupStates();
 
   // === LED Control ===

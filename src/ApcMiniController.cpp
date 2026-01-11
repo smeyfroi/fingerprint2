@@ -63,17 +63,21 @@ bool ApcMiniController::tryConnect() {
   midiIn.listInPorts();
   midiOut.listOutPorts();
 
-  int inPort = -1;
+  int inPortControl = -1;
+  int inPortNotes = -1;
   int outPortNotes = -1;
   int outPortControl = -1;
 
-  // Find input port (Control port for buttons/faders)
+  // Find input ports (Control + Notes)
   for (int i = 0; i < midiIn.getNumInPorts(); i++) {
     std::string name = midiIn.getInPortName(i);
-    if (name.find(kInputPortPattern) != std::string::npos) {
-      inPort = i;
-      ofLogNotice("ApcMiniController") << "Found input port: " << name;
-      break;
+    if (inPortControl < 0 && name.find(kInputPortPattern) != std::string::npos) {
+      inPortControl = i;
+      ofLogNotice("ApcMiniController") << "Found Control input port: " << name;
+    }
+    if (inPortNotes < 0 && name.find(kNotesPortPattern) != std::string::npos) {
+      inPortNotes = i;
+      ofLogNotice("ApcMiniController") << "Found Notes input port: " << name;
     }
   }
 
@@ -90,16 +94,20 @@ bool ApcMiniController::tryConnect() {
     }
   }
 
-  if (inPort < 0 || outPortNotes < 0) {
+  if ((inPortControl < 0 && inPortNotes < 0) || outPortNotes < 0) {
     ofLogNotice("ApcMiniController") << "APC Mini MK2 not found";
     return false;
   }
 
-  if (!midiIn.openPort(inPort)) {
+  // Prefer the Control port for input (buttons + faders).
+  // If it's not present, fall back to Notes.
+  int primaryInPort = (inPortControl >= 0) ? inPortControl : inPortNotes;
+  if (!midiIn.openPort(primaryInPort)) {
     ofLogWarning("ApcMiniController") << "Failed to open input port";
     return false;
   }
   midiIn.addListener(this);
+
 
   if (!midiOut.openPort(outPortNotes)) {
     ofLogWarning("ApcMiniController") << "Failed to open Notes output port";
@@ -325,6 +333,7 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
 
   // Bind faders to layer alphas
   bindFadersToLayerAlphas();
+  bindAgencyFader();
 
   // Update all LEDs
   updateAllPadLeds();
@@ -438,11 +447,19 @@ void ApcMiniController::handleNoteOff(int note) {
 }
 
 void ApcMiniController::handleCC(int cc, int value) {
-  // Faders (CC 48-55 for layers, 56 unused)
+  // Faders
+  // CC 48-55: layer alphas
+  // CC 56: Synth Agency
+  float normalized = value / 127.0f;
+
   if (cc >= kFaderCCFirst && cc < kFaderCCFirst + kLayerFaderCount) {
     int faderIndex = cc - kFaderCCFirst;
-    float normalized = value / 127.0f;
     onFaderMoved(faderIndex, normalized);
+    return;
+  }
+
+  if (cc == kAgencyFaderCC) {
+    onAgencyFaderMoved(normalized);
     return;
   }
 }
@@ -838,6 +855,50 @@ void ApcMiniController::onFaderMoved(int faderIndex, float normalizedValue) {
   fs.lastMidiValue = normalizedValue;
 }
 
+void ApcMiniController::onAgencyFaderMoved(float normalizedValue) {
+  if (!synthPtr) return;
+
+  auto paramWrapper = synthPtr->findParameterByNamePrefix("Synth Agency");
+  if (paramWrapper == std::nullopt) return;
+
+  ofParameter<float>& param = paramWrapper->get().cast<float>();
+  auto& fs = agencyFaderState;
+
+  if (!fs.pickedUp) {
+    float paramValue = param.get();
+    float paramNormalized = (paramValue - param.getMin()) / (param.getMax() - param.getMin());
+
+    if (std::abs(normalizedValue - paramNormalized) <= kPickupThreshold) {
+      fs.pickedUp = true;
+      ofLogVerbose("ApcMiniController") << "Agency fader picked up";
+    } else {
+      fs.lastMidiValue = normalizedValue;
+      return;
+    }
+  }
+
+  float min = param.getMin();
+  float max = param.getMax();
+  float newValue = min + normalizedValue * (max - min);
+  param.set(newValue);
+  fs.lastMidiValue = normalizedValue;
+}
+
+void ApcMiniController::bindAgencyFader() {
+  if (!synthPtr) return;
+
+  auto paramWrapper = synthPtr->findParameterByNamePrefix("Synth Agency");
+  if (paramWrapper == std::nullopt) return;
+
+  ofParameter<float>& param = paramWrapper->get().cast<float>();
+  float paramValue = param.get();
+  float paramNormalized = (paramValue - param.getMin()) / (param.getMax() - param.getMin());
+
+  agencyFaderState.targetParamValue = paramNormalized;
+  agencyFaderState.pickedUp = false;
+  agencyFaderState.lastMidiValue = -1.0f;
+}
+
 void ApcMiniController::bindFadersToLayerAlphas() {
   resetFaderPickupStates();
 
@@ -863,6 +924,8 @@ void ApcMiniController::resetFaderPickupStates() {
     fs.pickedUp = false;
     fs.lastMidiValue = -1.0f;
   }
+  agencyFaderState.pickedUp = false;
+  agencyFaderState.lastMidiValue = -1.0f;
 }
 
 // === LED Control ===
