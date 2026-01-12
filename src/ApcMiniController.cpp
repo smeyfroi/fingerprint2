@@ -2,10 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <fstream>
 
 #include "ofMain.h"
-#include "ofJson.h"
 
 ApcMiniController::ApcMiniController() {
   padCurrentColors.fill(kColorOff);
@@ -479,105 +477,23 @@ void ApcMiniController::buildPadConfigMap() {
   auto& nav = synthPtr->getPerformanceNavigator();
   const auto& configs = nav.getConfigs();
 
-  // Track which pads are taken (for conflict resolution)
-  std::array<bool, kPadCount> padTaken;
-  padTaken.fill(false);
+  // Populate from the navigator's resolved 8x7 grid (y=0 is top row).
+  for (int y = 0; y < ofxMarkSynth::PerformanceNavigator::GRID_HEIGHT; ++y) {
+    for (int x = 0; x < ofxMarkSynth::PerformanceNavigator::GRID_WIDTH; ++x) {
+      const int configIdx = nav.getGridConfigIndex(x, y);
+      if (configIdx < 0 || configIdx >= static_cast<int>(configs.size())) continue;
 
-  // Track last assigned color for cloning
-  RgbColor lastColor = kColorDefaultConfig;
+      const int padNote = xyToPadNote(x, y);
+      if (padNote < kConfigPadNoteFirst || padNote > kConfigPadNoteLast) continue;
 
-  // First pass: assign configs with explicit buttonGrid
-  for (int configIdx = 0; configIdx < static_cast<int>(configs.size()); configIdx++) {
-    const std::string& configPath = configs[configIdx];
+      const auto c = nav.getConfigGridColor(configIdx);
+      const RgbColor color { c.r, c.g, c.b };
 
-    // Parse the config JSON to get buttonGrid
-    std::ifstream file(configPath);
-    if (!file.is_open()) continue;
-
-    ofJson json;
-    try {
-      file >> json;
-    } catch (...) {
-      ofLogWarning("ApcMiniController") << "Failed to parse config: " << configPath;
-      continue;
+      padConfigMap[padNote].configIndex = configIdx;
+      padConfigMap[padNote].configPath = configs[configIdx];
+      padConfigMap[padNote].color = color;
+      padConfigMap[padNote].isAssigned = true;
     }
-
-    if (!json.contains("buttonGrid")) continue;
-
-    auto& bg = json["buttonGrid"];
-    if (!bg.contains("x") || !bg.contains("y")) continue;
-
-    int x = bg["x"].get<int>();
-    int y = bg["y"].get<int>();
-
-    if (x < 0 || x >= kGridWidth || y < 0 || y >= kGridHeight) {
-      ofLogWarning("ApcMiniController") << "Invalid buttonGrid coords in " << configPath;
-      continue;
-    }
-
-    int padNote = xyToPadNote(x, y);
-    
-    // Bottom row (notes 0-7) is reserved for layer toggle buttons
-    if (padNote < kConfigPadNoteFirst) {
-      ofLogWarning("ApcMiniController") << "Config " << configPath
-                                         << " uses reserved layer row (y=7), will be auto-assigned";
-      continue;
-    }
-
-    // Check for conflict
-    if (padTaken[padNote]) {
-      ofLogError("ApcMiniController") << "Config " << configPath
-                                       << " conflicts with existing pad at (" << x << "," << y << ")";
-      // Will be auto-assigned later
-      continue;
-    }
-
-    // Parse color
-    RgbColor color = kColorDefaultConfig;
-    if (bg.contains("color")) {
-      color = parseHexColor(bg["color"].get<std::string>());
-    }
-
-    padConfigMap[padNote].configIndex = configIdx;
-    padConfigMap[padNote].configPath = configPath;
-    padConfigMap[padNote].color = color;
-    padConfigMap[padNote].isAssigned = true;
-    padTaken[padNote] = true;
-    lastColor = color;
-  }
-
-  // Second pass: auto-assign configs without buttonGrid or with conflicts
-  // Start at note 8 (row 1) since notes 0-7 (row 0) are reserved for layer toggle
-  int nextFreePad = kConfigPadNoteFirst;
-  auto findNextFreePad = [&]() {
-    while (nextFreePad <= kConfigPadNoteLast && padTaken[nextFreePad]) {
-      nextFreePad++;
-    }
-    return nextFreePad <= kConfigPadNoteLast ? nextFreePad : -1;
-  };
-
-  for (int configIdx = 0; configIdx < static_cast<int>(configs.size()); configIdx++) {
-    // Check if this config is already assigned
-    bool alreadyAssigned = false;
-    for (int i = 0; i < kPadCount; i++) {
-      if (padConfigMap[i].configIndex == configIdx) {
-        alreadyAssigned = true;
-        break;
-      }
-    }
-    if (alreadyAssigned) continue;
-
-    int freePad = findNextFreePad();
-    if (freePad < 0) {
-      ofLogWarning("ApcMiniController") << "No free pad for config index " << configIdx;
-      break;
-    }
-
-    padConfigMap[freePad].configIndex = configIdx;
-    padConfigMap[freePad].configPath = configs[configIdx];
-    padConfigMap[freePad].color = lastColor;  // Clone previous color
-    padConfigMap[freePad].isAssigned = true;
-    padTaken[freePad] = true;
   }
 
   ofLogNotice("ApcMiniController") << "Built pad config map for " << configs.size() << " configs";

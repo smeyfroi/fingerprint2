@@ -1,8 +1,10 @@
-# TODO: Akai APC Mini MK2 Controller Implementation
+# Akai APC Mini MK2 Controller Implementation
 
 ## Overview
 
-This document describes the implementation plan for integrating the Akai APC Mini MK2 MIDI controller with fingerprint2. The APC Mini provides an 8x8 RGB pad grid ideal for visual config playlist navigation, plus 9 faders for layer alpha control.
+This document describes the Akai APC Mini MK2 MIDI controller integration with fingerprint2. The APC Mini provides an 8x8 RGB pad grid ideal for visual performance config navigation, plus 9 faders for layer alpha control.
+
+Status: implemented in `src/ApcMiniController.h` and `src/ApcMiniController.cpp`.
 
 **Relationship with existing Launch Control XL:**
 - Launch Control XL: Detailed parameter control (encoders for audio analysis, faders for intents/layers, OLED display)
@@ -25,9 +27,9 @@ Both controllers can operate simultaneously, each serving a distinct purpose.
 | Shift | 122 (0x7A) | None | N/A |
 | Pad Grid | 0-63 | **Full RGB** | 128 colors or custom RGB via SysEx |
 
-Because of this limitation, **layer toggle buttons are implemented on the bottom row of the RGB pad grid (notes 0-7)** instead of the physical Track Buttons. This allows proper visual feedback with dim/bright green for paused/active states.
+Because of this limitation, **layer toggle buttons are implemented on the bottom row of the RGB pad grid (notes 0-7)** instead of relying on the physical Track Buttons for feedback. This allows proper visual feedback.
 
-The physical Track Buttons (100-107) are turned off and unused.
+The physical Track Buttons (100-107) are still accepted as alternate layer-toggle inputs, but their red-only LEDs are not suitable as the primary layer feedback channel.
 
 ---
 
@@ -410,23 +412,31 @@ The bottom row of the pad grid is dedicated to layer pause toggle buttons.
 
 ### Config Grid (Rows 1-7, Notes 8-63)
 
-Each pad in rows 1-7 represents one config file from the PerformanceNavigator playlist (up to 56 configs).
+Each pad in rows 1-7 represents one performance config (up to 56 configs).
 
-**Note**: Configs should use `buttonGrid.y` in `0..6` (7 config rows). `buttonGrid.y=7` is the physical bottom row (notes 0-7) and reserved for layer toggles, so configs that specify y=7 will be auto-assigned to a free slot.
+**Grid mapping source of truth:** the resolved config grid lives in `ofxMarkSynth::PerformanceNavigator`.
+- `PerformanceNavigator::loadFromFolder()` parses each config JSON once (on load) and extracts `buttonGrid` metadata.
+- Both the `ofxMarkSynth` ImGui pad-grid UI and the APC controller read from the same resolved mapping.
+
+**Config JSON schema:**
+- `buttonGrid.x`: `0..7`
+- `buttonGrid.y`: `0..6` (7 config rows; `y=0` is top row)
+- `buttonGrid.color`: `"#RRGGBB"`
+- `buttonGrid.y=7` is the physical bottom row (notes 0-7) and reserved for layer toggles; it will be treated as invalid and auto-assigned.
+
+**Auto-assignment:** missing/out-of-range/conflicting `buttonGrid` entries are auto-assigned in row-major order, **top-left → bottom-right**.
 
 **LED states:**
 | State | Color | Notes |
 |-------|-------|-------|
 | No config at this slot | Off | |
-| Config available (not current) | Dim version of config color | Uses `kConfigDimFactor` |
-| Current config (active/playing) | Full config color | |
-| Current config (hibernated) | Dim version of config color | Uses `kConfigDimFactor` |
-| Current config (fading) | Medium version of config color | Uses `kConfigFadeFactor` |
+| Config available (not current) | Dim version of config color | Uses `kConfigDimFactor` (`0.20`) |
+| Current config | Full config color | Current config is full-strength (even when hibernated) |
 | Hold-to-confirm in progress | Amber | Overrides everything while held |
 
 **Interaction:**
 1. Press and hold a pad to initiate jump to that config
-2. Hold for 400ms (same as `PerformanceNavigator::kHoldThresholdMs`)
+2. Hold for 400ms (same as `PerformanceNavigator::HOLD_THRESHOLD_MS`)
 3. LED turns amber while held
 4. On release before threshold: cancel
 5. On threshold reached: trigger `PerformanceNavigator::jumpTo(index)`
@@ -452,448 +462,77 @@ Faders 0-7 control layer alphas, matching the Launch Control XL's Shift mode.
 - Bind to `Synth::getLayerAlphaParameters()` (same as Launch Control XL)
 - Fader 8 (CC 56) is reserved but not mapped initially
 
-### Side Buttons: Snapshot Slots
+### Side Buttons (Notes 112-119)
 
-| Button | Note | Function |
-|--------|------|----------|
-| Clip Stop | 112 | Load Snapshot 1 |
-| Solo | 113 | Load Snapshot 2 |
-| Mute | 114 | Load Snapshot 3 |
-| Rec Arm | 115 | Load Snapshot 4 |
-| Select | 116 | Load Snapshot 5 |
-| Drum | 117 | Load Snapshot 6 |
-| Note | 118 | Load Snapshot 7 |
-| Stop All Clips | 119 | Load Snapshot 8 |
+Currently unused in fingerprint2.
+- They are cleared/dimmed as part of `ApcMiniController::clearAllLeds()` / `dimInactiveControls()`.
+- (Future) Could be mapped to snapshot slots or other functions.
 
-**LED feedback:**
-- Off when snapshot slot is empty
-- On (bright) when snapshot is available
-- Blink briefly on press
+### Track Buttons (Notes 100-107)
 
-### Track Buttons (Bottom Row): Not Used (RED-only)
+The physical Track Buttons have **RED-only** LEDs (no RGB).
 
-The physical Track Buttons 1-8 (notes 100-107) have **RED-only** LEDs (no RGB).
+In fingerprint2:
+- Notes `106`/`107` (◄/►) are used as alternate prev/next config inputs (they forward to `OF_KEY_LEFT`/`OF_KEY_RIGHT`, so hold-to-confirm behavior comes from `PerformanceNavigator`).
+- Other track buttons are currently unused.
 
-In practice (and per the protocol document), these are single-color LEDs and are not suitable for the green dim/bright/off feedback we want for layers.
-
-We leave them unused and keep all layer control + feedback on the **RGB pad grid bottom row** (notes 0-7).
+Primary layer control + feedback remains on the **RGB pad grid bottom row** (notes 0-7).
 
 ---
 
 ## Implementation Phases
 
 ### Phase 1: Basic Setup & Connection
-- [ ] Create `ApcMiniController.h` and `ApcMiniController.cpp`
-- [ ] Add device detection using ofxMidi (port name matching)
-- [ ] Implement connect/disconnect handling
-- [ ] Add to `ofApp` lifecycle (setup, update, exit)
-- [ ] Test basic MIDI input/output
+- [x] Create `ApcMiniController.h` and `ApcMiniController.cpp`
+- [x] Add device detection using ofxMidi (port name matching)
+- [x] Implement connect/disconnect handling
+- [x] Add to `ofApp` lifecycle (setup, update, exit)
+- [x] Test basic MIDI input/output
 
 ### Phase 2: LED Control
-- [ ] Implement indexed color LED control (Note On messages)
-- [ ] Implement RGB color LED control via sysex (optional, for richer visuals)
-- [ ] Create LED state management (track current colors, batch updates)
-- [ ] Add helper functions for common LED patterns (pulse, blink)
-- [ ] Test LED feedback with manual color setting
+- [x] Implement indexed LED control (Note On velocity) for non-RGB buttons
+- [x] Implement RGB pad LED control via SysEx (`setPadRgb`/`setPadRgbBatch`)
+- [x] Add reliability measures (chunked SysEx sends, retry window, held-pad amber refresh)
+- [x] Track and batch LED state updates (per-pad caching + queued updates)
 
 ### Phase 3: Config Grid Navigation
-- [ ] Map pad notes (0-63) to config indices
-- [ ] Implement hold-to-confirm for pad presses
-- [ ] Connect to `PerformanceNavigator::jumpTo()`
-- [ ] Implement LED feedback showing:
-  - Available configs (from `PerformanceNavigator::getConfigs()`)
+- [x] Map pad notes (0-63) to performance grid coordinates
+- [x] Implement hold-to-confirm for pad presses
+- [x] Connect to `PerformanceNavigator::jumpTo()`
+- [x] Implement LED feedback showing:
+  - Available configs (from `PerformanceNavigator::getGridConfigIndex(x, y)`)
   - Current config (from `PerformanceNavigator::getCurrentIndex()`)
-  - Hold progress animation
-- [ ] Handle config load/unload events to refresh grid
+  - Hold progress (amber)
+- [x] Resolve grid mapping inside `ofxMarkSynth::PerformanceNavigator` so GUI + APC share one mapping
 
 ### Phase 4: Fader Layer Control
-- [ ] Map CC 48-55 to layer alpha parameters
-- [ ] Implement pickup/soft-takeover mode
-- [ ] Connect to `Synth::getLayerAlphaParameters()`
-- [ ] Handle Synth reload (rebind parameters on config change)
+- [x] Map CC 48-55 to layer alpha parameters
+- [x] Implement pickup/soft-takeover mode
+- [x] Connect to `Synth::getLayerAlphaParameters()`
+- [x] Handle Synth reload (rebind parameters on config change)
 
-### Phase 5: Side Buttons (Snapshots)
-- [ ] Map notes 112-119 to snapshot slots
-- [ ] Implement momentary press handling
-- [ ] Connect to `Synth::loadModSnapshotSlot()`
-- [ ] Add LED feedback for available snapshots
+### Phase 5: Side Buttons
+- [ ] (Optional) Map notes 112-119 to snapshot slots or other functions
 
 ### Phase 6: Arrow Button Navigation
-- [ ] Map notes 106-107 to prev/next config
-- [ ] Implement hold-to-confirm matching `PerformanceNavigator`
-- [ ] Add LED feedback during hold
+- [x] Map notes 106-107 to prev/next config (forward to `OF_KEY_LEFT`/`OF_KEY_RIGHT`)
+- [x] Use `PerformanceNavigator` hold-to-confirm via key press/release
 
 ### Phase 7: Polish & Integration
-- [ ] Handle hot-plug/unplug of controller
-- [ ] Add graceful degradation if controller not present
-- [ ] Coordinate with Launch Control XL (avoid conflicts)
-- [ ] Test full workflow with real performance configs
+- [x] Handle hot-plug/unplug of controller
+- [x] Add graceful degradation if controller not present
+- [x] Coordinate with Launch Control XL (avoid conflicts)
 
 ---
 
-## Class Design
+## Implementation Notes
 
-### Header: `ApcMiniController.h`
-
-```cpp
-#pragma once
-
-#include <array>
-#include <atomic>
-#include <memory>
-#include <string>
-#include <unordered_set>
-#include <vector>
-
-#include "ofxMidi.h"
-#include "ofxMarkSynth.h"
-
-class ApcMiniController : public ofxMidiListener {
-public:
-  // === MIDI Constants ===
-  
-  // Device identification
-  static constexpr const char* kDeviceNamePattern1 = "APC mini mk2 Contr";
-  static constexpr const char* kDeviceNamePattern2 = "APC mini mk2 MIDI 1";
-  
-  // Sysex identifiers
-  static constexpr uint8_t kManufacturerId = 0x47;  // Akai
-  static constexpr uint8_t kDeviceId = 0x7F;
-  static constexpr uint8_t kModelId = 0x4F;
-  
-  // Pad grid notes (0-63)
-  static constexpr int kPadNoteFirst = 0;
-  static constexpr int kPadNoteLast = 63;
-  static constexpr int kPadCount = 64;
-  
-  // Side button notes (112-119)
-  static constexpr int kSideButtonNoteFirst = 112;
-  static constexpr int kSideButtonNoteLast = 119;
-  static constexpr int kSideButtonCount = 8;
-  
-  // Bottom button notes
-  static constexpr int kVolumeButtonNote = 100;
-  static constexpr int kPanButtonNote = 101;
-  static constexpr int kSendButtonNote = 102;
-  static constexpr int kDeviceButtonNote = 103;
-  static constexpr int kArrowUpNote = 104;
-  static constexpr int kArrowDownNote = 105;
-  static constexpr int kArrowLeftNote = 106;
-  static constexpr int kArrowRightNote = 107;
-  static constexpr int kShiftButtonNote = 122;
-  
-  // Fader CCs (48-56)
-  static constexpr int kFaderCCFirst = 48;
-  static constexpr int kFaderCCLast = 56;
-  static constexpr int kFaderCount = 9;
-  
-  // Timing
-  static constexpr uint64_t kHoldThresholdMs = 400;  // Match PerformanceNavigator
-  
-  // === Color Indices (from APC palette) ===
-  static constexpr uint8_t kColorOff = 0;
-  static constexpr uint8_t kColorDimGray = 1;
-  static constexpr uint8_t kColorGray = 2;
-  static constexpr uint8_t kColorWhite = 3;
-  static constexpr uint8_t kColorGreen = 21;
-  static constexpr uint8_t kColorYellow = 13;
-  static constexpr uint8_t kColorOrange = 9;
-  static constexpr uint8_t kColorDimOrange = 10;
-  static constexpr uint8_t kColorRed = 5;
-
-  ApcMiniController();
-  ~ApcMiniController();
-  
-  // Lifecycle
-  bool setup();  // Returns true if device found
-  void update();
-  void exit();
-  
-  // Synth connection
-  void onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr);
-  void onSynthWillUnload();
-  
-  // ofxMidiListener
-  void newMidiMessage(ofxMidiMessage& message) override;
-  
-  // State queries
-  bool isConnected() const { return connected; }
-
-private:
-  // MIDI I/O
-  ofxMidiIn midiIn;
-  ofxMidiOut midiOut;
-  bool connected = false;
-  
-  // Synth reference
-  std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
-  
-  // === LED State ===
-  std::array<uint8_t, kPadCount> padColors;
-  std::array<uint8_t, kSideButtonCount> sideButtonColors;
-  
-  // === Hold State ===
-  struct HoldState {
-    bool active = false;
-    int note = -1;
-    uint64_t startTimeMs = 0;
-  };
-  HoldState currentHold;
-  
-  // === Fader State ===
-  struct FaderState {
-    float lastValue = -1.0f;  // For pickup mode
-    bool pickedUp = false;
-  };
-  std::array<FaderState, kFaderCount> faderStates;
-  
-  // === Message Handling ===
-  void handleNoteOn(int note, int velocity);
-  void handleNoteOff(int note);
-  void handleCC(int cc, int value);
-  
-  // === Pad Grid ===
-  void updatePadGrid();
-  void onPadPressed(int padIndex);
-  void onPadReleased(int padIndex);
-  int padNoteToConfigIndex(int note) const { return note; }  // Direct mapping
-  int configIndexToPadNote(int index) const { return index; }
-  
-  // === Side Buttons ===
-  void onSideButtonPressed(int buttonIndex);
-  void updateSideButtonLeds();
-  
-  // === Arrow Buttons ===
-  void onArrowLeftPressed();
-  void onArrowLeftReleased();
-  void onArrowRightPressed();
-  void onArrowRightReleased();
-  
-  // === Faders ===
-  void onFaderMoved(int faderIndex, float normalizedValue);
-  void bindFadersToLayerAlphas();
-  void unbindFaders();
-  
-  // === LED Control ===
-  void setPadColor(int note, uint8_t colorIndex);
-  void setSideButtonColor(int buttonIndex, uint8_t colorIndex);
-  void setAllPadsColor(uint8_t colorIndex);
-  void sendNoteOn(int note, int velocity);
-  
-  // === Sysex (for RGB mode, optional) ===
-  void sendSysex(uint8_t messageType, const std::vector<uint8_t>& data);
-  void setPadRgb(int note, uint8_t r, uint8_t g, uint8_t b);
-  
-  // === Utility ===
-  static std::pair<uint8_t, uint8_t> toMsbLsb(uint8_t value);
-};
-```
-
----
-
-## Integration Points
-
-### With Synth
-
-```cpp
-// In ofApp::setup() or when Synth is created:
-apcMiniController.onSynthDidLoad(synthPtr);
-
-// In ofApp::exit() or before Synth is destroyed:
-apcMiniController.onSynthWillUnload();
-
-// In ofApp::update():
-apcMiniController.update();
-```
-
-### With PerformanceNavigator
-
-```cpp
-// Access via Synth:
-auto& nav = synthPtr->getPerformanceNavigator();
-
-// Get config list:
-const auto& configs = nav.getConfigs();
-int configCount = nav.getConfigCount();
-
-// Get current state:
-int currentIndex = nav.getCurrentIndex();
-bool hasConfigs = nav.hasConfigs();
-
-// Navigate (after hold-to-confirm):
-nav.jumpTo(index);
-
-// For arrow buttons, use the existing hold system:
-// We'll need to add a new HoldSource for APC Mini
-nav.beginHold(PerformanceNavigator::HoldAction::NEXT, PerformanceNavigator::HoldSource::APC_MINI);
-nav.endHold(PerformanceNavigator::HoldSource::APC_MINI);
-```
-
-**Required modification to PerformanceNavigator:**
-Add `APC_MINI` to `HoldSource` enum:
-```cpp
-enum class HoldSource { NONE, KEYBOARD, MOUSE, APC_MINI };
-```
-
-### With LayerController
-
-```cpp
-// Access layer alpha parameters:
-ofParameterGroup& alphas = synthPtr->getLayerAlphaParameters();
-
-// Get individual parameter:
-ofParameter<float>& layerAlpha = alphas.getFloat(layerIndex);
-
-// Bind with pickup:
-// Store last known value, only update parameter when fader crosses it
-```
-
-### With ModSnapshotManager
-
-```cpp
-// Load snapshot:
-synthPtr->loadModSnapshotSlot(slotIndex);  // 0-7
-```
-
----
-
-## ofxMidi Integration Notes
-
-### Device Detection
-
-```cpp
-bool ApcMiniController::setup() {
-  // List available devices
-  midiIn.listInPorts();
-  midiOut.listOutPorts();
-  
-  // Find APC Mini by name
-  int inPort = -1, outPort = -1;
-  
-  for (int i = 0; i < midiIn.getNumInPorts(); i++) {
-    std::string name = midiIn.getInPortName(i);
-    if (name.find(kDeviceNamePattern1) != std::string::npos ||
-        name.find(kDeviceNamePattern2) != std::string::npos) {
-      inPort = i;
-      break;
-    }
-  }
-  
-  for (int i = 0; i < midiOut.getNumOutPorts(); i++) {
-    std::string name = midiOut.getOutPortName(i);
-    if (name.find(kDeviceNamePattern1) != std::string::npos ||
-        name.find(kDeviceNamePattern2) != std::string::npos) {
-      outPort = i;
-      break;
-    }
-  }
-  
-  if (inPort < 0 || outPort < 0) {
-    ofLogWarning("ApcMiniController") << "Device not found";
-    return false;
-  }
-  
-  midiIn.openPort(inPort);
-  midiIn.addListener(this);
-  midiOut.openPort(outPort);
-  
-  connected = true;
-  return true;
-}
-```
-
-### Sending MIDI
-
-```cpp
-void ApcMiniController::sendNoteOn(int note, int velocity) {
-  if (!connected) return;
-  midiOut.sendNoteOn(1, note, velocity);  // Channel 1
-}
-
-void ApcMiniController::sendSysex(uint8_t messageType, const std::vector<uint8_t>& data) {
-  if (!connected) return;
-  
-  auto [lenMsb, lenLsb] = toMsbLsb(static_cast<uint8_t>(data.size()));
-  
-  std::vector<uint8_t> message;
-  message.push_back(0xF0);  // Sysex start
-  message.push_back(kManufacturerId);
-  message.push_back(kDeviceId);
-  message.push_back(kModelId);
-  message.push_back(messageType);
-  message.push_back(lenMsb);
-  message.push_back(lenLsb);
-  message.insert(message.end(), data.begin(), data.end());
-  message.push_back(0xF7);  // Sysex end
-  
-  midiOut.sendMidiBytes(message);
-}
-```
-
----
-
-## Open Questions
-
-To be resolved when hardware arrives:
-
-1. **RGB vs Indexed colors**: Should we use sysex RGB for richer visuals, or stick with indexed colors for simplicity? RGB allows smooth animations but requires more code.
-
-2. **Fader pickup sensitivity**: What threshold feels right for soft-takeover? (e.g., must fader come within 5% of current value before taking control)
-
-3. **Animation frame rate**: For pulsing LEDs during hold-to-confirm, what update rate works well? (Start with 30fps)
-
-4. **Multiple pages**: If more than 64 configs, should we implement page navigation using arrow up/down buttons?
-
-5. **Shift button behavior**: What should Shift modify? Ideas:
-   - Shift + Pad = immediate jump (no hold required)
-   - Shift + Side button = toggle layer pause instead of snapshot load
-   - Shift + Arrow = skip 8 configs at a time
-
-6. **Coordination with Launch Control XL**: Both controllers can control layer alphas. Should they:
-   - Mirror each other (changes on one reflected on other's faders)?
-   - Operate independently (last touch wins)?
-   - Have the APC Mini defer to Launch Control XL when shift mode is active?
-
----
-
-## Testing Checklist
-
-### Phase 1: Connection
-- [ ] Device detected on USB connect
-- [ ] Device releases cleanly on disconnect
-- [ ] Hot-plug works (reconnect after unplug)
-- [ ] No crashes when device not present
-
-### Phase 2: LEDs
-- [ ] All 64 pads can be lit
-- [ ] All side buttons can be lit
-- [ ] Colors match expected palette
-- [ ] Reset (all off) works
-
-### Phase 3: Config Grid
-- [ ] Pads show available configs
-- [ ] Current config is highlighted
-- [ ] Hold-to-confirm triggers at 400ms
-- [ ] Early release cancels
-- [ ] Config actually changes
-- [ ] Grid updates after config change
-
-### Phase 4: Faders
-- [ ] Faders control layer alphas
-- [ ] Pickup mode prevents jumps
-- [ ] Works after config reload
-
-### Phase 5: Snapshots
-- [ ] Side buttons load snapshots
-- [ ] LEDs reflect snapshot availability
-
-### Phase 6: Arrow Navigation
-- [ ] Left arrow = previous config
-- [ ] Right arrow = next config
-- [ ] Hold-to-confirm works
-- [ ] Blocked at boundaries (first/last config)
-
----
+- Implementation: `src/ApcMiniController.h`, `src/ApcMiniController.cpp`
+- Config grid mapping: `ofxMarkSynth::PerformanceNavigator` is the source of truth (shared with the `ofxMarkSynth` ImGui pad-grid UI)
+- Pads (notes 8-63): RGB via SysEx, hold-to-confirm (amber while held)
+- Layers (notes 0-7): toggle pause slots with bright/dim white
+- Track buttons (notes 100-107): only 106/107 (◄/►) used as prev/next inputs; the rest are unused
+- Side buttons (notes 112-119) and Shift (122): currently unused/dimmed
 
 ## References
 
