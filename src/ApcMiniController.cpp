@@ -200,6 +200,10 @@ void ApcMiniController::update() {
       }
 
       lastKnownConfigIndex = currentIdx;
+
+      // Debounced full repaint after config changes.
+      // This recovers from occasional dropped SysEx chunks during big updates.
+      pendingFullPadRepaintAtMs = nowMs + 120;
     }
   }
 
@@ -248,24 +252,23 @@ void ApcMiniController::update() {
       currentHold.padNote = -1;
 
       if (configIndex >= 0) {
-        // Clear the controller during config transitions to avoid stale LEDs
-        clearAllLeds();
-        for (int i = 0; i < kPadCount; i++) {
-          padCurrentColors[i] = kColorOff;
-          padLedRetryUntilMs[i] = 0;
-        }
-
-        // Now trigger the config switch
+        // Trigger the config switch.
         auto& nav = synthPtr->getPerformanceNavigator();
         nav.jumpTo(configIndex);
         ofLogNotice("ApcMiniController") << "Config jump triggered to index " << configIndex;
 
-        // Don't re-light immediately; let synth events + watcher repaint
+        // Defer a full repaint slightly to avoid overwhelming SysEx during transitions.
+        pendingFullPadRepaintAtMs = nowMs + 180;
       } else {
         // Refresh LEDs after ending hold (if still relevant)
         updatePadLed(heldPad);
       }
     }
+  }
+
+  if (pendingFullPadRepaintAtMs != 0 && nowMs >= pendingFullPadRepaintAtMs) {
+    pendingFullPadRepaintAtMs = 0;
+    updateAllPadLeds();
   }
 
   // Layer LEDs: refresh periodically (layer params can come online after load)
@@ -515,8 +518,8 @@ void ApcMiniController::updateAllPadLeds() {
     updates.push_back({padNote, color});
     padCurrentColors[padNote] = color;
 
-    // Short retry window for dropped chunks.
-    padLedRetryUntilMs[padNote] = nowMs + 350;
+    // Retry window for dropped chunks (covers a full scan of all pads).
+    padLedRetryUntilMs[padNote] = nowMs + 1500;
   }
 
   setPadRgbBatch(updates);
@@ -542,9 +545,9 @@ void ApcMiniController::processPadLedRetries() {
   uint64_t nowMs = ofGetElapsedTimeMillis();
 
   // Trickle retries to avoid overwhelming the device/driver.
-  if (nowMs - lastPadLedRetrySendMs < 60) return;
+  if (nowMs - lastPadLedRetrySendMs < 40) return;
 
-  static constexpr size_t kMaxRetryPadsPerTick = 8;
+  static constexpr size_t kMaxRetryPadsPerTick = 12;
 
   std::vector<std::pair<int, RgbColor>> updates;
   updates.reserve(kMaxRetryPadsPerTick);
@@ -873,8 +876,7 @@ void ApcMiniController::clearAllLeds() {
   // Clear shift button
   if (midiOutControl.isOpen()) {
     midiOutControl.sendNoteOn(1, kShiftButtonNote, 0);
-  }
-  if (midiOut.isOpen()) {
+  } else if (midiOut.isOpen()) {
     midiOut.sendNoteOn(1, kShiftButtonNote, 0);
   }
 
@@ -906,7 +908,7 @@ void ApcMiniController::setPadRgbBatch(const std::vector<std::pair<int, RgbColor
 
   // Reliability: some APC Mini MK2 firmware/OS combos appear to drop or partially
   // apply very large SysEx messages. Send in small chunks.
-  static constexpr size_t kMaxPadsPerMessage = 8;
+  static constexpr size_t kMaxPadsPerMessage = 4;
 
   std::vector<uint8_t> data;
   data.reserve(kMaxPadsPerMessage * 8);
@@ -941,7 +943,7 @@ void ApcMiniController::setPadRgbBatch(const std::vector<std::pair<int, RgbColor
       // Without this, large multi-chunk updates (like the config grid repaint)
       // can be partially dropped, leaving stale/off LEDs.
       if (i < pads.size()) {
-        ofSleepMillis(1);
+        ofSleepMillis(2);
       }
     }
   }
@@ -1041,13 +1043,12 @@ void ApcMiniController::sendSysex(uint8_t messageType, const std::vector<uint8_t
 
   message.push_back(0xF7);  // Sysex end
 
-  // Some firmware/OS combinations appear to accept RGB SysEx on either port.
-  // Broadcast to both outputs to keep LEDs reliable.
-  if (midiOut.isOpen()) {
-    midiOut.sendMidiBytes(message);
-  }
+  // Send RGB SysEx via the Control output port (Notes fallback).
+  // Empirically, some setups only apply RGB SysEx on the Control port.
   if (midiOutControl.isOpen()) {
     midiOutControl.sendMidiBytes(message);
+  } else if (midiOut.isOpen()) {
+    midiOut.sendMidiBytes(message);
   }
 }
 

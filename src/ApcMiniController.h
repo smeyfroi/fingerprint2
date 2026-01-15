@@ -28,11 +28,11 @@ namespace ofxMarkSynth {
 class ApcMiniController : public ofxMidiListener {
 public:
   // === Device Identification ===
-  // APC Mini MK2 has two ports: "Control" and "Notes"
-  // We read input from the Control port.
-  // For LED output, we open BOTH ports to be robust:
-  // - Pads (0-63): RGB via SysEx (we broadcast to both outs)
-  // - Buttons (100-119, 122): single-color LEDs via Note On (Control out)
+  // APC Mini MK2 has two ports: "Control" and "Notes".
+  // We prefer the Control port for input (buttons + faders).
+  // For output, we open Notes and (if available) Control:
+  // - Pad RGB: SysEx (sent via Control, Notes fallback)
+  // - Buttons (100-119, 122): single-color LEDs via Note On (Control preferred)
   static constexpr const char* kInputPortPattern = "APC mini mk2 Control";
   static constexpr const char* kControlPortPattern = "APC mini mk2 Control";
   static constexpr const char* kNotesPortPattern = "APC mini mk2 Notes";
@@ -154,8 +154,8 @@ private:
   // The APC Mini MK2 exposes separate MIDI ports for "Control" and "Notes".
   // We prefer Control for input, and fall back to Notes if needed.
   ofxMidiIn midiIn;
-  ofxMidiOut midiOut;        // Notes port - for pad RGB
-  ofxMidiOut midiOutControl; // Control port - for buttons (test)
+  ofxMidiOut midiOut;        // Notes output port
+  ofxMidiOut midiOutControl; // Control output port
   bool connected = false;
 
   // === Synth Reference ===
@@ -167,6 +167,7 @@ private:
   std::array<uint64_t, kPadCount> padLedRetryUntilMs;
   uint64_t lastPadLedRetrySendMs = 0;
   int retryScanStart = 0;
+  uint64_t pendingFullPadRepaintAtMs = 0;
   int currentConfigPadNote = -1;  // Which pad has the currently loaded config
   int lastKnownConfigIndex = -1;  // Tracks navigator changes (including non-APC switches)
   int lastKnownHibState = -1;     // Tracks hibernation state changes
