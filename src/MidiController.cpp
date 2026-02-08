@@ -68,6 +68,23 @@ void MidiController::newMidiMessage(ofxMidiMessage& message) {
 void MidiController::handleButtonCC(int channel, int cc, int value) {
   bool pressed = value > 64;
 
+  auto getKnobParamName = [&](int knobIndex) -> std::optional<std::string> {
+    switch (knobIndex) {
+      case 0: return "agency";
+      case 2: return "MinPitch";
+      case 3: return "MaxPitch";
+      case 4: return "MinSpectralCentroid";
+      case 5: return "MaxSpectralCentroid";
+      case 10: return "MinRms";
+      case 11: return "MaxRms";
+      case 12: return "MinSpectralCrest";
+      case 13: return "MaxSpectralCrest";
+      case 20: return "MinZeroCrossingRate";
+      case 21: return "MaxZeroCrossingRate";
+      default: return std::nullopt;
+    }
+  };
+
   // === Shift button (CC 63 on channel 7) - latching toggle ===
   if (cc == kShiftButtonCC && channel == kShiftButtonChannel) {
     if (pressed) {
@@ -95,6 +112,22 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
       }
     } else {
       setButtonLedByCC(cc, kAgencyModeColor);
+    }
+    return;
+  }
+
+  // === Encoder movement (rotaries) ===
+  // In DAW mode, the 24 encoders send CC 13-36.
+  // We use this to show a short-lived OLED overlay while the rotary is moving.
+  if (cc >= 13 && cc <= 36) {
+    if (synthPtr && display) {
+      int knobIndex = cc - 13;
+      if (auto paramNameOpt = getKnobParamName(knobIndex)) {
+        if (auto paramOpt = synthPtr->findParameterByNamePrefix(*paramNameOpt)) {
+          display->showTemporary(*paramNameOpt, paramOpt->get().toString());
+          tempDisplayDismissTimeMs = ofGetElapsedTimeMillis() + kKnobTempDisplayDurationMs;
+        }
+      }
     }
     return;
   }
@@ -293,13 +326,15 @@ void MidiController::setupInitialLeds() {
   leds->setEncoderLED(12, kCyanEncoderColor);     // Encoder 11 - cyan
   leds->setEncoderLED(13, kPurpleEncoderColor);   // Encoder 12 - purple
   leds->setEncoderLED(14, kMagentaEncoderColor);  // Encoder 13 - magenta
-  leds->setEncoderLED(15, kPurpleEncoderColor);   // Encoder 14 - purple
-  leds->setEncoderLED(16, kMagentaEncoderColor);  // Encoder 15 - magenta
+  leds->setEncoderLED(15, kOffColor);             // Encoder 14 - unused
+  leds->setEncoderLED(16, kOffColor);             // Encoder 15 - unused
 
-  // Row 3 (encoders 17-24): all unused
+  // Row 3 (encoders 17-24): mostly unused
   for (int i = 17; i <= 24; ++i) {
     leds->setEncoderLED(i, kOffColor);
   }
+  leds->setEncoderLED(21, kPurpleEncoderColor);  // Encoder 20 - purple
+  leds->setEncoderLED(22, kMagentaEncoderColor); // Encoder 21 - magenta
 }
 
 void MidiController::setLayerAlphasFullyOn() {
@@ -377,15 +412,22 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
   // The addon handles knobs internally, but we handle buttons ourselves.
   lc->addMidiListener(this);
 
-  // Explicitly keep the 3rd row of rotaries (17-24) unbound.
-  for (int i = 0; i < 8; ++i) {
-    lc->clearKnob(16 + i);
+  // Keep most of the 3rd rotary row (encoders 16-23) unbound.
+  // We intentionally use encoders 20-21 for Zero Crossing Rate min/max.
+  for (int i = 16; i <= 23; ++i) {
+    if (i == 20 || i == 21) continue;
+    lc->clearKnob(i);
   }
 
   // === Knob bindings (using addon with pickup/soft-takeover) ===
 
   // Global agency knob (encoder 0)
-  lc->knobPickup(0, synthPtr->findParameterByNamePrefix("Synth Agency")->get().cast<float>());
+  // ofxMarkSynth exposes this as a top-level parameter named "agency".
+  if (auto agencyParamOpt = synthPtr->findParameterByNamePrefix("agency")) {
+    lc->knobPickup(0, agencyParamOpt->get().cast<float>());
+  } else {
+    ofLogWarning("MidiController") << "Agency parameter not found; leaving encoder 0 unbound";
+  }
 
   // Bind knobs to audio analysis parameters if they exist for this Synth
   auto bindKnob = [&](const std::string& name, int knobId) {
@@ -399,12 +441,12 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
   bindKnob("MaxPitch", 3);
   bindKnob("MinRms", 10);
   bindKnob("MaxRms", 11);
-  bindKnob("MinComplexSpectralDifference", 4);
-  bindKnob("MaxComplexSpectralDifference", 5);
+  bindKnob("MinSpectralCentroid", 4);
+  bindKnob("MaxSpectralCentroid", 5);
   bindKnob("MinSpectralCrest", 12);
   bindKnob("MaxSpectralCrest", 13);
-  bindKnob("MinZeroCrossingRate", 14);
-  bindKnob("MaxZeroCrossingRate", 15);
+  bindKnob("MinZeroCrossingRate", 20);
+  bindKnob("MaxZeroCrossingRate", 21);
 
   // NOTE: We do NOT use addon's toggleButton() for any buttons.
   // All button handling is done manually in handleButtonCC().

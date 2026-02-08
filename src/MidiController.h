@@ -59,6 +59,7 @@ class MidiController : public ofxMidiListener {
 
   // Temporary display duration (milliseconds)
   static constexpr uint64_t kTempDisplayDurationMs = 1000;
+  static constexpr uint64_t kKnobTempDisplayDurationMs = 250;
 
   MidiController();
   void update();

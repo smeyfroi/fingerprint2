@@ -777,7 +777,7 @@ void ApcMiniController::onFaderMoved(int faderIndex, float normalizedValue) {
 void ApcMiniController::onAgencyFaderMoved(float normalizedValue) {
   if (!synthPtr) return;
 
-  auto paramWrapper = synthPtr->findParameterByNamePrefix("Synth Agency");
+  auto paramWrapper = synthPtr->findParameterByNamePrefix("agency");
   if (paramWrapper == std::nullopt) return;
 
   ofParameter<float>& param = paramWrapper->get().cast<float>();
@@ -806,7 +806,7 @@ void ApcMiniController::onAgencyFaderMoved(float normalizedValue) {
 void ApcMiniController::bindAgencyFader() {
   if (!synthPtr) return;
 
-  auto paramWrapper = synthPtr->findParameterByNamePrefix("Synth Agency");
+  auto paramWrapper = synthPtr->findParameterByNamePrefix("agency");
   if (paramWrapper == std::nullopt) return;
 
   ofParameter<float>& param = paramWrapper->get().cast<float>();
