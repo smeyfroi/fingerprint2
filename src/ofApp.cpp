@@ -62,8 +62,12 @@ void ofApp::setup(){
   // --- Start at config ---
   resources.add("startupPerformanceConfigName", SYNTH_CONFIG);
 
+  // --- Required Synth resources ---
+  resources.add("compositeSize", COMPOSITE_SIZE);
+  resources.add("startHibernated", START_HIBERNATED);
+
   synthPtr = ofxMarkSynth::Synth::create("fingerprint2", ofxMarkSynth::ModConfig {
-  }, START_HIBERNATED, COMPOSITE_SIZE, resources);
+  }, resources);
   synthPtr->loadFirstPerformanceConfig();
   ofAddListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload); // before configureGui
   ofAddListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad); // before configureGui
