@@ -68,19 +68,31 @@ void MidiController::newMidiMessage(ofxMidiMessage& message) {
 void MidiController::handleButtonCC(int channel, int cc, int value) {
   bool pressed = value > 64;
 
-  auto getKnobParamName = [&](int knobIndex) -> std::optional<std::string> {
+  struct EncoderBinding {
+    const char* paramName;
+    bool nudgeEnabled;
+    float baseStep;
+  };
+
+  auto getEncoderBinding = [&](int knobIndex) -> std::optional<EncoderBinding> {
     switch (knobIndex) {
-      case 0: return "agency";
-      case 2: return "MinPitch";
-      case 3: return "MaxPitch";
-      case 4: return "MinSpectralCentroid";
-      case 5: return "MaxSpectralCentroid";
-      case 10: return "MinRms";
-      case 11: return "MaxRms";
-      case 12: return "MinSpectralCrest";
-      case 13: return "MaxSpectralCrest";
-      case 20: return "MinZeroCrossingRate";
-      case 21: return "MaxZeroCrossingRate";
+      case 0: return EncoderBinding{"agency", false, 0.0f};
+
+      case 2: return EncoderBinding{"MinPitch", true, 2.0f};
+      case 3: return EncoderBinding{"MaxPitch", true, 2.0f};
+
+      case 10: return EncoderBinding{"MinRms", true, 0.001f};
+      case 11: return EncoderBinding{"MaxRms", true, 0.001f};
+
+      case 4: return EncoderBinding{"MinSpectralCentroid", true, 0.5f};
+      case 5: return EncoderBinding{"MaxSpectralCentroid", true, 0.5f};
+
+      case 12: return EncoderBinding{"MinSpectralCrest", true, 2.0f};
+      case 13: return EncoderBinding{"MaxSpectralCrest", true, 2.0f};
+
+      case 20: return EncoderBinding{"MinZeroCrossingRate", true, 0.5f};
+      case 21: return EncoderBinding{"MaxZeroCrossingRate", true, 0.5f};
+
       default: return std::nullopt;
     }
   };
@@ -119,15 +131,140 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
   // === Encoder movement (rotaries) ===
   // In DAW mode, the 24 encoders send CC 13-36.
   // We use this to show a short-lived OLED overlay while the rotary is moving.
-  if (cc >= 13 && cc <= 36) {
+  //
+  // NOTE: Agency (encoder 0) is handled by the addon via pickup/soft-takeover.
+  // Audio analysis encoders are handled here as relative/nudge controls with
+  // clutch + acceleration.
+  if (cc >= kEncoderCcFirst && cc <= kEncoderCcLast) {
     if (synthPtr && display) {
-      int knobIndex = cc - 13;
-      if (auto paramNameOpt = getKnobParamName(knobIndex)) {
-        if (auto paramOpt = synthPtr->findParameterByNamePrefix(*paramNameOpt)) {
-          display->showTemporary(*paramNameOpt, paramOpt->get().toString());
-          tempDisplayDismissTimeMs = ofGetElapsedTimeMillis() + kKnobTempDisplayDurationMs;
-        }
+      const uint64_t nowMs = ofGetElapsedTimeMillis();
+      int knobIndex = cc - kEncoderCcFirst;
+
+      auto bindingOpt = getEncoderBinding(knobIndex);
+      if (!bindingOpt) return;
+
+      auto paramOpt = synthPtr->findParameterByNamePrefix(bindingOpt->paramName);
+      if (!paramOpt) return;
+
+      auto showKnobOverlay = [&](const std::string& name, const std::string& value, uint64_t durationMs = kKnobTempDisplayDurationMs) {
+        display->showTemporary(name, value);
+        tempDisplayDismissTimeMs = nowMs + durationMs;
+      };
+
+      if (!bindingOpt->nudgeEnabled) {
+        showKnobOverlay(bindingOpt->paramName, paramOpt->get().toString());
+        return;
       }
+
+      // Nudge tuning uses incoming CC deltas, not absolute mapping.
+      auto& state = encoderNudgeStates[(size_t)knobIndex];
+      const int ccValue = value;
+
+      auto determineMode = [&](EncoderClutchMode current) {
+        switch (current) {
+          case EncoderClutchMode::Active:
+            if (ccValue <= kLowClutchEnterCc) return EncoderClutchMode::ClutchLow;
+            if (ccValue >= kHighClutchEnterCc) return EncoderClutchMode::ClutchHigh;
+            return EncoderClutchMode::Active;
+          case EncoderClutchMode::ClutchLow:
+            if (ccValue >= kLowClutchExitCc) return EncoderClutchMode::Active;
+            return EncoderClutchMode::ClutchLow;
+          case EncoderClutchMode::ClutchHigh:
+            if (ccValue <= kHighClutchExitCc) return EncoderClutchMode::Active;
+            return EncoderClutchMode::ClutchHigh;
+        }
+        return EncoderClutchMode::Active;
+      };
+
+      auto& param = paramOpt->get().cast<float>();
+
+      // First touch: arm without changing anything.
+      if (state.lastCcValue < 0) {
+        state.lastCcValue = ccValue;
+        state.lastEventTimeMs = nowMs;
+        state.smoothedSpeedCcs = 0.0f;
+        state.clutchMode = determineMode(EncoderClutchMode::Active);
+        showKnobOverlay(bindingOpt->paramName, std::string("ARM ") + ofToString(param.get(), 6));
+        return;
+      }
+
+      // Update clutch mode with hysteresis.
+      const EncoderClutchMode prevMode = state.clutchMode;
+      const EncoderClutchMode nextMode = determineMode(prevMode);
+      if (nextMode != prevMode) {
+        state.clutchMode = nextMode;
+        state.lastCcValue = ccValue;
+        state.lastEventTimeMs = nowMs;
+        const char* modeStr = (nextMode == EncoderClutchMode::ClutchLow) ? "CLUTCH LO" :
+                              (nextMode == EncoderClutchMode::ClutchHigh) ? "CLUTCH HI" :
+                              "ACTIVE";
+
+        std::string nameLine = std::string(bindingOpt->paramName) + " [" + modeStr + "]";
+        std::string valueLine;
+        if (nextMode == EncoderClutchMode::ClutchLow) {
+          valueLine = "EXIT>=" + std::to_string(kLowClutchExitCc);
+        } else if (nextMode == EncoderClutchMode::ClutchHigh) {
+          valueLine = "EXIT<=" + std::to_string(kHighClutchExitCc);
+        } else {
+          valueLine = "VAL " + ofToString(param.get(), 6);
+        }
+
+        showKnobOverlay(nameLine, valueLine, kKnobStatusDisplayDurationMs);
+        return;
+      }
+
+      if (state.clutchMode != EncoderClutchMode::Active) {
+        state.lastCcValue = ccValue;
+        state.lastEventTimeMs = nowMs;
+        const char* modeStr = (state.clutchMode == EncoderClutchMode::ClutchLow) ? "CLUTCH LO" : "CLUTCH HI";
+        const std::string nameLine = std::string(bindingOpt->paramName) + " [" + modeStr + "]";
+        const std::string valueLine = (state.clutchMode == EncoderClutchMode::ClutchLow)
+                                        ? ("EXIT>=" + std::to_string(kLowClutchExitCc))
+                                        : ("EXIT<=" + std::to_string(kHighClutchExitCc));
+        showKnobOverlay(nameLine, valueLine, kKnobStatusDisplayDurationMs);
+        return;
+      }
+
+      uint64_t dtMs = nowMs - state.lastEventTimeMs;
+      if (dtMs > kNudgeRearmGapMs) {
+        state.lastCcValue = ccValue;
+        state.lastEventTimeMs = nowMs;
+        state.smoothedSpeedCcs = 0.0f;
+        showKnobOverlay(bindingOpt->paramName, std::string("ARM ") + ofToString(param.get(), 6));
+        return;
+      }
+      dtMs = std::max<uint64_t>(dtMs, 1);
+
+      const int prevCcValue = state.lastCcValue;
+      int deltaCc = ccValue - prevCcValue;
+      deltaCc = std::clamp(deltaCc, -kNudgeMaxDeltaCc, kNudgeMaxDeltaCc);
+      state.lastCcValue = ccValue;
+      state.lastEventTimeMs = nowMs;
+
+      if (deltaCc == 0) {
+        showKnobOverlay(bindingOpt->paramName, ofToString(param.get(), 6));
+        return;
+      }
+
+      const float speedCcs = std::abs((float)deltaCc) * 1000.0f / (float)dtMs;
+      state.smoothedSpeedCcs = (1.0f - kNudgeSpeedSmoothing) * state.smoothedSpeedCcs + kNudgeSpeedSmoothing * speedCcs;
+
+      const float mult = ofClamp(1.0f + state.smoothedSpeedCcs * kNudgeAccelGain, 1.0f, kNudgeMaxMult);
+      const float increment = (float)deltaCc * bindingOpt->baseStep * mult;
+
+      const float current = param.get();
+      const float next = std::clamp(current + increment, param.getMin(), param.getMax());
+      param.set(next);
+
+      std::string nameLine = bindingOpt->paramName;
+      if (next <= param.getMin() + 1e-6f && deltaCc < 0) {
+        nameLine += " [MIN]";
+      } else if (next >= param.getMax() - 1e-6f && deltaCc > 0) {
+        nameLine += " [MAX]";
+      }
+
+      const uint64_t durationMs = (nameLine.find("[") != std::string::npos) ? kKnobStatusDisplayDurationMs : kKnobTempDisplayDurationMs;
+      showKnobOverlay(nameLine, ofToString(next, 6) + "  x" + ofToString(mult, 1), durationMs);
     }
     return;
   }
@@ -408,20 +545,22 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
     if (!lc->setup()) return;
   }
 
-  // Register ourselves as an additional MIDI listener to receive button CCs.
-  // The addon handles knobs internally, but we handle buttons ourselves.
+  // Register ourselves as an additional MIDI listener to receive button/CC events.
+  // The addon handles faders and any explicitly-bound knobs; we handle buttons and
+  // custom encoder behavior ourselves.
   lc->addMidiListener(this);
 
-  // Keep most of the 3rd rotary row (encoders 16-23) unbound.
-  // We intentionally use encoders 20-21 for Zero Crossing Rate min/max.
-  for (int i = 16; i <= 23; ++i) {
-    if (i == 20 || i == 21) continue;
+  // Ensure no stale rotary bindings survive across config reloads.
+  for (int i = 0; i < 24; ++i) {
     lc->clearKnob(i);
   }
+  for (auto& state : encoderNudgeStates) {
+    state = {};
+  }
 
-  // === Knob bindings (using addon with pickup/soft-takeover) ===
+  // === Knob bindings ===
 
-  // Global agency knob (encoder 0)
+  // Global agency knob (encoder 0): pickup/soft-takeover (not in nudge scope).
   // ofxMarkSynth exposes this as a top-level parameter named "agency".
   if (auto agencyParamOpt = synthPtr->findParameterByNamePrefix("agency")) {
     lc->knobPickup(0, agencyParamOpt->get().cast<float>());
@@ -429,24 +568,7 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
     ofLogWarning("MidiController") << "Agency parameter not found; leaving encoder 0 unbound";
   }
 
-  // Bind knobs to audio analysis parameters if they exist for this Synth
-  auto bindKnob = [&](const std::string& name, int knobId) {
-    auto paramWrapper = synthPtr->findParameterByNamePrefix(name);
-    if (paramWrapper != std::nullopt) {
-      lc->knobPickup(knobId, paramWrapper->get().cast<float>());
-    }
-  };
-
-  bindKnob("MinPitch", 2);
-  bindKnob("MaxPitch", 3);
-  bindKnob("MinRms", 10);
-  bindKnob("MaxRms", 11);
-  bindKnob("MinSpectralCentroid", 4);
-  bindKnob("MaxSpectralCentroid", 5);
-  bindKnob("MinSpectralCrest", 12);
-  bindKnob("MaxSpectralCrest", 13);
-  bindKnob("MinZeroCrossingRate", 20);
-  bindKnob("MaxZeroCrossingRate", 21);
+  // Audio analysis encoders are handled as relative/nudge controls in handleButtonCC().
 
   // NOTE: We do NOT use addon's toggleButton() for any buttons.
   // All button handling is done manually in handleButtonCC().

@@ -59,7 +59,24 @@ class MidiController : public ofxMidiListener {
 
   // Temporary display duration (milliseconds)
   static constexpr uint64_t kTempDisplayDurationMs = 1000;
-  static constexpr uint64_t kKnobTempDisplayDurationMs = 250;
+  static constexpr uint64_t kKnobTempDisplayDurationMs = 1200;
+  static constexpr uint64_t kKnobStatusDisplayDurationMs = 3000;
+
+  // LaunchControl XL encoders (24 knobs) send CC 13-36 in DAW mode.
+  static constexpr int kEncoderCcFirst = 13;
+  static constexpr int kEncoderCcLast = 36;
+
+  // Relative/nudge tuning clutch with hysteresis (larger band).
+  static constexpr int kLowClutchEnterCc = 4;
+  static constexpr int kLowClutchExitCc = 11;
+  static constexpr int kHighClutchEnterCc = 123;
+  static constexpr int kHighClutchExitCc = 116;
+
+  static constexpr float kNudgeMaxMult = 12.0f;
+  static constexpr float kNudgeSpeedSmoothing = 0.2f;
+  static constexpr float kNudgeAccelGain = 0.04f; // multiplier per (CC/sec)
+  static constexpr uint64_t kNudgeRearmGapMs = 500;
+  static constexpr int kNudgeMaxDeltaCc = 20;
 
   MidiController();
   void update();
@@ -106,7 +123,22 @@ class MidiController : public ofxMidiListener {
   // Track held keys for keyReleased calls (needed for arrow keys)
   std::unordered_set<int> heldKeys;
 
-  // Thread-safe ring buffer for button CC events (MIDI thread → main thread)
+  enum class EncoderClutchMode {
+    Active,
+    ClutchLow,
+    ClutchHigh,
+  };
+
+  struct EncoderNudgeState {
+    int lastCcValue = -1;
+    uint64_t lastEventTimeMs = 0;
+    float smoothedSpeedCcs = 0.0f;
+    EncoderClutchMode clutchMode = EncoderClutchMode::Active;
+  };
+
+  std::array<EncoderNudgeState, 24> encoderNudgeStates;
+
+  // Thread-safe ring buffer for button/CC events (MIDI thread → main thread)
   struct ButtonEvent {
     int channel;
     int cc;
