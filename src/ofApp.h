@@ -22,7 +22,7 @@
 //const std::string SYNTH_CONFIG = "30-movement4-meander.json";
 //const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-33-11-976.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:00"; // ******* Movt 5 because Movt 4 doesn't trigger CollageMod
 //const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-16-11-07-56-314.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:03"; // ******* Movt 4
-const std::string SYNTH_CONFIG = "40-movement5-delta.json";
+//const std::string SYNTH_CONFIG = "40-movement5-delta.json";
 const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-25-03-931.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:00"; // ******* Movt 4
 const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-16-11-25-04-661.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:36"; // ******* Movt 5
 
@@ -30,8 +30,9 @@ const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-16-11-25-04-66
 const std::filesystem::path FFMPEG_BINARY_PATH { "/opt/homebrew/bin/ffmpeg" };
 
 // === ROOT PATHS ===
+const std::string SYNTH_CONFIG = "";
 const std::filesystem::path ROOT_SOURCE_MATERIAL_PATH { "/Users/steve/Documents/music-source-material" };
-const std::filesystem::path ROOT_PERFORMANCE_PATH { "/Users/steve/Documents/MarkSynth-performances/Practice" };
+const std::filesystem::path ROOT_PERFORMANCE_PATH { "/Users/steve/Documents/MarkSynth-performances/Improvisation1" };
 
 // === DERIVED PATHS ===
 const std::filesystem::path PERFORMANCE_CONFIG_ROOT_PATH { ROOT_PERFORMANCE_PATH/"config" }; // must exist
