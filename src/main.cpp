@@ -3,24 +3,40 @@
 #include "ofAppGLFWWindow.h"
 #include <GLFW/glfw3.h>
 
-// ***********************************************
-// ***********************************************
-#define FULLSCREEN
-const int MAIN_MONITOR_ID = 0;
-const int GUI_MONITOR_ID = 1;
-
 // Window sizes when not fullscreen
-//const int MAIN_WINDOW_WIDTH = 1960;
-//const int MAIN_WINDOW_HEIGHT = 1200;
-//const int GUI_WINDOW_WIDTH = 1200;
-//const int GUI_WINDOW_HEIGHT = 1200;
+const int MAIN_WINDOW_X = 512;
+const int MAIN_WINDOW_Y = 256;
+const int MAIN_WINDOW_WIDTH = 980;
+const int MAIN_WINDOW_HEIGHT = 600;
+const int GUI_WINDOW_X = 0;
+const int GUI_WINDOW_Y = 0;
+const int GUI_WINDOW_WIDTH = 1200;
+const int GUI_WINDOW_HEIGHT = 1600;
 
-// ***********************************************
-// ***********************************************
+namespace {
+
+ofGLFWWindowSettings createWindowSettings(glm::vec2 position, glm::vec2 size, bool fullscreen) {
+  ofGLFWWindowSettings settings;
+  settings.setGLVersion(4, 1);
+  settings.setPosition(position);
+  settings.setSize(static_cast<int>(size.x), static_cast<int>(size.y));
+  settings.title = "MarkSynth";
+
+  if (fullscreen) {
+    settings.decorated = false;
+    settings.resizable = false;
+  } else {
+    settings.decorated = true;
+    settings.resizable = true;
+  }
+  
+  return settings;
+}
+
+} // namespace
 
 //========================================================================
 int main() {
-#ifdef FULLSCREEN
   // init GLFW manually (since no OF window yet)
   if(!glfwInit()){
       ofLogError() << "Could not init GLFW";
@@ -29,11 +45,6 @@ int main() {
   
   int count;
   GLFWmonitor** monitors = glfwGetMonitors(&count);
-  if (MAIN_MONITOR_ID >= count || GUI_MONITOR_ID >= count) {
-    ofLogError() << "Not enough monitors for FULLSCREEN mode: " << "MAIN_MONITOR_ID=" << MAIN_MONITOR_ID << ", GUI_MONITOR_ID=" << GUI_MONITOR_ID << ", but only " << count << " monitor(s) detected.";
-    return -1;
-  }
-  
   vector<glm::vec2> monitorSizes(count);
   vector<glm::vec2> monitorPositions(count);
   for(int i = 0; i < count; i++){
@@ -47,43 +58,26 @@ int main() {
     monitorPositions[i] = {(float)x, (float)y};
   }
   
-  int mainWindowX = monitorPositions[MAIN_MONITOR_ID].x;
-  int mainWindowY = monitorPositions[MAIN_MONITOR_ID].y;
-  int mainWindowW = monitorSizes[MAIN_MONITOR_ID].x;
-  int mainWindowH = monitorSizes[MAIN_MONITOR_ID].y;
-  int guiWindowX = monitorPositions[GUI_MONITOR_ID].x;
-  int guiWindowY = monitorPositions[GUI_MONITOR_ID].y;
-  int guiWindowW = monitorSizes[GUI_MONITOR_ID].x;
-  int guiWindowH = monitorSizes[GUI_MONITOR_ID].y;
-#endif
+  int mainMonitorId = 0;
+  int guiMonitorId = count > 1 ? 1 : 0;
   
-  ofGLFWWindowSettings settings;
-  settings.setGLVersion(4, 1);
+  ofGLFWWindowSettings mainSettings, guiSettings;
+  if (count > 1) {
+    mainSettings = createWindowSettings(monitorPositions[mainMonitorId], monitorSizes[mainMonitorId], true);
+    guiSettings = createWindowSettings(monitorPositions[guiMonitorId], monitorSizes[guiMonitorId], true);
+  } else {
+    mainSettings = createWindowSettings({ static_cast<float>(MAIN_WINDOW_X), static_cast<float>(MAIN_WINDOW_Y) },
+                                        { static_cast<float>(MAIN_WINDOW_WIDTH), static_cast<float>(MAIN_WINDOW_HEIGHT) },
+                                        false);
+    guiSettings = createWindowSettings({ static_cast<float>(GUI_WINDOW_X), static_cast<float>(GUI_WINDOW_Y) },
+                                        { static_cast<float>(GUI_WINDOW_WIDTH), static_cast<float>(GUI_WINDOW_HEIGHT) },
+                                        false);
+  }
+  
+  auto mainWindow = ofCreateWindow(mainSettings);
 
-#ifdef FULLSCREEN
-  settings.setPosition({mainWindowX, mainWindowY});
-  settings.setSize(mainWindowW, mainWindowH); // TODO: disable game mode notification
-  settings.decorated = false;
-#else
-  settings.setPosition({128, 0});
-  settings.setSize(MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT);
-  settings.decorated = true;
-#endif
-  settings.resizable = false;
-  auto mainWindow = ofCreateWindow(settings);
-  
-#ifdef FULLSCREEN
-  settings.setPosition({guiWindowX, guiWindowY+20}); // 20 to allow for window decorations
-  settings.setSize(guiWindowW, guiWindowH-20);
-#else
-  settings.setPosition({0, 0});
-  settings.setSize(GUI_WINDOW_WIDTH, GUI_WINDOW_HEIGHT);
-#endif
-  settings.decorated = true;
-  settings.resizable = true;
-  settings.title = "MarkSynth";
-  settings.shareContextWith = mainWindow;
-  auto guiWindow = ofCreateWindow(settings);
+  guiSettings.shareContextWith = mainWindow;
+  auto guiWindow = ofCreateWindow(guiSettings);
 
   auto mainApp = std::make_shared<ofApp>();
   mainApp->setGuiWindowPtr(guiWindow);
