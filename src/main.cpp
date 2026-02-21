@@ -63,8 +63,12 @@ int main() {
   
   ofGLFWWindowSettings mainSettings, guiSettings;
   if (count > 1) {
-    mainSettings = createWindowSettings(monitorPositions[mainMonitorId], monitorSizes[mainMonitorId], true);
-    guiSettings = createWindowSettings(monitorPositions[guiMonitorId], monitorSizes[guiMonitorId], true);
+    mainSettings = createWindowSettings(monitorPositions[mainMonitorId],
+                                        monitorSizes[mainMonitorId],
+                                        true);
+    guiSettings = createWindowSettings(monitorPositions[guiMonitorId],
+                                       monitorSizes[guiMonitorId],
+                                       true);
   } else {
     mainSettings = createWindowSettings({ static_cast<float>(MAIN_WINDOW_X), static_cast<float>(MAIN_WINDOW_Y) },
                                         { static_cast<float>(MAIN_WINDOW_WIDTH), static_cast<float>(MAIN_WINDOW_HEIGHT) },
@@ -75,7 +79,6 @@ int main() {
   }
   
   auto mainWindow = ofCreateWindow(mainSettings);
-
   guiSettings.shareContextWith = mainWindow;
   auto guiWindow = ofCreateWindow(guiSettings);
 
