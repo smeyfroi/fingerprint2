@@ -14,6 +14,15 @@
   "_comment_logDestinationOptions": "console|gui",
   "logDestination": "console",
 
+  "_comment_recording": "Composite recording: press R to start/stop. Session option startRecordingOnFirstWake starts recording after first wake from hibernation. Audio+video mux happens automatically on stop/exit.",
+  "startRecordingOnFirstWake": false,
+  "muxAudioBitrateKbps": 192,
+
+  "_comment_autosnapshots": "Full-res EXR autosnapshots (drawing-auto): gated by pause/hibernation and no-overlap. Defaults: enabled=false, intervalSec=20, jitterSec=7.",
+  "autoSnapshotsEnabled": false,
+  "autoSnapshotsIntervalSec": 20.0,
+  "autoSnapshotsJitterSec": 7.0,
+
   "compositeSize": [7200, 7200],
   "startHibernated": true,
   "compositePanelGapPx": 28.0,

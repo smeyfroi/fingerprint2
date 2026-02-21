@@ -18,3 +18,9 @@ A reference example is checked into the repo:
 - `session-config.reference.json`
 
 Underscore-prefixed keys (e.g. `_micDeviceName`) are treated as inactive/commented-out alternatives.
+
+### Recording + autosnapshots
+
+- `startRecordingOnFirstWake`: if true, starts composite recording after first wake.
+- Composite recording muxes audio+video automatically on stop/exit.
+- `autoSnapshotsEnabled`/`autoSnapshotsIntervalSec`/`autoSnapshotsJitterSec` control full-res EXR autosnapshots.
