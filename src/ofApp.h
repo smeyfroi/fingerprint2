@@ -23,8 +23,11 @@
 //const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-33-11-976.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:00"; // ******* Movt 5 because Movt 4 doesn't trigger CollageMod
 //const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-16-11-07-56-314.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:03"; // ******* Movt 4
 //const std::string SYNTH_CONFIG = "40-movement5-delta.json";
-const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-25-03-931.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:00"; // ******* Movt 4
+//const std::string AUDIO_FILE = "cork/audio-2025-06-16-11-25-03-931.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:00"; // ******* Movt 4
 const std::string VIDEO_FILE = "cork/video-flow-recording-2025-06-16-11-25-04-661.mp4"; const std::string SOURCE_VIDEO_START_POSITION = "00:36"; // ******* Movt 5
+
+// 48K
+const std::string AUDIO_FILE = "belfast/20250208-violin-video-separate-scale.wav"; const std::string SOURCE_AUDIO_START_POSITION = "0:00";
 
 // === ffmpeg installed via `brew install ffmpeg`
 const std::filesystem::path FFMPEG_BINARY_PATH { "/opt/homebrew/bin/ffmpeg" };
@@ -53,7 +56,7 @@ const std::filesystem::path SOURCE_AUDIO_PATH { ROOT_SOURCE_MATERIAL_PATH/AUDIO_
 const std::string AUDIO_OUT_DEVICE_NAME = "Apple Inc.: MacBook Pro Speakers";
 constexpr int AUDIO_BUFFER_SIZE = 512;
 constexpr int AUDIO_CHANNELS = 1;
-constexpr int AUDIO_SAMPLE_RATE = 44100; //48000;
+constexpr int AUDIO_SAMPLE_RATE = 48000; //44100; //48000;
 // Option B: Microphone input
 #undef MICROPHONE_INPUT
 const std::string MIC_DEVICE_NAME = "Apple Inc.: MacBook Pro Microphone";
