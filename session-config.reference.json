@@ -1,0 +1,82 @@
+{
+  "_comment": "Reference session config for fingerprint2. Underscore-prefixed keys are ignored (inactive/comment).",
+
+  "rootSourceMaterialPath": "/Users/steve/Documents/music-source-material",
+  "rootPerformancePath": "/Users/steve/Documents/MarkSynth-performances/Improvisation1",
+
+  "startupPerformanceConfigName": "",
+
+  "compositeSize": [7200, 7200],
+  "startHibernated": true,
+  "compositePanelGapPx": 28.0,
+  "recorderCompositeSize": [1280, 720],
+  "ffmpegBinaryPath": "/opt/homebrew/bin/ffmpeg",
+
+  "fontFile": "font/PlayfairDisplay-Regular.ttf",
+  "textSourcesDir": "text",
+
+  "_comment_audio": "Audio file mode is ACTIVE. To switch to mic, move the underscore from the mic keys to the file keys.",
+  "sourceAudioFile": "belfast/20250208-violin-video-separate-scale.wav",
+  "audioOutDeviceName": "Apple Inc.: MacBook Pro Speakers",
+  "audioBufferSize": 512,
+  "audioChannels": 1,
+  "audioSampleRate": 48000,
+  "sourceAudioStartPosition": "0:00",
+
+  "_micDeviceName": "Apple Inc.: MacBook Pro Microphone",
+  "_recordAudio": false,
+  "_audioRecordingDir": "audio-recordings",
+
+  "_comment_video": "Video file mode is ACTIVE. To switch to camera, move the underscore from the camera keys to the file keys.",
+  "sourceVideoFile": "cork/video-flow-recording-2025-06-16-11-25-04-661.mp4",
+  "sourceVideoMute": true,
+  "sourceVideoStartPosition": "00:36",
+
+  "_cameraDeviceId": 0,
+  "_videoSize": [640, 480],
+  "_saveRecording": false,
+  "_videoRecordingDir": "video-recordings",
+
+  "_recordedMaterialPresets": [
+    {
+      "_comment": "Movement 1 (old C++ commented block)",
+      "startupPerformanceConfigName": "00-movement1-source",
+      "sourceAudioFile": "cork/audio-2025-06-16-10-54-26-096.wav",
+      "sourceAudioStartPosition": "0:30",
+      "sourceVideoFile": "cork/video-flow-recording-2025-06-15-17-10-00-689.mp4",
+      "sourceVideoStartPosition": "00:10"
+    },
+    {
+      "_comment": "Movement 2",
+      "startupPerformanceConfigName": "10-movement2-tributaries",
+      "sourceAudioFile": "cork/audio-2025-06-16-11-07-55-682.wav",
+      "sourceAudioStartPosition": "0:04",
+      "sourceVideoFile": "cork/video-flow-recording-2025-06-15-14-14-04-398.mp4",
+      "sourceVideoStartPosition": "0:05"
+    },
+    {
+      "_comment": "Movement 3",
+      "startupPerformanceConfigName": "20-movement3-cataract",
+      "sourceAudioFile": "cork/audio-2025-06-16-11-16-14-782.wav",
+      "sourceAudioStartPosition": "0:00",
+      "sourceVideoFile": "cork/video-flow-recording-2025-06-15-16-49-53-721.mp4",
+      "sourceVideoStartPosition": "04:15"
+    },
+    {
+      "_comment": "Movement 4 (video)",
+      "startupPerformanceConfigName": "30-movement4-meander.json",
+      "sourceAudioFile": "cork/audio-2025-06-16-11-33-11-976.wav",
+      "sourceAudioStartPosition": "0:00",
+      "sourceVideoFile": "cork/video-flow-recording-2025-06-16-11-07-56-314.mp4",
+      "sourceVideoStartPosition": "00:03"
+    },
+    {
+      "_comment": "Movement 5 (audio)",
+      "startupPerformanceConfigName": "40-movement5-delta.json",
+      "sourceAudioFile": "cork/audio-2025-06-16-11-25-03-931.wav",
+      "sourceAudioStartPosition": "0:00",
+      "sourceVideoFile": "cork/video-flow-recording-2025-06-16-11-25-04-661.mp4",
+      "sourceVideoStartPosition": "00:36"
+    }
+  ]
+}

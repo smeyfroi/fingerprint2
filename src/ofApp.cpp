@@ -1,9 +1,8 @@
 #include "ofApp.h"
+
 #include "ofxTimeMeasurements.h"
 
 using namespace ofxMarkSynth;
-
-
 
 void ofApp::setup(){
   ofDisableArbTex();
@@ -14,57 +13,11 @@ void ofApp::setup(){
   TIME_SAMPLE_SET_FRAMERATE(FRAME_RATE);
   TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_BOTTOM_LEFT);
   TIME_SAMPLE_DISABLE(); // *********************************
-  
-  ResourceManager resources;
-  resources.add("performanceConfigRootPath", PERFORMANCE_CONFIG_ROOT_PATH);
-  resources.add("performanceArtefactRootPath", PERFORMANCE_ARTEFACT_ROOT_PATH);
-  
-//  resources.add("compositeSize", COMPOSITE_SIZE);
-  resources.add("compositePanelGapPx", COMPOSITE_PANEL_GAP_PX);
-  resources.add("recorderCompositeSize", VIDEO_RECORDER_SIZE);
-  resources.add("ffmpegBinaryPath", FFMPEG_BINARY_PATH);
-  // --- Audio Input Resources ---
-  // For file playback mode:
-#ifdef AUDIO_FILE_PLAYBACK
-  resources.add("sourceAudioPath", SOURCE_AUDIO_PATH);
-  resources.add("audioOutDeviceName", AUDIO_OUT_DEVICE_NAME);
-  resources.add("audioBufferSize", AUDIO_BUFFER_SIZE);
-  resources.add("audioChannels", AUDIO_CHANNELS);
-  resources.add("audioSampleRate", AUDIO_SAMPLE_RATE);
-  resources.add("sourceAudioStartPosition", SOURCE_AUDIO_START_POSITION);
-#endif
-  // For microphone mode:
-#ifdef MICROPHONE_INPUT
-  resources.add("micDeviceName", MIC_DEVICE_NAME);
-  resources.add("recordAudio", RECORD_AUDIO);
-  resources.add("audioRecordingPath", AUDIO_RECORDING_PATH);
-#endif
-  // --- Video/Camera Input Resources ---
-  // For video file playback mode:
-#ifdef VIDEO_FILE_PLAYBACK
-  resources.add("sourceVideoPath", SOURCE_VIDEO_PATH);
-  resources.add("sourceVideoMute", SOURCE_VIDEO_MUTE);
-  resources.add("sourceVideoStartPosition", SOURCE_VIDEO_START_POSITION);
-#endif
-  // For camera mode:
-#ifdef VIDEO_CAMERA_INPUT
-  resources.add("cameraDeviceId", CAMERA_DEVICE_ID);
-  resources.add("videoSize", VIDEO_SIZE);
-  resources.add("saveRecording", SAVE_VIDEO_RECORDING);
-  resources.add("videoRecordingPath", VIDEO_RECORDING_PATH);
-#endif
-  // --- Text/Font Resources ---
-  auto fontCachePtr = std::make_shared<FontStash2Cache>(FONT_PATH.string());
-  fontCachePtr->setup();
-  fontCachePtr->prewarmAll();
-  resources.addShared("fontCache", fontCachePtr);
-  resources.add("textSourcesPath", TEXT_SOURCES_PATH);
-  // --- Start at config ---
-  resources.add("startupPerformanceConfigName", SYNTH_CONFIG);
 
-  // --- Required Synth resources ---
-  resources.add("compositeSize", COMPOSITE_SIZE);
-  resources.add("startHibernated", START_HIBERNATED);
+  ResourceManager resources = loadSessionResourceManagerOrExit({
+    .appNamespace = "fingerprint2",
+    .dialogTitle = "Choose fingerprint2 session config (JSON)",
+  });
 
   synthPtr = ofxMarkSynth::Synth::create("fingerprint2", ofxMarkSynth::ModConfig {
   }, resources);
