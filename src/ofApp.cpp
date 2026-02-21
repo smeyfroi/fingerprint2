@@ -8,11 +8,7 @@ void ofApp::setup(){
   ofDisableArbTex();
   glEnable(GL_PROGRAM_POINT_SIZE);
   ofSetBackgroundColor(0);
-  ofSetFrameRate(FRAME_RATE);
-//  ofSetLogLevel(OF_LOG_VERBOSE);
-  TIME_SAMPLE_SET_FRAMERATE(FRAME_RATE);
   TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_BOTTOM_LEFT);
-  TIME_SAMPLE_DISABLE(); // *********************************
 
   ResourceManager resources = loadSessionResourceManagerOrExit({
     .appNamespace = "fingerprint2",

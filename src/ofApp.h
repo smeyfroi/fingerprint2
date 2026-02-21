@@ -6,9 +6,6 @@
 #include "MidiController.h"
 #include "ofxMarkSynth.h"
 
-// Config not in session JSON yet.
-constexpr float FRAME_RATE = 30.0f;
-
 class ofApp : public ofBaseApp {
 
 public:

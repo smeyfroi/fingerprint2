@@ -6,6 +6,14 @@
 
   "startupPerformanceConfigName": "",
 
+  "_comment_runtime": "Optional runtime settings: defaults are frameRate=30, timeMeasurementsEnabled=false, logLevel=notice, logDestination=console.",
+  "frameRate": 30.0,
+  "timeMeasurementsEnabled": false,
+  "_comment_logLevelOptions": "verbose|notice|warning|error|fatal|silent",
+  "logLevel": "notice",
+  "_comment_logDestinationOptions": "console|gui",
+  "logDestination": "console",
+
   "compositeSize": [7200, 7200],
   "startHibernated": true,
   "compositePanelGapPx": 28.0,
