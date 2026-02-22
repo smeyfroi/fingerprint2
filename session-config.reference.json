@@ -37,7 +37,6 @@
   "audioOutDeviceName": "Apple Inc.: MacBook Pro Speakers",
   "audioBufferSize": 512,
   "audioChannels": 1,
-  "audioSampleRate": 48000,
   "sourceAudioStartPosition": "0:00",
 
   "_micDeviceName": "Apple Inc.: MacBook Pro Microphone",
