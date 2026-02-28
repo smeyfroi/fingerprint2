@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -149,6 +150,9 @@ public:
   // State queries
   bool isConnected() const { return connected; }
 
+  using LayerFaderOverlayCallback = std::function<void(int layerIndex, bool pickedUp)>;
+  void setLayerFaderOverlayCallback(LayerFaderOverlayCallback cb) { layerFaderOverlayCallback = std::move(cb); }
+
 private:
   // === MIDI I/O ===
   // The APC Mini MK2 exposes separate MIDI ports for "Control" and "Notes".
@@ -191,6 +195,9 @@ private:
   void queueLayerLedRefresh();
   void flushQueuedLedUpdates();
 
+  void queueLayerFaderOverlay(int layerIndex, bool pickedUp);
+  void flushLayerFaderOverlay();
+
   // === Fader Pickup State ===
   struct FaderState {
     float lastMidiValue = -1.0f;  // Last value from MIDI (normalized 0-1)
@@ -199,6 +206,13 @@ private:
   };
   std::array<FaderState, kLayerFaderCount> faderStates;
   FaderState agencyFaderState;
+
+  // Layer fader → external display feedback (processed on main thread).
+  LayerFaderOverlayCallback layerFaderOverlayCallback;
+  std::mutex layerOverlayMutex;
+  bool hasPendingLayerOverlay = false;
+  int pendingLayerOverlayIndex = -1;
+  bool pendingLayerOverlayPickedUp = false;
 
   // === Connection ===
   bool tryConnect();

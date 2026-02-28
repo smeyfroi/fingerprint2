@@ -55,6 +55,35 @@ void ApcMiniController::flushQueuedLedUpdates() {
   }
 }
 
+void ApcMiniController::queueLayerFaderOverlay(int layerIndex, bool pickedUp) {
+  std::lock_guard<std::mutex> lock(layerOverlayMutex);
+  hasPendingLayerOverlay = true;
+  pendingLayerOverlayIndex = layerIndex;
+  pendingLayerOverlayPickedUp = pickedUp;
+}
+
+void ApcMiniController::flushLayerFaderOverlay() {
+  if (!layerFaderOverlayCallback) return;
+
+  int layerIndex = -1;
+  bool pickedUp = false;
+  bool hasPending = false;
+
+  {
+    std::lock_guard<std::mutex> lock(layerOverlayMutex);
+    hasPending = hasPendingLayerOverlay;
+    if (hasPending) {
+      layerIndex = pendingLayerOverlayIndex;
+      pickedUp = pendingLayerOverlayPickedUp;
+      hasPendingLayerOverlay = false;
+    }
+  }
+
+  if (hasPending && layerIndex >= 0) {
+    layerFaderOverlayCallback(layerIndex, pickedUp);
+  }
+}
+
 bool ApcMiniController::tryConnect() {
   if (connected) return true;
 
@@ -155,6 +184,7 @@ void ApcMiniController::update() {
   // Apply any LED updates requested by MIDI callbacks early.
   // This improves perceived responsiveness for hold/amber feedback.
   flushQueuedLedUpdates();
+  flushLayerFaderOverlay();
 
   // While a pad is being held, resend amber at a gentle fixed rate.
   // This makes hold feedback resilient to occasional dropped SysEx.
@@ -762,6 +792,7 @@ void ApcMiniController::onFaderMoved(int faderIndex, float normalizedValue) {
     } else {
       // Not picked up yet - don't change parameter
       fs.lastMidiValue = normalizedValue;
+      queueLayerFaderOverlay(faderIndex, false);
       return;
     }
   }
@@ -772,6 +803,7 @@ void ApcMiniController::onFaderMoved(int faderIndex, float normalizedValue) {
   float newValue = min + normalizedValue * (max - min);
   param.set(newValue);
   fs.lastMidiValue = normalizedValue;
+  queueLayerFaderOverlay(faderIndex, true);
 }
 
 void ApcMiniController::onAgencyFaderMoved(float normalizedValue) {

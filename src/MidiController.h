@@ -62,6 +62,9 @@ class MidiController : public ofxMidiListener {
   static constexpr uint64_t kKnobTempDisplayDurationMs = 1200;
   static constexpr uint64_t kKnobStatusDisplayDurationMs = 3000;
 
+  // Fader overlays can generate a lot of SysEx; rate-limit updates.
+  static constexpr uint64_t kFaderTempDisplayMinIntervalMs = 50;
+
   // LaunchControl XL encoders (24 knobs) send CC 13-36 in DAW mode.
   static constexpr int kEncoderCcFirst = 13;
   static constexpr int kEncoderCcLast = 36;
@@ -85,6 +88,10 @@ class MidiController : public ofxMidiListener {
   void exit();
   void onShiftModeChanged(bool& value);
 
+  // External controllers (e.g. APC Mini) can request a layer overlay.
+  // `pickedUp=false` shows "[PICKUP]" until engaged.
+  void showLayerAlphaOverlay(int layerIndex, bool pickedUp);
+
   void newMidiMessage(ofxMidiMessage& message) override;
 
  private:
@@ -101,6 +108,7 @@ class MidiController : public ofxMidiListener {
   void sendKeyRelease(int key);
   void updateStationaryDisplay();
   void showTempDisplay(const std::string& name, const std::string& value);
+  void maybeShowFaderOverlay(int faderIndex, const std::string& name, float paramValue, bool pickupLikely, uint64_t nowMs);
   void disableControlAutoDisplays();
 
   std::unique_ptr<ofxLaunchControlXL> lc;
@@ -137,6 +145,16 @@ class MidiController : public ofxMidiListener {
   };
 
   std::array<EncoderNudgeState, 24> encoderNudgeStates;
+
+  struct FaderOverlayState {
+    int lastCcValue = -1;
+    float lastParamValue = -1.0f;
+    uint64_t lastSendTimeMs = 0;
+    std::string lastName;
+    std::string lastValue;
+  };
+
+  std::array<FaderOverlayState, 8> faderOverlayStates;
 
   // Thread-safe ring buffer for button/CC events (MIDI thread → main thread)
   struct ButtonEvent {

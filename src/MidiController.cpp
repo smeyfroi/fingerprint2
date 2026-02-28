@@ -1,6 +1,7 @@
 #include "MidiController.h"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -124,6 +125,58 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
       }
     } else {
       setButtonLedByCC(cc, kAgencyModeColor);
+    }
+    return;
+  }
+
+  // === Fader movement (CC 5-12) ===
+  // Faders are bound via the addon (pickup/soft-takeover); we only drive OLED overlays.
+  if (cc >= 5 && cc <= 12) {
+    if (synthPtr && display) {
+      const uint64_t nowMs = ofGetElapsedTimeMillis();
+      const int faderIndex = cc - 5; // 0-7
+      auto& state = faderOverlayStates[static_cast<size_t>(faderIndex)];
+
+      if (shiftModeParameter) {
+        // Shift ON: faders map to layer alphas.
+        ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
+        if (faderIndex >= 0 && faderIndex < static_cast<int>(layerAlphaParameters.size())) {
+          ofParameter<float>& param = layerAlphaParameters.getFloat(static_cast<size_t>(faderIndex));
+          const float paramValue = param.get();
+
+          const bool ccChanged = (state.lastCcValue >= 0) && (state.lastCcValue != value);
+          const bool paramChanged = (std::abs(paramValue - state.lastParamValue) > 1e-4f);
+          const bool pickupLikely = ccChanged && !paramChanged;
+
+          maybeShowFaderOverlay(faderIndex, param.getName(), paramValue, pickupLikely, nowMs);
+
+          state.lastCcValue = value;
+          state.lastParamValue = paramValue;
+        }
+      } else {
+        // Shift OFF: faders map to intent activations + master.
+        ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
+        if (intentParameters.size() > 0) {
+          const size_t masterIndex = intentParameters.size() - 1;
+          const size_t activationCount = std::min<size_t>(7, masterIndex);
+          const bool isMaster = (faderIndex == 7);
+
+          if (isMaster || static_cast<size_t>(faderIndex) < activationCount) {
+            ofParameter<float>& param = isMaster ? intentParameters.getFloat(masterIndex)
+                                                 : intentParameters.getFloat(static_cast<size_t>(faderIndex));
+            const float paramValue = param.get();
+
+            const bool ccChanged = (state.lastCcValue >= 0) && (state.lastCcValue != value);
+            const bool paramChanged = (std::abs(paramValue - state.lastParamValue) > 1e-4f);
+            const bool pickupLikely = ccChanged && !paramChanged;
+
+            maybeShowFaderOverlay(faderIndex, param.getName(), paramValue, pickupLikely, nowMs);
+
+            state.lastCcValue = value;
+            state.lastParamValue = paramValue;
+          }
+        }
+      }
     }
     return;
   }
@@ -557,6 +610,9 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
   for (auto& state : encoderNudgeStates) {
     state = {};
   }
+  for (auto& state : faderOverlayStates) {
+    state = {};
+  }
 
   // === Knob bindings ===
 
@@ -662,6 +718,44 @@ void MidiController::showTempDisplay(const std::string& name, const std::string&
   if (!display) return;
   display->showTemporary(name, value);
   tempDisplayDismissTimeMs = ofGetElapsedTimeMillis() + kTempDisplayDurationMs;
+}
+
+void MidiController::maybeShowFaderOverlay(int faderIndex, const std::string& name, float paramValue, bool pickupLikely, uint64_t nowMs) {
+  if (!display || faderIndex < 0 || faderIndex >= static_cast<int>(faderOverlayStates.size())) return;
+
+  auto& state = faderOverlayStates[static_cast<size_t>(faderIndex)];
+  const std::string valueLine = ofToString(paramValue, 3);
+
+  std::string nameLine = name;
+  if (pickupLikely) {
+    nameLine += " [PICKUP]";
+  }
+
+  const bool contentChanged = (nameLine != state.lastName) || (valueLine != state.lastValue);
+  const bool intervalOk = (nowMs - state.lastSendTimeMs) >= kFaderTempDisplayMinIntervalMs;
+
+  if (intervalOk && contentChanged) {
+    showTempDisplay(nameLine, valueLine);
+    state.lastSendTimeMs = nowMs;
+    state.lastName = nameLine;
+    state.lastValue = valueLine;
+  }
+}
+
+void MidiController::showLayerAlphaOverlay(int layerIndex, bool pickedUp) {
+  if (!synthPtr || !display) return;
+  if (layerIndex < 0) return;
+
+  ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
+  if (layerIndex >= static_cast<int>(layerAlphaParameters.size())) return;
+
+  ofParameter<float>& param = layerAlphaParameters.getFloat(static_cast<size_t>(layerIndex));
+  const float paramValue = param.get();
+  const uint64_t nowMs = ofGetElapsedTimeMillis();
+  maybeShowFaderOverlay(layerIndex, param.getName(), paramValue, !pickedUp, nowMs);
+
+  auto& state = faderOverlayStates[static_cast<size_t>(layerIndex)];
+  state.lastParamValue = paramValue;
 }
 
 void MidiController::disableControlAutoDisplays() {

@@ -114,7 +114,8 @@ Faders use **pickup mode** (soft takeover) - you must move the fader past the cu
 Shows briefly when controls are used:
 - **Shift**: "Shift" / "On" or "Off"
 - **Snapshot**: "Snapshot" / "1-8"
-- **Layer**: "Layer 1-8" / "Toggle Pause"
+- **Intent Faders (Shift Off)**: "<Intent Name> Activation" / "0.123" (shows `[PICKUP]` until engaged)
+- **Layer Faders (Shift On)**: "<Layer Name>" / "0.123" (shows `[PICKUP]` until engaged; includes APC Mini layer faders mirrored to the Novation OLED)
 - **Transport**: "Transport" / "Pause/Play" or "Hibernate"
 
 - **Save**: "Action" / "Save Image"
