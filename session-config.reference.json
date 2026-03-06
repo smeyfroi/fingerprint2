@@ -2,7 +2,6 @@
   "_comment": "Reference session config for fingerprint2. Underscore-prefixed keys are ignored (inactive/comment).",
 
   "rootSourceMaterialPath": "/Users/steve/Documents/music-source-material",
-  "rootPerformancePath": "/Users/steve/Documents/MarkSynth-performances/Improvisation1",
 
   "startupPerformanceConfigName": "",
 
@@ -40,8 +39,6 @@
   "sourceAudioStartPosition": "0:00",
 
   "_micDeviceName": "Apple Inc.: MacBook Pro Microphone",
-  "_recordAudio": false,
-  "_audioRecordingDir": "audio-recordings",
 
   "_comment_video": "Video file mode is ACTIVE. To switch to camera, move the underscore from the camera keys to the file keys.",
   "sourceVideoFile": "cork/video-flow-recording-2025-06-16-11-25-04-661.mp4",
@@ -50,8 +47,6 @@
 
   "_cameraDeviceId": 0,
   "_videoSize": [640, 480],
-  "_saveRecording": false,
-  "_videoRecordingDir": "video-recordings",
 
   "_recordedMaterialPresets": [
     {
