@@ -11,15 +11,17 @@ class ofApp : public ofBaseApp {
 public:
   void setup() override;
   void setGuiWindowPtr(std::shared_ptr<ofAppBaseWindow> windowPtr) { guiWindowPtr = windowPtr; }
+  void attachGuiWindowListeners();
+  void detachGuiWindowListeners();
   void onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e);
   void onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e);
   void update() override;
   void draw() override;
   void exit() override;
   void drawGui(ofEventArgs& args);
-  
-  void keyPressedEvent(ofKeyEventArgs& e) { keyPressed(e.key); } // adapter for ofAddListener
-  void keyReleasedEvent(ofKeyEventArgs& e) { keyReleased(e.key); } // adapter for ofAddListener
+
+  void keyPressedEvent(ofKeyEventArgs& e);
+  void keyReleasedEvent(ofKeyEventArgs& e);
   void keyPressed(int key) override;
   void keyReleased(int key) override;
   void mouseMoved(int x, int y ) override;
@@ -36,6 +38,8 @@ public:
 private:
   std::shared_ptr<ofAppBaseWindow> guiWindowPtr;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
+  bool guiWindowListenersAttached { false };
+  bool isShuttingDown { false };
   MidiController midiController;
   ApcMiniController apcMiniController;
 };

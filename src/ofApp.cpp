@@ -4,6 +4,44 @@
 
 using namespace ofxMarkSynth;
 
+void ofApp::attachGuiWindowListeners() {
+  if (!guiWindowPtr || guiWindowListenersAttached) {
+    return;
+  }
+
+  ofAddListener(guiWindowPtr->events().draw, this, &ofApp::drawGui);
+  ofAddListener(guiWindowPtr->events().keyPressed, this, &ofApp::keyPressedEvent);
+  ofAddListener(guiWindowPtr->events().keyReleased, this, &ofApp::keyReleasedEvent);
+  guiWindowListenersAttached = true;
+}
+
+void ofApp::detachGuiWindowListeners() {
+  if (!guiWindowPtr || !guiWindowListenersAttached) {
+    return;
+  }
+
+  ofRemoveListener(guiWindowPtr->events().draw, this, &ofApp::drawGui);
+  ofRemoveListener(guiWindowPtr->events().keyPressed, this, &ofApp::keyPressedEvent);
+  ofRemoveListener(guiWindowPtr->events().keyReleased, this, &ofApp::keyReleasedEvent);
+  guiWindowListenersAttached = false;
+}
+
+void ofApp::keyPressedEvent(ofKeyEventArgs& e) {
+  if (isShuttingDown || !synthPtr) {
+    return;
+  }
+
+  keyPressed(e.key);
+}
+
+void ofApp::keyReleasedEvent(ofKeyEventArgs& e) {
+  if (isShuttingDown || !synthPtr) {
+    return;
+  }
+
+  keyReleased(e.key);
+}
+
 void ofApp::setup(){
   ofDisableArbTex();
   glEnable(GL_PROGRAM_POINT_SIZE);
@@ -39,6 +77,10 @@ void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
 
 //--------------------------------------------------------------
 void ofApp::update(){
+  if (!synthPtr || isShuttingDown) {
+    return;
+  }
+
   synthPtr->update();
   midiController.update();
   apcMiniController.update();
@@ -46,15 +88,30 @@ void ofApp::update(){
 
 //--------------------------------------------------------------
 void ofApp::draw(){
+  if (!synthPtr || isShuttingDown) {
+    return;
+  }
+
   synthPtr->draw();
 }
 
 void ofApp::drawGui(ofEventArgs& args){
+  if (!synthPtr || isShuttingDown) {
+    return;
+  }
+
   synthPtr->drawGui();
 }
 
 //--------------------------------------------------------------
 void ofApp::exit(){
+  if (isShuttingDown) {
+    return;
+  }
+
+  isShuttingDown = true;
+  detachGuiWindowListeners();
+
   // Clear controller LEDs before tearing down the synth.
   midiController.exit();
   apcMiniController.exit();
@@ -63,16 +120,25 @@ void ofApp::exit(){
     ofRemoveListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload);
     ofRemoveListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad);
     synthPtr->shutdown();
+    synthPtr.reset();
   }
 }
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
+  if (!synthPtr || isShuttingDown) {
+    return;
+  }
+
   synthPtr->keyPressed(key);
 }
 
 //--------------------------------------------------------------
 void ofApp::keyReleased(int key){
+  if (!synthPtr || isShuttingDown) {
+    return;
+  }
+
   synthPtr->keyReleased(key);
 }
 
@@ -113,9 +179,11 @@ void ofApp::mouseExited(int x, int y){
 
 //--------------------------------------------------------------
 void ofApp::windowResized(int w, int h){
-  if (synthPtr) {
-    synthPtr->windowResized(w, h);
+  if (!synthPtr || isShuttingDown) {
+    return;
   }
+
+  synthPtr->windowResized(w, h);
 }
 
 //--------------------------------------------------------------
