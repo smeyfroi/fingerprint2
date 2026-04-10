@@ -1,11 +1,8 @@
-ofxNetwork
-ofxOsc
 ofxHistoryPlot
+ofxGui
 ofxGist
 ofxAudioFile
-ofxGui
 ofxSoundObjects
-ofxAudioAnalysisClient
 ofxAudioData
 ofxConvexHull
 ofxRenderer
@@ -26,3 +23,5 @@ ofxSomPalette
 ofxTimeMeasurements
 ofxTinyEXR
 ofxMarkSynth
+ofxNetwork
+ofxOsc
