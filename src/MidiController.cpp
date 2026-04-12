@@ -36,11 +36,12 @@ void MidiController::update() {
 
   // Poll recording, saving states, and timers - update display when any change
   if (synthPtr) {
-    bool currentRecordingState = synthPtr->isRecording();
-    bool currentSavingState = synthPtr->getActiveSaveCount() > 0;
+    const auto& runtime = synthPtr->getRuntimeSubsystem();
+    bool currentRecordingState = runtime.isRecording();
+    bool currentSavingState = runtime.getActiveSaveCount() > 0;
 
     // Get current config timer values (total seconds)
-    int currentConfigTimeSeconds = synthPtr->getConfigRunningMinutes() * 60 + synthPtr->getConfigRunningSeconds();
+    int currentConfigTimeSeconds = runtime.getConfigRunningMinutes() * 60 + runtime.getConfigRunningSeconds();
 
     if (currentRecordingState != lastRecordingState ||
         currentSavingState != lastSavingState ||
@@ -693,8 +694,9 @@ void MidiController::updateStationaryDisplay() {
                   sign, countdownMin, countdownSec);
   } else {
     // No duration: show config time
-    int configMinutes = synthPtr->getConfigRunningMinutes();
-    int configSeconds = synthPtr->getConfigRunningSeconds();
+    const auto& runtime = synthPtr->getRuntimeSubsystem();
+    int configMinutes = runtime.getConfigRunningMinutes();
+    int configSeconds = runtime.getConfigRunningSeconds();
     std::snprintf(timerBuf, sizeof(timerBuf), "%02d:%02d", 
                   configMinutes, configSeconds);
   }
@@ -702,10 +704,11 @@ void MidiController::updateStationaryDisplay() {
 
   // Line 3 (Value): status indicators
   std::string statusLine;
-  if (synthPtr->isRecording()) {
+  const auto& runtime = synthPtr->getRuntimeSubsystem();
+  if (runtime.isRecording()) {
     statusLine = "REC";
   }
-  int activeSaveCount = synthPtr->getActiveSaveCount();
+  int activeSaveCount = runtime.getActiveSaveCount();
   if (activeSaveCount > 0) {
     if (!statusLine.empty()) statusLine += " ";
     statusLine += std::to_string(activeSaveCount) + " SAV";
