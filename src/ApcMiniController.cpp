@@ -649,7 +649,7 @@ ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) c
 
     // Fallback (extra safety): direct path match.
     if (!isCurrentConfig && !info.configPath.empty()) {
-      const auto& currentPath = synthPtr->getCurrentConfigPath();
+      const auto& currentPath = synthPtr->getConfigSubsystem().getCurrentConfigPath();
       isCurrentConfig = (!currentPath.empty() && currentPath == info.configPath);
     }
   }
@@ -702,11 +702,11 @@ void ApcMiniController::onLayerButtonPressed(int buttonIndex) {
   if (!synthPtr || buttonIndex < 0 || buttonIndex >= kLayerPadCount) return;
 
   // Use pause slots as the authoritative "layer exists" signal
-  const auto& pauseParamPtrs = synthPtr->getLayerPauseParamPtrs();
+  const auto& pauseParamPtrs = synthPtr->getRenderSubsystem().getLayerPauseParamPtrs();
   if (buttonIndex >= static_cast<int>(pauseParamPtrs.size()) || pauseParamPtrs[buttonIndex] == nullptr) return;
 
   // Toggle layer pause
-  synthPtr->toggleLayerPauseSlot(buttonIndex);
+  synthPtr->getRenderSubsystem().toggleLayerPause(buttonIndex);
 
   // LED updates are applied on the main thread in update().
   queueLayerLedRefresh();
@@ -720,11 +720,9 @@ void ApcMiniController::updateLayerButtonLed(int buttonIndex) {
   bool isPaused = false;
 
   if (synthPtr) {
-    size_t layerCount = synthPtr->getLayerCount();
-    layerExists = buttonIndex < static_cast<int>(layerCount);
-
-    const auto& pauseParamPtrs = synthPtr->getLayerPauseParamPtrs();
-    if (layerExists && buttonIndex < static_cast<int>(pauseParamPtrs.size()) && pauseParamPtrs[buttonIndex] != nullptr) {
+    const auto& pauseParamPtrs = synthPtr->getRenderSubsystem().getLayerPauseParamPtrs();
+    layerExists = buttonIndex < static_cast<int>(pauseParamPtrs.size()) && pauseParamPtrs[buttonIndex] != nullptr;
+    if (layerExists) {
       isPaused = pauseParamPtrs[buttonIndex]->get();
     }
   }
@@ -743,7 +741,7 @@ void ApcMiniController::updateAllLayerButtonLeds() {
   std::vector<std::pair<int, RgbColor>> updates;
   updates.reserve(kLayerPadCount);
 
-  const auto* pauseParamPtrsPtr = synthPtr ? &synthPtr->getLayerPauseParamPtrs() : nullptr;
+  const auto* pauseParamPtrsPtr = synthPtr ? &synthPtr->getRenderSubsystem().getLayerPauseParamPtrs() : nullptr;
 
   for (int i = 0; i < kLayerPadCount; i++) {
     bool layerExists = false;
@@ -775,7 +773,7 @@ void ApcMiniController::updateAllLayerButtonLeds() {
 void ApcMiniController::onFaderMoved(int faderIndex, float normalizedValue) {
   if (!synthPtr || faderIndex >= kLayerFaderCount) return;
 
-  ofParameterGroup& alphas = synthPtr->getLayerAlphaParameters();
+  ofParameterGroup& alphas = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
   if (faderIndex >= static_cast<int>(alphas.size())) return;
 
   auto& fs = faderStates[faderIndex];
@@ -855,7 +853,7 @@ void ApcMiniController::bindFadersToLayerAlphas() {
 
   if (!synthPtr) return;
 
-  ofParameterGroup& alphas = synthPtr->getLayerAlphaParameters();
+  ofParameterGroup& alphas = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
   size_t count = std::min<size_t>(kLayerFaderCount, alphas.size());
 
   for (size_t i = 0; i < count; i++) {

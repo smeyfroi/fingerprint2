@@ -139,7 +139,7 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
 
       if (shiftModeParameter) {
         // Shift ON: faders map to layer alphas.
-        ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
+        ofParameterGroup& layerAlphaParameters = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
         if (faderIndex >= 0 && faderIndex < static_cast<int>(layerAlphaParameters.size())) {
           ofParameter<float>& param = layerAlphaParameters.getFloat(static_cast<size_t>(faderIndex));
           const float paramValue = param.get();
@@ -530,7 +530,7 @@ void MidiController::setupInitialLeds() {
 void MidiController::setLayerAlphasFullyOn() {
   if (!synthPtr) return;
 
-  ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
+  ofParameterGroup& layerAlphaParameters = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
   size_t count = std::min<size_t>(8, layerAlphaParameters.size());
   for (size_t i = 0; i < count; ++i) {
     ofParameter<float>& layerParameter = layerAlphaParameters.getFloat(i);
@@ -544,7 +544,7 @@ void MidiController::applyFaderBank() {
   lc->clearFaders();
 
   if (shiftModeParameter) {
-    ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
+    ofParameterGroup& layerAlphaParameters = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
     size_t count = std::min<size_t>(8, layerAlphaParameters.size());
     for (size_t i = 0; i < count; ++i) {
       ofParameter<float>& layerParameter = layerAlphaParameters.getFloat(i);
@@ -675,7 +675,7 @@ void MidiController::updateStationaryDisplay() {
 
   // Line 1 (Title): config filename
   std::string configName;
-  const std::string& configPath = synthPtr->getCurrentConfigPath();
+  const std::string& configPath = synthPtr->getConfigSubsystem().getCurrentConfigPath();
   if (!configPath.empty()) {
     std::filesystem::path p(configPath);
     configName = p.filename().string();
@@ -746,7 +746,7 @@ void MidiController::showLayerAlphaOverlay(int layerIndex, bool pickedUp) {
   if (!synthPtr || !display) return;
   if (layerIndex < 0) return;
 
-  ofParameterGroup& layerAlphaParameters = synthPtr->getLayerAlphaParameters();
+  ofParameterGroup& layerAlphaParameters = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
   if (layerIndex >= static_cast<int>(layerAlphaParameters.size())) return;
 
   ofParameter<float>& param = layerAlphaParameters.getFloat(static_cast<size_t>(layerIndex));
