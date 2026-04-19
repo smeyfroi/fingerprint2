@@ -69,6 +69,8 @@ class MidiController : public ofxMidiListener {
   static constexpr int kEncoderCcFirst = 13;
   static constexpr int kEncoderCcLast = 36;
 
+  static constexpr int kAgencyEncoderPickupToleranceCc = 6;
+
   // Relative/nudge tuning clutch with hysteresis (larger band).
   static constexpr int kLowClutchEnterCc = 4;
   static constexpr int kLowClutchExitCc = 11;

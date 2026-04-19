@@ -79,6 +79,8 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
   auto getEncoderBinding = [&](int knobIndex) -> std::optional<EncoderBinding> {
     switch (knobIndex) {
       case 0: return EncoderBinding{"agency", false, 0.0f};
+      case 8: return EncoderBinding{"AudioResp", false, 0.0f};
+      case 16: return EncoderBinding{"VideoResp", false, 0.0f};
 
       case 2: return EncoderBinding{"MinPitch", true, 2.0f};
       case 3: return EncoderBinding{"MaxPitch", true, 2.0f};
@@ -204,9 +206,12 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
         display->showTemporary(name, value);
         tempDisplayDismissTimeMs = nowMs + durationMs;
       };
+      auto formatKnobValue = [](float value) {
+        return ofToString(value, 2);
+      };
 
       if (!bindingOpt->nudgeEnabled) {
-        showKnobOverlay(bindingOpt->paramName, paramOpt->get().toString());
+        showKnobOverlay(bindingOpt->paramName, formatKnobValue(paramOpt->get().cast<float>().get()));
         return;
       }
 
@@ -238,7 +243,7 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
         state.lastEventTimeMs = nowMs;
         state.smoothedSpeedCcs = 0.0f;
         state.clutchMode = determineMode(EncoderClutchMode::Active);
-        showKnobOverlay(bindingOpt->paramName, std::string("ARM ") + ofToString(param.get(), 6));
+        showKnobOverlay(bindingOpt->paramName, std::string("ARM ") + formatKnobValue(param.get()));
         return;
       }
 
@@ -260,7 +265,7 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
         } else if (nextMode == EncoderClutchMode::ClutchHigh) {
           valueLine = "EXIT<=" + std::to_string(kHighClutchExitCc);
         } else {
-          valueLine = "VAL " + ofToString(param.get(), 6);
+          valueLine = "VAL " + formatKnobValue(param.get());
         }
 
         showKnobOverlay(nameLine, valueLine, kKnobStatusDisplayDurationMs);
@@ -284,7 +289,7 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
         state.lastCcValue = ccValue;
         state.lastEventTimeMs = nowMs;
         state.smoothedSpeedCcs = 0.0f;
-        showKnobOverlay(bindingOpt->paramName, std::string("ARM ") + ofToString(param.get(), 6));
+        showKnobOverlay(bindingOpt->paramName, std::string("ARM ") + formatKnobValue(param.get()));
         return;
       }
       dtMs = std::max<uint64_t>(dtMs, 1);
@@ -296,7 +301,7 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
       state.lastEventTimeMs = nowMs;
 
       if (deltaCc == 0) {
-        showKnobOverlay(bindingOpt->paramName, ofToString(param.get(), 6));
+        showKnobOverlay(bindingOpt->paramName, formatKnobValue(param.get()));
         return;
       }
 
@@ -318,7 +323,7 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
       }
 
       const uint64_t durationMs = (nameLine.find("[") != std::string::npos) ? kKnobStatusDisplayDurationMs : kKnobTempDisplayDurationMs;
-      showKnobOverlay(nameLine, ofToString(next, 6) + "  x" + ofToString(mult, 1), durationMs);
+      showKnobOverlay(nameLine, formatKnobValue(next) + "  x" + ofToString(mult, 1), durationMs);
     }
     return;
   }
@@ -511,7 +516,7 @@ void MidiController::setupInitialLeds() {
   leds->setEncoderLED(8, kOffColor);              // Encoder 7 - unused
 
   // Row 2 (encoders 9-16): indices 8-15 in addon terminology
-  leds->setEncoderLED(9, kOffColor);              // Encoder 8 - unused
+  leds->setEncoderLED(9, kAgencyEncoderColor);    // Encoder 8 - audio response
   leds->setEncoderLED(10, kOffColor);             // Encoder 9 - unused
   leds->setEncoderLED(11, kBlueEncoderColor);     // Encoder 10 - blue
   leds->setEncoderLED(12, kCyanEncoderColor);     // Encoder 11 - cyan
@@ -524,6 +529,7 @@ void MidiController::setupInitialLeds() {
   for (int i = 17; i <= 24; ++i) {
     leds->setEncoderLED(i, kOffColor);
   }
+  leds->setEncoderLED(17, kAgencyEncoderColor);   // Encoder 16 - video response
   leds->setEncoderLED(21, kPurpleEncoderColor);  // Encoder 20 - purple
   leds->setEncoderLED(22, kMagentaEncoderColor); // Encoder 21 - magenta
 }
@@ -617,12 +623,22 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
 
   // === Knob bindings ===
 
-  // Global agency knob (encoder 0): pickup/soft-takeover (not in nudge scope).
-  // ofxMarkSynth exposes this as a top-level parameter named "agency".
+  // Agency-family encoders use pickup/soft-takeover with a slightly wider
+  // tolerance so the XL3 rings pick up reliably at visual midpoint.
   if (auto agencyParamOpt = synthPtr->findParameterByNamePrefix("agency")) {
-    lc->knobPickup(0, agencyParamOpt->get().cast<float>());
+    lc->knobPickup(0, agencyParamOpt->get().cast<float>(), kAgencyEncoderPickupToleranceCc);
   } else {
     ofLogWarning("MidiController") << "Agency parameter not found; leaving encoder 0 unbound";
+  }
+  if (auto audioRespParamOpt = synthPtr->findParameterByNamePrefix("AudioResp")) {
+    lc->knobPickup(8, audioRespParamOpt->get().cast<float>(), kAgencyEncoderPickupToleranceCc);
+  } else {
+    ofLogWarning("MidiController") << "AudioResp parameter not found; leaving encoder 8 unbound";
+  }
+  if (auto videoRespParamOpt = synthPtr->findParameterByNamePrefix("VideoResp")) {
+    lc->knobPickup(16, videoRespParamOpt->get().cast<float>(), kAgencyEncoderPickupToleranceCc);
+  } else {
+    ofLogWarning("MidiController") << "VideoResp parameter not found; leaving encoder 16 unbound";
   }
 
   // Audio analysis encoders are handled as relative/nudge controls in handleButtonCC().

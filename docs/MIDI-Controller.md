@@ -66,25 +66,34 @@ LED behavior:
 | 2 | (unused) |
 | 3 | Min Pitch |
 | 4 | Max Pitch |
-| 5 | Min Complex Spectral Difference |
-| 6 | Max Complex Spectral Difference |
+| 5 | Min Spectral Centroid |
+| 6 | Max Spectral Centroid |
 | 7 | (unused) |
 | 8 | (unused) |
 
 ### Row 2 (Middle)
 | Encoder | Function |
 |---------|----------|
-| 9 | (unused) |
+| 9 | Audio Agency Response |
 | 10 | (unused) |
 | 11 | Min RMS |
 | 12 | Max RMS |
 | 13 | Min Spectral Crest |
 | 14 | Max Spectral Crest |
-| 15 | Min Zero Crossing Rate |
-| 16 | Max Zero Crossing Rate |
+| 15 | (unused) |
+| 16 | (unused) |
 
 ### Row 3 (Bottom)
-All encoders unused.
+| Encoder | Function |
+|---------|----------|
+| 17 | Video Agency Response |
+| 18 | (unused) |
+| 19 | (unused) |
+| 20 | (unused) |
+| 21 | Min Zero Crossing Rate |
+| 22 | Max Zero Crossing Rate |
+| 23 | (unused) |
+| 24 | (unused) |
 
 ---
 
@@ -137,11 +146,11 @@ Shows briefly when controls are used:
 ### Encoder LEDs
 | Encoder | Color |
 |---------|-------|
-| Agency (1) | Red |
+| Agency (1), Audio Resp (9), Video Resp (17) | Red |
 | Pitch (3-4) | Blue / Cyan |
 | Spectral (5-6, 13-14) | Purple / Magenta |
 | RMS (11-12) | Blue / Cyan |
-| Zero Crossing (15-16) | Purple / Magenta |
+| Zero Crossing (21-22) | Purple / Magenta |
 | Unused | Off |
 
 ---
