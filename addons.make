@@ -22,6 +22,7 @@ ofxSelfOrganizingMap
 ofxSomPalette
 ofxTimeMeasurements
 ofxTinyEXR
+ofxSyphon
 ofxMarkSynth
 ofxNetwork
 ofxOsc

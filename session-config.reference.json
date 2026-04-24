@@ -25,8 +25,16 @@
   "compositeSize": [7200, 7200],
   "startHibernated": true,
   "compositePanelGapPx": 28.0,
-  "recorderCompositeSize": [1280, 720],
+  "recordingWidth": 1280,
+  "recordingHeight": 720,
   "ffmpegBinaryPath": "/opt/homebrew/bin/ffmpeg",
+
+  "_comment_output": "Output routing. renderToDisplay=true (default) presents the shared rectangular output on the window and Syphon (if enabled) publishes that buffer. Performer cues are drawn on-screen only and never reach Syphon or recordings. To run headless and publish a fixed-size Syphon feed, set renderToDisplay=false, syphonEnabled=true, and specify syphonWidth/syphonHeight.",
+  "renderToDisplay": true,
+  "syphonEnabled": false,
+  "syphonServerName": "MarkSynth",
+  "_syphonWidth": 1920,
+  "_syphonHeight": 1080,
 
   "fontFile": "font/PlayfairDisplay-Regular.ttf",
   "textSourcesDir": "text",
