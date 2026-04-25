@@ -29,10 +29,10 @@
   "recordingHeight": 720,
   "ffmpegBinaryPath": "/opt/homebrew/bin/ffmpeg",
 
-  "_comment_output": "Output routing. renderToDisplay=true (default) presents the shared rectangular output on the window and Syphon (if enabled) publishes that buffer. Performer cues are drawn on-screen only and never reach Syphon or recordings. To run headless and publish a fixed-size Syphon feed, set renderToDisplay=false, syphonEnabled=true, and specify syphonWidth/syphonHeight.",
+  "_comment_output": "Output routing. renderToDisplay=true (default) presents the shared rectangular output on the window. syphonMode selects Syphon streams: 'off' (default), 'composite' (main tonemapped rectangular output), 'layers' (per-layer streams for layers flagged syphonPublish:true in their config; each layer stream is square at min(syphonWidth,syphonHeight) per side, matching the composite's center square region), or 'composite+layers'. Performer cues are drawn on-screen only and never reach Syphon or recordings. To run headless and publish a fixed-size Syphon feed, set renderToDisplay=false and specify syphonWidth/syphonHeight.",
   "renderToDisplay": true,
-  "syphonEnabled": false,
-  "syphonServerName": "MarkSynth",
+  "syphonMode": "off",
+  "syphonServerPrefix": "MarkSynth",
   "_syphonWidth": 1920,
   "_syphonHeight": 1080,
 
