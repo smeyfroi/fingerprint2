@@ -1227,7 +1227,10 @@
 				"5D4B6929-26B0-4850-849A-C3E27D4A634C",
 				"4C173305-7341-45B3-9AA0-2466D4BD0C18",
 				"76EFA714-4029-4C90-962E-03877CE2A50C",
-				"F1C2BBCF-27E1-487E-A901-656A2FF6C474"
+				"F1C2BBCF-27E1-487E-A901-656A2FF6C474",
+				"795C1607-4D97-4DF6-857F-0459158C7C73",
+				"9CE9DB1F-F4B6-4FBB-93D3-8B749BC41580",
+				"2ECFA4FA-C5E4-418D-97FC-85C770FD21FD"
 			],
 			"isa": "PBXGroup",
 			"name": "filterMods",
@@ -1977,6 +1980,31 @@
 			"lastKnownFileType": "sourcecode.cpp.cpp",
 			"name": "ThresholdMod.cpp",
 			"sourceTree": "<group>"
+		},
+		"795C1607-4D97-4DF6-857F-0459158C7C73": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "TileMod.hpp",
+			"sourceTree": "<group>"
+		},
+		"9CE9DB1F-F4B6-4FBB-93D3-8B749BC41580": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.cpp",
+			"name": "TileMod.cpp",
+			"sourceTree": "<group>"
+		},
+		"2ECFA4FA-C5E4-418D-97FC-85C770FD21FD": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "TileShader.h",
+			"sourceTree": "<group>"
+		},
+		"72E074C8-707F-424F-8E27-48C993E2B6B6": {
+			"fileRef": "9CE9DB1F-F4B6-4FBB-93D3-8B749BC41580",
+			"isa": "PBXBuildFile"
 		},
 		"4C7CB0D7-B70F-4124-8AF9-F7B1D6A2618B": {
 			"fileEncoding": "4",
@@ -6043,6 +6071,7 @@
 				"D66BDA09-A69F-449D-B1D2-1E6B5EB2DA14",
 				"4562A355-9AEB-498A-884B-AE9655366420",
 				"6E1EC9D4-614E-4844-A44D-A56B70305C81",
+				"72E074C8-707F-424F-8E27-48C993E2B6B6",
 				"F69540EF-BC12-4946-8410-23ED5E4A11F6",
 				"DA0551FA-E742-4EAB-A894-09BC6E9058E9",
 				"CD94CB3A-3BBF-47D1-870A-5392B6AC7A8F",
