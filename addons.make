@@ -7,7 +7,6 @@ ofxAudioData
 ofxConvexHull
 ofxRenderer
 ofxDividedArea
-ofxFFmpegRecorder
 ofxFontStash2
 ofxImGui
 ofxIntrospector
