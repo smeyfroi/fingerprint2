@@ -68,11 +68,13 @@ void ofApp::setup(){
 void ofApp::onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e) {
   midiController.onSynthWillUnload();
   apcMiniController.onSynthWillUnload();
+  nanoKontrolController.onSynthWillUnload();
 }
 
 void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
   midiController.onSynthDidLoad(synthPtr);
   apcMiniController.onSynthDidLoad(synthPtr);
+  nanoKontrolController.onSynthDidLoad(synthPtr);
 }
 
 //--------------------------------------------------------------
@@ -84,6 +86,7 @@ void ofApp::update(){
   synthPtr->update();
   midiController.update();
   apcMiniController.update();
+  nanoKontrolController.update();
 }
 
 //--------------------------------------------------------------
@@ -115,6 +118,7 @@ void ofApp::exit(){
   // Clear controller LEDs before tearing down the synth.
   midiController.exit();
   apcMiniController.exit();
+  nanoKontrolController.exit();
 
   if (synthPtr) {
     ofRemoveListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload);

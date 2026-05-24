@@ -4,6 +4,7 @@
 
 #include "ApcMiniController.h"
 #include "MidiController.h"
+#include "NanoKontrol2Controller.h"
 #include "ofxMarkSynth.h"
 
 class ofApp : public ofBaseApp {
@@ -42,4 +43,5 @@ private:
   bool isShuttingDown { false };
   MidiController midiController;
   ApcMiniController apcMiniController;
+  NanoKontrol2Controller nanoKontrolController;
 };
