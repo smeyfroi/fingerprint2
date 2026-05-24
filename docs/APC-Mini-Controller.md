@@ -6,11 +6,12 @@ This document describes the Akai APC Mini MK2 MIDI controller integration with f
 
 Status: implemented in `src/ApcMiniController.h` and `src/ApcMiniController.cpp`.
 
-**Relationship with existing Launch Control XL:**
-- Launch Control XL: Detailed parameter control (encoders for audio analysis, faders for intents/layers, OLED display)
-- APC Mini MK2: Visual config grid navigation (56 RGB pads for config selection, 8 RGB pads for layer toggle, faders for layer alphas)
+**Relationship with the other controllers:**
+- **Launch Control XL 3:** Detailed parameter control (encoders for audio analysis, faders for intents/layers, OLED display) — see `MIDI-Controller.md`.
+- **APC Mini MK2:** Visual config grid navigation (56 RGB pads for config selection, 8 RGB pads for layer toggle, faders for layer alphas).
+- **Korg nanoKONTROL2:** Portable layer alpha + mute control + ergonomic transport — see `NanoKontrol2-Controller.md`.
 
-Both controllers can operate simultaneously, each serving a distinct purpose.
+All three controllers can operate simultaneously, each serving a distinct purpose.
 
 **Reference implementation:** JavaScript library at `/Users/steve/Development/opensource/akai-apc-mini-mk2`
 

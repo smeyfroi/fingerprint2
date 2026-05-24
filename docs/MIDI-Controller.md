@@ -4,6 +4,8 @@
 
 This document describes the MIDI controller mapping for the Novation Launch Control XL 3 in DAW mode.
 
+**Companion controllers:** fingerprint2 also integrates the Akai APC Mini MK2 (`APC-Mini-Controller.md`) and the Korg nanoKONTROL2 (`NanoKontrol2-Controller.md`). All three can run simultaneously without conflict — each writes to the same shared `ofParameter` targets through pickup/soft-takeover.
+
 ---
 
 ## Shift Mode
