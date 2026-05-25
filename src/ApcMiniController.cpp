@@ -10,7 +10,6 @@ ApcMiniController::ApcMiniController() {
   padLedRetryUntilMs.fill(0);
   for (auto& fs : faderStates) {
     fs.lastMidiValue = -1.0f;
-    fs.targetParamValue = 0.0f;
     fs.pickedUp = false;
   }
 }
@@ -25,62 +24,21 @@ void ApcMiniController::queuePadLedUpdate(int padNote) {
   pendingPadLedUpdates.push_back(padNote);
 }
 
-void ApcMiniController::queueLayerLedRefresh() {
-  std::lock_guard<std::mutex> lock(ledQueueMutex);
-  pendingLayerLedRefresh = true;
-}
-
 void ApcMiniController::flushQueuedLedUpdates() {
   std::vector<int> padNotes;
-  bool refreshLayer = false;
 
   {
     std::lock_guard<std::mutex> lock(ledQueueMutex);
     padNotes.swap(pendingPadLedUpdates);
-    refreshLayer = pendingLayerLedRefresh;
-    pendingLayerLedRefresh = false;
   }
 
-  if (!padNotes.empty()) {
-    std::sort(padNotes.begin(), padNotes.end());
-    padNotes.erase(std::unique(padNotes.begin(), padNotes.end()), padNotes.end());
+  if (padNotes.empty()) return;
 
-    for (int note : padNotes) {
-      updatePadLed(note);
-    }
-  }
+  std::sort(padNotes.begin(), padNotes.end());
+  padNotes.erase(std::unique(padNotes.begin(), padNotes.end()), padNotes.end());
 
-  if (refreshLayer) {
-    updateAllLayerButtonLeds();
-  }
-}
-
-void ApcMiniController::queueLayerFaderOverlay(int layerIndex, bool pickedUp) {
-  std::lock_guard<std::mutex> lock(layerOverlayMutex);
-  hasPendingLayerOverlay = true;
-  pendingLayerOverlayIndex = layerIndex;
-  pendingLayerOverlayPickedUp = pickedUp;
-}
-
-void ApcMiniController::flushLayerFaderOverlay() {
-  if (!layerFaderOverlayCallback) return;
-
-  int layerIndex = -1;
-  bool pickedUp = false;
-  bool hasPending = false;
-
-  {
-    std::lock_guard<std::mutex> lock(layerOverlayMutex);
-    hasPending = hasPendingLayerOverlay;
-    if (hasPending) {
-      layerIndex = pendingLayerOverlayIndex;
-      pickedUp = pendingLayerOverlayPickedUp;
-      hasPendingLayerOverlay = false;
-    }
-  }
-
-  if (hasPending && layerIndex >= 0) {
-    layerFaderOverlayCallback(layerIndex, pickedUp);
+  for (int note : padNotes) {
+    updatePadLed(note);
   }
 }
 
@@ -156,7 +114,6 @@ bool ApcMiniController::tryConnect() {
 
   // Clear all LEDs to known state on connection
   clearAllLeds();
-  restorePersistentLeds();
 
   return true;
 }
@@ -184,7 +141,6 @@ void ApcMiniController::update() {
   // Apply any LED updates requested by MIDI callbacks early.
   // This improves perceived responsiveness for hold/amber feedback.
   flushQueuedLedUpdates();
-  flushLayerFaderOverlay();
 
   // While a pad is being held, resend amber at a gentle fixed rate.
   // This makes hold feedback resilient to occasional dropped SysEx.
@@ -301,14 +257,6 @@ void ApcMiniController::update() {
     updateAllPadLeds();
   }
 
-  // Layer LEDs: refresh periodically (layer params can come online after load)
-  if (nowMs - lastLayerLedUpdateMs >= 200) {
-    updateAllLayerButtonLeds();
-    restorePersistentLeds();
-    lastLayerLedUpdateMs = nowMs;
-  }
-
-
   // Keep hold feedback + recent changes reliable.
   if (currentHold.active && currentHold.padNote >= 0 && currentHold.padNote < kPadCount) {
     padLedRetryUntilMs[currentHold.padNote] = nowMs + 500;
@@ -362,15 +310,13 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
     }
   }
 
-  // Bind faders to layer alphas
-  bindFadersToLayerAlphas();
-  bindAgencyFader();
+  // Reset fader pickup states so they re-acquire against the new config's
+  // parameter values.
+  resetFaderPickupStates();
 
   // Update all LEDs
   updateAllPadLeds();
-  updateAllLayerButtonLeds();
   dimInactiveControls();
-  restorePersistentLeds();
 }
 
 void ApcMiniController::onSynthWillUnload() {
@@ -379,7 +325,7 @@ void ApcMiniController::onSynthWillUnload() {
     clearAllLeds();
   }
 
-  // Reset fader pickup states so they need to re-acquire on next load
+  // Reset fader pickup so they re-acquire on the next config.
   resetFaderPickupStates();
 
   // Clear cached LED state
@@ -391,7 +337,6 @@ void ApcMiniController::onSynthWillUnload() {
   currentConfigPadNote = -1;
   lastKnownConfigIndex = -1;
   lastKnownHibState = -1;
-  lastLayerLedUpdateMs = 0;
 }
 
 void ApcMiniController::newMidiMessage(ofxMidiMessage& message) {
@@ -417,38 +362,14 @@ void ApcMiniController::newMidiMessage(ofxMidiMessage& message) {
 }
 
 void ApcMiniController::handleNoteOn(int note, int velocity) {
-  // Layer toggle pads (bottom row of grid, notes 0-7)
-  if (note >= kLayerPadNoteFirst && note <= kLayerPadNoteLast) {
-    int layerIndex = note - kLayerPadNoteFirst;
-    onLayerButtonPressed(layerIndex);
-    return;
-  }
-
-  // Config pads (rows 1-7, notes 8-63)
+  // Config pads (rows 1-7, notes 8-63) — the only interactive input now.
   if (note >= kConfigPadNoteFirst && note <= kConfigPadNoteLast) {
     onPadPressed(note);
     return;
   }
 
-  // Arrow buttons (physical bottom row) → same behavior as keyboard arrow keys
-  if (note == kArrowLeftButtonNote) {
-    if (synthPtr) {
-      synthPtr->keyPressed(OF_KEY_LEFT);
-    }
-    return;
-  }
-
-  if (note == kArrowRightButtonNote) {
-    if (synthPtr) {
-      synthPtr->keyPressed(OF_KEY_RIGHT);
-    }
-    return;
-  }
-
-  // Physical Track Buttons (notes 100-107): ignored
-  // (They still send input, but we use the RGB pad row for layer controls.)
-
-  // Shift and side buttons are inactive - ignore
+  // Bottom row pads (notes 0-7), physical Track buttons (100-107),
+  // side buttons, and Shift are all unused — ignore.
 }
 
 void ApcMiniController::handleNoteOff(int note) {
@@ -458,40 +379,62 @@ void ApcMiniController::handleNoteOff(int note) {
     return;
   }
 
-  // Arrow buttons (physical bottom row)
-  if (note == kArrowLeftButtonNote) {
-    if (synthPtr) {
-      synthPtr->keyReleased(OF_KEY_LEFT);
-    }
-    return;
-  }
-
-  if (note == kArrowRightButtonNote) {
-    if (synthPtr) {
-      synthPtr->keyReleased(OF_KEY_RIGHT);
-    }
-    return;
-  }
-
-  // Layer pads (notes 0-7) don't need release handling - toggle on press
-  // Other note offs ignored
+  // All other notes are unused.
 }
 
 void ApcMiniController::handleCC(int cc, int value) {
-  // Faders
-  // CC 48-55: layer alphas
-  // CC 56: Synth Agency
-  float normalized = value / 127.0f;
-
-  if (cc >= kFaderCCFirst && cc < kFaderCCFirst + kLayerFaderCount) {
+  // Faders 1-3 (CC 48-50) drive the three top-of-sidebar synth controls.
+  // Faders 4-9 (CC 51-56) are unbound and silently dropped.
+  if (cc >= kFaderCCFirst && cc <= kFaderCCLast) {
     int faderIndex = cc - kFaderCCFirst;
-    onFaderMoved(faderIndex, normalized);
+    if (faderIndex < kBoundFaderCount) {
+      handleFaderCC(faderIndex, value);
+    }
+    return;
+  }
+}
+
+void ApcMiniController::handleFaderCC(int faderIndex, int value) {
+  if (!synthPtr) return;
+  if (faderIndex < 0 || faderIndex >= kBoundFaderCount) return;
+
+  const char* paramName = kFaderBindings[faderIndex];
+  if (paramName == nullptr) return;
+
+  auto paramWrapper = synthPtr->findParameterByNamePrefix(paramName);
+  if (paramWrapper == std::nullopt) {
+    // Param not present in the current config — silent no-op.
     return;
   }
 
-  if (cc == kAgencyFaderCC) {
-    onAgencyFaderMoved(normalized);
-    return;
+  ofParameter<float>& param = paramWrapper->get().cast<float>();
+  float normalized = static_cast<float>(value) / 127.0f;
+  auto& fs = faderStates[faderIndex];
+
+  if (!fs.pickedUp) {
+    float paramValue = param.get();
+    float paramNormalized = (paramValue - param.getMin()) / (param.getMax() - param.getMin());
+
+    if (std::abs(normalized - paramNormalized) <= kPickupThreshold) {
+      fs.pickedUp = true;
+      ofLogVerbose("ApcMiniController") << "Fader " << faderIndex
+                                        << " (" << paramName << ") picked up";
+    } else {
+      fs.lastMidiValue = normalized;
+      return;
+    }
+  }
+
+  float min = param.getMin();
+  float max = param.getMax();
+  param.set(min + normalized * (max - min));
+  fs.lastMidiValue = normalized;
+}
+
+void ApcMiniController::resetFaderPickupStates() {
+  for (auto& fs : faderStates) {
+    fs.pickedUp = false;
+    fs.lastMidiValue = -1.0f;
   }
 }
 
@@ -696,187 +639,6 @@ void ApcMiniController::onPadReleased(int padNote) {
   }
 }
 
-// === Layer Buttons ===
-
-void ApcMiniController::onLayerButtonPressed(int buttonIndex) {
-  if (!synthPtr || buttonIndex < 0 || buttonIndex >= kLayerPadCount) return;
-
-  // Use pause slots as the authoritative "layer exists" signal
-  const auto& pauseParamPtrs = synthPtr->getRenderSubsystem().getLayerPauseParamPtrs();
-  if (buttonIndex >= static_cast<int>(pauseParamPtrs.size()) || pauseParamPtrs[buttonIndex] == nullptr) return;
-
-  // Toggle layer pause
-  synthPtr->getRenderSubsystem().toggleLayerPause(buttonIndex);
-
-  // LED updates are applied on the main thread in update().
-  queueLayerLedRefresh();
-}
-
-void ApcMiniController::updateLayerButtonLed(int buttonIndex) {
-  // Keep per-button update for completeness, but prefer row updates
-  if (!connected || buttonIndex < 0 || buttonIndex >= kLayerPadCount) return;
-
-  bool layerExists = false;
-  bool isPaused = false;
-
-  if (synthPtr) {
-    const auto& pauseParamPtrs = synthPtr->getRenderSubsystem().getLayerPauseParamPtrs();
-    layerExists = buttonIndex < static_cast<int>(pauseParamPtrs.size()) && pauseParamPtrs[buttonIndex] != nullptr;
-    if (layerExists) {
-      isPaused = pauseParamPtrs[buttonIndex]->get();
-    }
-  }
-
-  RgbColor color = kColorOff;
-  if (layerExists) {
-    color = isPaused ? kColorDimLayer : kColorBrightLayer;
-  }
-
-  setBottomButtonLed(buttonIndex, color);
-}
-
-void ApcMiniController::updateAllLayerButtonLeds() {
-  if (!connected) return;
-
-  std::vector<std::pair<int, RgbColor>> updates;
-  updates.reserve(kLayerPadCount);
-
-  const auto* pauseParamPtrsPtr = synthPtr ? &synthPtr->getRenderSubsystem().getLayerPauseParamPtrs() : nullptr;
-
-  for (int i = 0; i < kLayerPadCount; i++) {
-    bool layerExists = false;
-    bool isPaused = false;
-
-    if (pauseParamPtrsPtr) {
-      const auto& pauseParamPtrs = *pauseParamPtrsPtr;
-      layerExists = i < static_cast<int>(pauseParamPtrs.size()) && pauseParamPtrs[i] != nullptr;
-      if (layerExists) {
-        isPaused = pauseParamPtrs[i]->get();
-      }
-    }
-
-    RgbColor color = kColorOff;
-    if (layerExists) {
-      color = isPaused ? kColorDimLayer : kColorBrightLayer;
-    }
-
-    int padNote = kLayerPadNoteFirst + i;
-    updates.push_back({padNote, color});
-    padCurrentColors[padNote] = color;
-  }
-
-  setPadRgbBatch(updates);
-}
-
-// === Faders ===
-
-void ApcMiniController::onFaderMoved(int faderIndex, float normalizedValue) {
-  if (!synthPtr || faderIndex >= kLayerFaderCount) return;
-
-  ofParameterGroup& alphas = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
-  if (faderIndex >= static_cast<int>(alphas.size())) return;
-
-  auto& fs = faderStates[faderIndex];
-  ofParameter<float>& param = alphas.getFloat(faderIndex);
-
-  if (!fs.pickedUp) {
-    // Check if fader has crossed the parameter value (pickup)
-    float paramValue = param.get();
-    float paramNormalized = (paramValue - param.getMin()) / (param.getMax() - param.getMin());
-
-    if (std::abs(normalizedValue - paramNormalized) <= kPickupThreshold) {
-      fs.pickedUp = true;
-      ofLogVerbose("ApcMiniController") << "Fader " << faderIndex << " picked up";
-    } else {
-      // Not picked up yet - don't change parameter
-      fs.lastMidiValue = normalizedValue;
-      queueLayerFaderOverlay(faderIndex, false);
-      return;
-    }
-  }
-
-  // Apply value
-  float min = param.getMin();
-  float max = param.getMax();
-  float newValue = min + normalizedValue * (max - min);
-  param.set(newValue);
-  fs.lastMidiValue = normalizedValue;
-  queueLayerFaderOverlay(faderIndex, true);
-}
-
-void ApcMiniController::onAgencyFaderMoved(float normalizedValue) {
-  if (!synthPtr) return;
-
-  auto paramWrapper = synthPtr->findParameterByNamePrefix("agency");
-  if (paramWrapper == std::nullopt) return;
-
-  ofParameter<float>& param = paramWrapper->get().cast<float>();
-  auto& fs = agencyFaderState;
-
-  if (!fs.pickedUp) {
-    float paramValue = param.get();
-    float paramNormalized = (paramValue - param.getMin()) / (param.getMax() - param.getMin());
-
-    if (std::abs(normalizedValue - paramNormalized) <= kPickupThreshold) {
-      fs.pickedUp = true;
-      ofLogVerbose("ApcMiniController") << "Agency fader picked up";
-    } else {
-      fs.lastMidiValue = normalizedValue;
-      return;
-    }
-  }
-
-  float min = param.getMin();
-  float max = param.getMax();
-  float newValue = min + normalizedValue * (max - min);
-  param.set(newValue);
-  fs.lastMidiValue = normalizedValue;
-}
-
-void ApcMiniController::bindAgencyFader() {
-  if (!synthPtr) return;
-
-  auto paramWrapper = synthPtr->findParameterByNamePrefix("agency");
-  if (paramWrapper == std::nullopt) return;
-
-  ofParameter<float>& param = paramWrapper->get().cast<float>();
-  float paramValue = param.get();
-  float paramNormalized = (paramValue - param.getMin()) / (param.getMax() - param.getMin());
-
-  agencyFaderState.targetParamValue = paramNormalized;
-  agencyFaderState.pickedUp = false;
-  agencyFaderState.lastMidiValue = -1.0f;
-}
-
-void ApcMiniController::bindFadersToLayerAlphas() {
-  resetFaderPickupStates();
-
-  if (!synthPtr) return;
-
-  ofParameterGroup& alphas = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
-  size_t count = std::min<size_t>(kLayerFaderCount, alphas.size());
-
-  for (size_t i = 0; i < count; i++) {
-    ofParameter<float>& param = alphas.getFloat(i);
-    float paramValue = param.get();
-    float paramNormalized = (paramValue - param.getMin()) / (param.getMax() - param.getMin());
-    faderStates[i].targetParamValue = paramNormalized;
-    faderStates[i].pickedUp = false;
-    faderStates[i].lastMidiValue = -1.0f;
-  }
-
-  ofLogNotice("ApcMiniController") << "Bound " << count << " faders to layer alphas";
-}
-
-void ApcMiniController::resetFaderPickupStates() {
-  for (auto& fs : faderStates) {
-    fs.pickedUp = false;
-    fs.lastMidiValue = -1.0f;
-  }
-  agencyFaderState.pickedUp = false;
-  agencyFaderState.lastMidiValue = -1.0f;
-}
-
 // === LED Control ===
 
 void ApcMiniController::clearAllLeds() {
@@ -979,35 +741,6 @@ void ApcMiniController::setPadRgbBatch(const std::vector<std::pair<int, RgbColor
   }
 }
 
-void ApcMiniController::setBottomButtonLed(int buttonIndex, const RgbColor& color) {
-  // Layer toggle buttons are on the bottom row of the RGB pad grid (notes 0-7)
-  // NOT the physical Track Buttons (notes 100-107) which are RED-only LEDs
-  if (!connected || buttonIndex < 0 || buttonIndex >= kLayerPadCount) return;
-
-  int padNote = kLayerPadNoteFirst + buttonIndex;  // notes 0-7
-  setPadRgb(padNote, color);
-  padCurrentColors[padNote] = color;
-}
-
-void ApcMiniController::setPhysicalBottomButtonLed(int note, int velocity) {
-  if (!connected) return;
-
-  velocity = ofClamp(velocity, 0, 127);
-
-  if (midiOutControl.isOpen()) {
-    midiOutControl.sendNoteOn(1, note, velocity);
-  } else if (midiOut.isOpen()) {
-    midiOut.sendNoteOn(1, note, velocity);
-  }
-}
-
-void ApcMiniController::restorePersistentLeds() {
-  if (!connected) return;
-
-  setPhysicalBottomButtonLed(kArrowLeftButtonNote, kSingleLedOn);
-  setPhysicalBottomButtonLed(kArrowRightButtonNote, kSingleLedOn);
-}
-
 void ApcMiniController::setSideButtonLed(int buttonIndex, const RgbColor& color) {
   if (!connected || buttonIndex < 0 || buttonIndex >= kSideButtonCount) return;
 
@@ -1043,8 +776,6 @@ void ApcMiniController::dimInactiveControls() {
   } else {
     midiOut.sendNoteOn(1, kShiftButtonNote, 0);
   }
-
-  restorePersistentLeds();
 }
 
 // === Sysex Helpers ===

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -18,14 +17,16 @@ namespace ofxMarkSynth {
 /// Controller for Akai APC Mini MK2
 ///
 /// Features:
-/// - 8x7 RGB pad grid (rows 1-7) for config selection (hold-to-confirm)
-/// - Bottom row of pad grid (row 0, notes 0-7) for layer pause toggle
-/// - 8 faders for layer alpha control (with 5% pickup)
+/// - 8x7 RGB pad grid (rows 1-7) for config selection (hold-to-confirm).
+/// - Faders 1-3 drive the three top-of-sidebar synth-level parameters
+///   (agency / AudioResp / VideoResp) with soft-takeover pickup.
 ///
-/// Note: Physical bottom buttons (notes 100-107) only support red LEDs,
-/// so we use the bottom row of the RGB pad grid for layer control instead.
+/// The bottom row of pads and faders 4-9 are unused — layer alpha control,
+/// layer mute toggles, and prev/next config moved to the nanoKONTROL2
+/// (see docs/NanoKontrol2-Controller.md).
 ///
-/// Works alongside the existing MidiController (Launch Control XL).
+/// Works alongside MidiController (Launch Control XL) and
+/// NanoKontrol2Controller.
 class ApcMiniController : public ofxMidiListener {
 public:
   // === Device Identification ===
@@ -58,45 +59,43 @@ public:
 
   // === Track Buttons (Notes 100-107) - RED LED ONLY ===
   // These physical buttons only support red LEDs (off/on/blink).
-  // We still use them as alternate layer-toggle inputs, and as a
-  // redundant status indicator (solid = active, blink = paused).
+  // Currently unused (we just clear them on connect so they stay dark).
   static constexpr int kBottomButtonNoteFirst = 100;
   static constexpr int kBottomButtonNoteLast = 107;
   static constexpr int kBottomButtonCount = 8;
 
-  // Bottom button note aliases
-  static constexpr int kArrowLeftButtonNote = 106;   // Prev config (OF_KEY_LEFT)
-  static constexpr int kArrowRightButtonNote = 107;  // Next config (OF_KEY_RIGHT)
-
-  // Single-color LED velocity values
-  static constexpr int kSingleLedOff = 0;
-  static constexpr int kSingleLedOn = 1;
-  static constexpr int kSingleLedBlink = 2;
-
   static constexpr int kShiftButtonNote = 122;
 
-  // === Layer Toggle Pads (Bottom row of grid, notes 0-7) ===
-  static constexpr int kLayerPadNoteFirst = 0;
-  static constexpr int kLayerPadNoteLast = 7;
-  static constexpr int kLayerPadCount = 8;
-  
   // === Config Grid (Rows 1-7, notes 8-63) ===
+  // The physical bottom row of the grid (notes 0-7) is unused; we clear
+  // those pads on connect and leave them dark. Layer alpha + mute live on
+  // the nanoKONTROL2 (see docs/NanoKontrol2-Controller.md).
   static constexpr int kConfigPadNoteFirst = 8;
   static constexpr int kConfigPadNoteLast = 63;
   static constexpr int kConfigPadCount = 56;  // 7 rows * 8 columns
 
-  // === Faders (CC 48-56) ===
-  // CC 48-55: layer alpha faders
-  // CC 56: master fader (mapped to Synth Agency)
+  // === Faders (CC 48..56) ===
+  // Faders 1-3 (CC 48-50) drive the three top-of-sidebar synth-level
+  // parameters via soft-takeover pickup. The remaining faders (51-56)
+  // are unbound — their CCs are received and discarded.
   static constexpr int kFaderCCFirst = 48;
   static constexpr int kFaderCCLast = 56;
   static constexpr int kFaderCount = 9;
-  static constexpr int kLayerFaderCount = 8;  // CC 48-55
-  static constexpr int kAgencyFaderCC = 56;
+  static constexpr int kBoundFaderCount = 3;  // Faders 1-3 (CC 48-50)
+
+  // Per-fader parameter binding. Each bound fader drives the named
+  // ofParameter<float> resolved via Synth::findParameterByNamePrefix.
+  // Only the first kBoundFaderCount entries are used; remaining faders
+  // are silently dropped.
+  static constexpr std::array<const char*, kBoundFaderCount> kFaderBindings = {
+    "agency",     // Fader 1 (CC 48)
+    "AudioResp",  // Fader 2 (CC 49) — "AudioGain" in the sidebar
+    "VideoResp",  // Fader 3 (CC 50) — "MotionGain" in the sidebar
+  };
 
   // === Timing ===
   static constexpr uint64_t kHoldThresholdMs = 400;
-  static constexpr float kPickupThreshold = 0.05f;  // 5% for soft-takeover
+  static constexpr float kPickupThreshold = 0.05f;  // 5% soft-takeover
 
   // === LED Colors (RGB) ===
   struct RgbColor {
@@ -115,10 +114,6 @@ public:
   static constexpr RgbColor kColorMediumGray = {80, 80, 80};
   static constexpr RgbColor kColorBrightWhite = {255, 255, 255};
   static constexpr RgbColor kColorAmber = {255, 140, 0};
-
-  // Layer LED colors (use white to avoid confusion with config colors)
-  static constexpr RgbColor kColorBrightLayer = {160, 160, 160};
-  static constexpr RgbColor kColorDimLayer = {14, 14, 14};
 
   static constexpr RgbColor kColorDefaultConfig = {128, 128, 128};
 
@@ -150,9 +145,6 @@ public:
   // State queries
   bool isConnected() const { return connected; }
 
-  using LayerFaderOverlayCallback = std::function<void(int layerIndex, bool pickedUp)>;
-  void setLayerFaderOverlayCallback(LayerFaderOverlayCallback cb) { layerFaderOverlayCallback = std::move(cb); }
-
 private:
   // === MIDI I/O ===
   // The APC Mini MK2 exposes separate MIDI ports for "Control" and "Notes".
@@ -175,7 +167,6 @@ private:
   int currentConfigPadNote = -1;  // Which pad has the currently loaded config
   int lastKnownConfigIndex = -1;  // Tracks navigator changes (including non-APC switches)
   int lastKnownHibState = -1;     // Tracks hibernation state changes
-  uint64_t lastLayerLedUpdateMs = 0;
 
   // === Hold State ===
   struct HoldState {
@@ -189,30 +180,19 @@ private:
   // === LED Update Queue (MIDI thread → main thread) ===
   std::mutex ledQueueMutex;
   std::vector<int> pendingPadLedUpdates;
-  bool pendingLayerLedRefresh = false;
 
   void queuePadLedUpdate(int padNote);
-  void queueLayerLedRefresh();
   void flushQueuedLedUpdates();
 
-  void queueLayerFaderOverlay(int layerIndex, bool pickedUp);
-  void flushLayerFaderOverlay();
-
-  // === Fader Pickup State ===
+  // === Fader pickup state (one per bound fader) ===
   struct FaderState {
-    float lastMidiValue = -1.0f;  // Last value from MIDI (normalized 0-1)
-    float targetParamValue = 0.0f; // Current parameter value
+    float lastMidiValue = -1.0f;
     bool pickedUp = false;
   };
-  std::array<FaderState, kLayerFaderCount> faderStates;
-  FaderState agencyFaderState;
+  std::array<FaderState, kBoundFaderCount> faderStates;
 
-  // Layer fader → external display feedback (processed on main thread).
-  LayerFaderOverlayCallback layerFaderOverlayCallback;
-  std::mutex layerOverlayMutex;
-  bool hasPendingLayerOverlay = false;
-  int pendingLayerOverlayIndex = -1;
-  bool pendingLayerOverlayPickedUp = false;
+  void handleFaderCC(int faderIndex, int value);
+  void resetFaderPickupStates();
 
   // === Connection ===
   bool tryConnect();
@@ -240,25 +220,10 @@ private:
     y = kGridHeight - 1 - (note / kGridWidth);
   }
 
-  // === Layer Buttons ===
-  void onLayerButtonPressed(int buttonIndex);
-  void updateLayerButtonLed(int buttonIndex);
-  void updateAllLayerButtonLeds();
-
-  // === Faders ===
-  void onFaderMoved(int faderIndex, float normalizedValue);
-  void onAgencyFaderMoved(float normalizedValue);
-  void bindFadersToLayerAlphas();
-  void bindAgencyFader();
-  void resetFaderPickupStates();
-
   // === LED Control ===
   void clearAllLeds();
-  void restorePersistentLeds();
   void setPadRgb(int padNote, const RgbColor& color);
   void setPadRgbBatch(const std::vector<std::pair<int, RgbColor>>& pads);
-  void setBottomButtonLed(int buttonIndex, const RgbColor& color);
-  void setPhysicalBottomButtonLed(int note, int velocity);
   void setSideButtonLed(int buttonIndex, const RgbColor& color);
   void dimInactiveControls();
 

@@ -53,10 +53,6 @@ void ofApp::setup(){
     .dialogTitle = "Choose fingerprint2 session config (JSON)",
   });
 
-  apcMiniController.setLayerFaderOverlayCallback([this](int layerIndex, bool pickedUp) {
-    midiController.showLayerAlphaOverlay(layerIndex, pickedUp);
-  });
-
   synthPtr = ofxMarkSynth::Synth::create("fingerprint2", ofxMarkSynth::ModConfig {
   }, resources);
   synthPtr->loadFirstPerformanceConfig();

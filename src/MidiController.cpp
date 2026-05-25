@@ -78,9 +78,8 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
 
   auto getEncoderBinding = [&](int knobIndex) -> std::optional<EncoderBinding> {
     switch (knobIndex) {
-      case 0: return EncoderBinding{"agency", false, 0.0f};
-      case 8: return EncoderBinding{"AudioResp", false, 0.0f};
-      case 16: return EncoderBinding{"VideoResp", false, 0.0f};
+      // Encoders 0, 8, 16 (agency / AudioResp / VideoResp) moved to APC Mini
+      // faders 1-3 — see docs/APC-Mini-Controller.md.
 
       case 2: return EncoderBinding{"MinPitch", true, 2.0f};
       case 3: return EncoderBinding{"MaxPitch", true, 2.0f};
@@ -188,7 +187,6 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
   // In DAW mode, the 24 encoders send CC 13-36.
   // We use this to show a short-lived OLED overlay while the rotary is moving.
   //
-  // NOTE: Agency (encoder 0) is handled by the addon via pickup/soft-takeover.
   // Audio analysis encoders are handled here as relative/nudge controls with
   // clutch + acceleration.
   if (cc >= kEncoderCcFirst && cc <= kEncoderCcLast) {
@@ -506,7 +504,7 @@ void MidiController::setupInitialLeds() {
 
   // === Encoder LEDs (1-based numbering, encoders 1-24) ===
   // Row 1 (encoders 1-8): indices 0-7 in addon terminology
-  leds->setEncoderLED(1, kAgencyEncoderColor);    // Encoder 0 - agency (red)
+  leds->setEncoderLED(1, kOffColor);              // Encoder 0 - unused (moved to APC fader 1)
   leds->setEncoderLED(2, kOffColor);              // Encoder 1 - unused
   leds->setEncoderLED(3, kBlueEncoderColor);      // Encoder 2 - blue
   leds->setEncoderLED(4, kCyanEncoderColor);      // Encoder 3 - cyan
@@ -516,7 +514,7 @@ void MidiController::setupInitialLeds() {
   leds->setEncoderLED(8, kOffColor);              // Encoder 7 - unused
 
   // Row 2 (encoders 9-16): indices 8-15 in addon terminology
-  leds->setEncoderLED(9, kAgencyEncoderColor);    // Encoder 8 - audio response
+  leds->setEncoderLED(9, kOffColor);              // Encoder 8 - unused (moved to APC fader 2)
   leds->setEncoderLED(10, kOffColor);             // Encoder 9 - unused
   leds->setEncoderLED(11, kBlueEncoderColor);     // Encoder 10 - blue
   leds->setEncoderLED(12, kCyanEncoderColor);     // Encoder 11 - cyan
@@ -529,7 +527,7 @@ void MidiController::setupInitialLeds() {
   for (int i = 17; i <= 24; ++i) {
     leds->setEncoderLED(i, kOffColor);
   }
-  leds->setEncoderLED(17, kAgencyEncoderColor);   // Encoder 16 - video response
+  // Encoder 16 (video response) moved to APC fader 3 — leave dark.
   leds->setEncoderLED(21, kPurpleEncoderColor);  // Encoder 20 - purple
   leds->setEncoderLED(22, kMagentaEncoderColor); // Encoder 21 - magenta
 }
@@ -622,25 +620,7 @@ void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& 
   }
 
   // === Knob bindings ===
-
-  // Agency-family encoders use pickup/soft-takeover with a slightly wider
-  // tolerance so the XL3 rings pick up reliably at visual midpoint.
-  if (auto agencyParamOpt = synthPtr->findParameterByNamePrefix("agency")) {
-    lc->knobPickup(0, agencyParamOpt->get().cast<float>(), kAgencyEncoderPickupToleranceCc);
-  } else {
-    ofLogWarning("MidiController") << "Agency parameter not found; leaving encoder 0 unbound";
-  }
-  if (auto audioRespParamOpt = synthPtr->findParameterByNamePrefix("AudioResp")) {
-    lc->knobPickup(8, audioRespParamOpt->get().cast<float>(), kAgencyEncoderPickupToleranceCc);
-  } else {
-    ofLogWarning("MidiController") << "AudioResp parameter not found; leaving encoder 8 unbound";
-  }
-  if (auto videoRespParamOpt = synthPtr->findParameterByNamePrefix("VideoResp")) {
-    lc->knobPickup(16, videoRespParamOpt->get().cast<float>(), kAgencyEncoderPickupToleranceCc);
-  } else {
-    ofLogWarning("MidiController") << "VideoResp parameter not found; leaving encoder 16 unbound";
-  }
-
+  // agency / AudioResp / VideoResp moved to APC Mini faders 1-3.
   // Audio analysis encoders are handled as relative/nudge controls in handleButtonCC().
 
   // NOTE: We do NOT use addon's toggleButton() for any buttons.

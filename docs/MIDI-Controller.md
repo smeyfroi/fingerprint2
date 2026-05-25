@@ -61,10 +61,12 @@ LED behavior:
 
 ## Encoders (Knobs)
 
+> **Note:** Synth Agency, Audio Response, and Video Response previously lived on encoders 1, 9, and 17 (column 1 of the encoder grid). Those three controls moved to APC Mini faders 1-3 — see `APC-Mini-Controller.md`. Encoders 1, 9, and 17 are now unused and held dark.
+
 ### Row 1 (Top)
 | Encoder | Function |
 |---------|----------|
-| 1 | Synth Agency |
+| 1 | (unused) |
 | 2 | (unused) |
 | 3 | Min Pitch |
 | 4 | Max Pitch |
@@ -76,7 +78,7 @@ LED behavior:
 ### Row 2 (Middle)
 | Encoder | Function |
 |---------|----------|
-| 9 | Audio Agency Response |
+| 9 | (unused) |
 | 10 | (unused) |
 | 11 | Min RMS |
 | 12 | Max RMS |
@@ -88,7 +90,7 @@ LED behavior:
 ### Row 3 (Bottom)
 | Encoder | Function |
 |---------|----------|
-| 17 | Video Agency Response |
+| 17 | (unused) |
 | 18 | (unused) |
 | 19 | (unused) |
 | 20 | (unused) |
@@ -148,7 +150,6 @@ Shows briefly when controls are used:
 ### Encoder LEDs
 | Encoder | Color |
 |---------|-------|
-| Agency (1), Audio Resp (9), Video Resp (17) | Red |
 | Pitch (3-4) | Blue / Cyan |
 | Spectral (5-6, 13-14) | Purple / Magenta |
 | RMS (11-12) | Blue / Cyan |

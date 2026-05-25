@@ -8,8 +8,8 @@ Status: implemented in `src/NanoKontrol2Controller.h` and `src/NanoKontrol2Contr
 
 **Relationship with the other controllers:**
 - **Launch Control XL 3** — Detailed parameter control (encoders for audio analysis, faders for intents/layers, OLED display).
-- **APC Mini MK2** — Visual config grid navigation (56 RGB pads for config selection, 8 RGB pads for layer toggle, faders for layer alphas).
-- **Korg nanoKONTROL2** — Portable layer alpha + mute control + ergonomic transport row. Duplicates a subset of APC Mini / LC XL3 functions on a much smaller form factor.
+- **APC Mini MK2** — Visual config grid navigation only (56 RGB pads, hold-to-confirm jump). Faders, bottom pad row, and Track buttons are intentionally unused.
+- **Korg nanoKONTROL2** — Layer alpha + mute control + ergonomic transport row. Owns the layer alpha / pause / prev-next-config / save / hibernate roles that previously lived on the APC Mini.
 
 All three controllers can operate simultaneously without conflict — each owns its own input range and writes the same shared `ofParameter` targets through the standard pickup/soft-takeover pattern.
 
@@ -112,7 +112,7 @@ fingerprint2 caches the last-sent state per CC and only re-sends when the desire
 
 ### Sliders 1-8 — Layer Alpha
 
-Sliders are bound to `Synth::getRenderSubsystem().getLayerAlphaParameters()` — the same parameter group the APC Mini and LC XL3 (in Shift mode) write to.
+Sliders are bound to `Synth::getRenderSubsystem().getLayerAlphaParameters()` — the same parameter group the LC XL3 (in Shift mode) writes to.
 
 | Slider | CC | Function |
 |--------|-----|----------|
@@ -141,7 +141,7 @@ This makes the row a live readout of how many layers the current performance con
 
 ### M Buttons (middle row) — Layer Mute Toggle
 
-Pressing an M button toggles the corresponding layer's pause state via `RenderSubsystem::toggleLayerPause(int)` — identical behavior to the APC Mini bottom-row pads and the keyboard `1`-`8` shortcuts.
+Pressing an M button toggles the corresponding layer's pause state via `RenderSubsystem::toggleLayerPause(int)` — same call previously triggered by the APC Mini bottom-row pads, and still reachable via the keyboard `1`-`8` shortcuts.
 
 | M Button | CC | Function | LED |
 |----------|-----|----------|-----|

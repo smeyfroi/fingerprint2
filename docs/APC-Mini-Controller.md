@@ -2,16 +2,27 @@
 
 ## Overview
 
-This document describes the Akai APC Mini MK2 MIDI controller integration with fingerprint2. The APC Mini provides an 8x8 RGB pad grid ideal for visual performance config navigation, plus 9 faders for layer alpha control.
+This document describes the Akai APC Mini MK2 MIDI controller integration with fingerprint2. The APC Mini is used for **visual performance config navigation** (top 7 rows of the 8x8 RGB pad grid) and for **the three top-of-sidebar synth controls** on the first three faders (Agency / AudioGain / MotionGain).
 
 Status: implemented in `src/ApcMiniController.h` and `src/ApcMiniController.cpp`.
 
 **Relationship with the other controllers:**
 - **Launch Control XL 3:** Detailed parameter control (encoders for audio analysis, faders for intents/layers, OLED display) — see `MIDI-Controller.md`.
-- **APC Mini MK2:** Visual config grid navigation (56 RGB pads for config selection, 8 RGB pads for layer toggle, faders for layer alphas).
-- **Korg nanoKONTROL2:** Portable layer alpha + mute control + ergonomic transport — see `NanoKontrol2-Controller.md`.
+- **APC Mini MK2:** Config grid (56 RGB pads, hold-to-confirm jump) + synth-level fader trio (Agency / AudioGain / MotionGain).
+- **Korg nanoKONTROL2:** Layer alpha + mute control + ergonomic transport — see `NanoKontrol2-Controller.md`.
 
 All three controllers can operate simultaneously, each serving a distinct purpose.
+
+**Previously on the APC Mini, now elsewhere:**
+- Layer alpha faders (CC 48-55) → nanoKONTROL2 sliders 1-8
+- Layer pause toggle pads → nanoKONTROL2 M buttons
+- Layer-exists indicator → nanoKONTROL2 S buttons
+- Prev/next config arrows → nanoKONTROL2 Rewind/FFwd
+
+**Newly here (previously on the LC XL3):**
+- Agency / AudioGain / MotionGain — were encoders 1, 9, 17 on the LC XL3 (column 1 of the encoder grid); now faders 1-3 on the APC Mini. The LC XL3 encoders 1/9/17 are now unused and held dark.
+
+The APC Mini's bottom pad row, side buttons, Track buttons, and faders 4-9 are ignored and held dark.
 
 **Reference implementation:** JavaScript library at `/Users/steve/Development/opensource/akai-apc-mini-mk2`
 
@@ -28,9 +39,7 @@ All three controllers can operate simultaneously, each serving a distinct purpos
 | Shift | 122 (0x7A) | None | N/A |
 | Pad Grid | 0-63 | **Full RGB** | 128 colors or custom RGB via SysEx |
 
-Because of this limitation, **layer toggle buttons are implemented on the bottom row of the RGB pad grid (notes 0-7)** instead of relying on the physical Track Buttons for feedback. This allows proper visual feedback.
-
-The physical Track Buttons (100-107) are still accepted as alternate layer-toggle inputs, but their red-only LEDs are not suitable as the primary layer feedback channel.
+Historically, this limitation was the reason layer toggle buttons lived on the bottom row of the RGB pad grid (notes 0-7) rather than on the physical Track Buttons. That feature has since moved to the nanoKONTROL2, so the limitation no longer affects anything fingerprint2 does on the APC Mini — the physical Track Buttons and the bottom pad row are simply unused.
 
 ---
 
@@ -147,9 +156,18 @@ int note = x + (7 - y) * 8;
 | 55 | 7 | `fader7` |
 | 56 | 8 | `fader8` |
 
-In `fingerprint2`, fader mapping is:
-- CC 48-55: layer alpha (layers 1-8)
-- CC 56 (master): `Synth Agency`
+In `fingerprint2`, faders 1-3 (CC 48-50) drive the three top-of-sidebar synth-level parameters. Faders 4-9 (CC 51-56) are unbound and their CCs are discarded.
+
+| Fader | CC | Parameter (code name) | Sidebar label | Drives |
+|-------|-----|----------------------|----------------|--------|
+| 1 | 48 | `agency` | Agency | Manual-vs-autonomous mix (`Synth::agencyParameter`, 0..1) |
+| 2 | 49 | `AudioResp` | AudioGain | How strongly audio drives agency (0..2) |
+| 3 | 50 | `VideoResp` | MotionGain | How strongly video/motion drives agency (0..2) |
+| 4-9 | 51-56 | — | — | Unused |
+
+Bindings live in a static `kFaderBindings` table in `ApcMiniController.h` and are resolved on each fader move via `Synth::findParameterByNamePrefix`. Adding or re-targeting a fader is a one-line edit to that table.
+
+**Pickup / soft-takeover:** the three bound faders use 5% pickup (`kPickupThreshold`) — when the physical fader position is more than 5% away from its target parameter's current normalized value, moving it has no effect until you sweep through the pickup window. Pickup state resets on every `onSynthDidLoad` so reloading a config requires re-engaging each fader.
 
 ---
 
@@ -371,7 +389,7 @@ const uint32_t kApcColorPalette[128] = {
 
 ### Pad Grid Layout
 
-The 8x8 pad grid is divided into two sections:
+Only the top 7 rows of the pad grid are active; the bottom row is held dark.
 
 ```
 ┌────┬────┬────┬────┬────┬────┬────┬────┐
@@ -389,27 +407,12 @@ The 8x8 pad grid is divided into two sections:
 ├────┼────┼────┼────┼────┼────┼────┼────┤
 │  8 │  9 │ 10 │ 11 │ 12 │ 13 │ 14 │ 15 │ Config Row 1
 ├────┼────┼────┼────┼────┼────┼────┼────┤
-│ L1 │ L2 │ L3 │ L4 │ L5 │ L6 │ L7 │ L8 │ LAYER TOGGLE (notes 0-7)
+│ ·· │ ·· │ ·· │ ·· │ ·· │ ·· │ ·· │ ·· │ UNUSED (notes 0-7)
 └────┴────┴────┴────┴────┴────┴────┴────┘
 ```
 
-- **Bottom row (notes 0-7)**: Layer pause toggle buttons (RGB, using white dim/bright)
 - **Rows 1-7 (notes 8-63)**: Config selection grid (56 slots for configs)
-
-### Layer Toggle Row (Bottom Row, Notes 0-7)
-
-The bottom row of the pad grid is dedicated to layer pause toggle buttons.
-
-| Pad | Note | Function | LED Color |
-|-----|------|----------|-----------|
-| L1 | 0 | Toggle Layer 1 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
-| L2 | 1 | Toggle Layer 2 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
-| L3 | 2 | Toggle Layer 3 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
-| L4 | 3 | Toggle Layer 4 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
-| L5 | 4 | Toggle Layer 5 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
-| L6 | 5 | Toggle Layer 6 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
-| L7 | 6 | Toggle Layer 7 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
-| L8 | 7 | Toggle Layer 8 pause | Bright white (active) / Dim white (paused) / Off (no layer) |
+- **Bottom row (notes 0-7)**: Unused. Presses on these pads are silently dropped; LEDs are held off by `clearAllLeds()`.
 
 ### Config Grid (Rows 1-7, Notes 8-63)
 
@@ -423,7 +426,7 @@ Each pad in rows 1-7 represents one performance config (up to 56 configs).
 - `buttonGrid.x`: `0..7`
 - `buttonGrid.y`: `0..6` (7 config rows; `y=0` is top row)
 - `buttonGrid.color`: `"#RRGGBB"`
-- `buttonGrid.y=7` is the physical bottom row (notes 0-7) and reserved for layer toggles; it will be treated as invalid and auto-assigned.
+- `buttonGrid.y=7` is the physical bottom row (notes 0-7), which is unused; it will be treated as invalid and auto-assigned to a valid row instead.
 
 **Auto-assignment:** missing/out-of-range/conflicting `buttonGrid` entries are auto-assigned in row-major order, **top-left → bottom-right**.
 
@@ -442,42 +445,19 @@ Each pad in rows 1-7 represents one performance config (up to 56 configs).
 4. On release before threshold: cancel
 5. On threshold reached: trigger `PerformanceNavigator::jumpTo(index)`
 
-### Faders: Layer Alpha Control
+### Faders (CC 48-56)
 
-Faders 0-7 control layer alphas, matching the Launch Control XL's Shift mode.
+Faders 1-3 (CC 48-50) drive the three top-of-sidebar synth-level parameters with soft-takeover pickup. Faders 4-9 (CC 51-56) are unbound. See the [MIDI Note/CC Mapping → Faders](#faders-cc-48-56) section above for the full table.
 
-| Fader | CC | Function |
-|-------|-------|----------|
-| 0 | 48 | Layer 1 alpha |
-| 1 | 49 | Layer 2 alpha |
-| 2 | 50 | Layer 3 alpha |
-| 3 | 51 | Layer 4 alpha |
-| 4 | 52 | Layer 5 alpha |
-| 5 | 53 | Layer 6 alpha |
-| 6 | 54 | Layer 7 alpha |
-| 7 | 55 | Layer 8 alpha |
-| 8 | 56 | (Reserved for future use) |
-
-**Implementation notes:**
-- Use pickup/soft-takeover mode to avoid parameter jumps
-- Bind to `Synth::getLayerAlphaParameters()` (same as Launch Control XL)
-- Fader 8 (CC 56) is reserved but not mapped initially
+Layer alpha control moved to the nanoKONTROL2 (see `NanoKontrol2-Controller.md`).
 
 ### Side Buttons (Notes 112-119)
 
-Currently unused in fingerprint2.
-- They are cleared/dimmed as part of `ApcMiniController::clearAllLeds()` / `dimInactiveControls()`.
-- (Future) Could be mapped to snapshot slots or other functions.
+Unused. Cleared/dimmed as part of `ApcMiniController::clearAllLeds()` / `dimInactiveControls()`.
 
 ### Track Buttons (Notes 100-107)
 
-The physical Track Buttons have **RED-only** LEDs (no RGB).
-
-In fingerprint2:
-- Notes `106`/`107` (◄/►) are used as alternate prev/next config inputs (they forward to `OF_KEY_LEFT`/`OF_KEY_RIGHT`, so hold-to-confirm behavior comes from `PerformanceNavigator`).
-- Other track buttons are currently unused.
-
-Primary layer control + feedback remains on the **RGB pad grid bottom row** (notes 0-7).
+The physical Track Buttons have **RED-only** LEDs (no RGB). **All unused.** Previously, notes 106/107 (◄/►) acted as prev/next config inputs — that role moved to the nanoKONTROL2's Rewind / Fast-Fwd buttons. The Track button LEDs are turned off on connect by `clearAllLeds()`.
 
 ---
 
@@ -506,23 +486,30 @@ Primary layer control + feedback remains on the **RGB pad grid bottom row** (not
   - Hold progress (amber)
 - [x] Resolve grid mapping inside `ofxMarkSynth::PerformanceNavigator` so GUI + APC share one mapping
 
-### Phase 4: Fader Layer Control
-- [x] Map CC 48-55 to layer alpha parameters
-- [x] Implement pickup/soft-takeover mode
-- [x] Connect to `Synth::getLayerAlphaParameters()`
-- [x] Handle Synth reload (rebind parameters on config change)
+### Phase 4: Fader Synth Controls
+- [x] Faders 1-3 (CC 48-50) → `agency` / `AudioResp` / `VideoResp` via `kFaderBindings` table
+- [x] Soft-takeover pickup (5% threshold) per bound fader
+- [x] Pickup reset on synth reload (`resetFaderPickupStates`)
+- [x] Silent no-op when a bound parameter isn't present in the current config
+- [x] Faders 4-9 (CC 51-56) unbound (CCs discarded by `handleCC`)
+- [previous] CC 48-55 were directly mapped to layer alpha; CC 56 was a master agency fader. Layer alphas moved to the nanoKONTROL2 sliders; agency stayed on this device but is now driven via the same binding-table approach as the other two parameters.
 
 ### Phase 5: Side Buttons
 - [ ] (Optional) Map notes 112-119 to snapshot slots or other functions
 
-### Phase 6: Arrow Button Navigation
-- [x] Map notes 106-107 to prev/next config (forward to `OF_KEY_LEFT`/`OF_KEY_RIGHT`)
-- [x] Use `PerformanceNavigator` hold-to-confirm via key press/release
+### Phase 6: Arrow Button Navigation — REMOVED
+- [removed] Notes 106/107 prev/next config → moved to nanoKONTROL2 Rewind/Fast-Fwd (CC 43/44)
+- [removed] Arrow LED persistence (`restorePersistentLeds`)
 
 ### Phase 7: Polish & Integration
 - [x] Handle hot-plug/unplug of controller
 - [x] Add graceful degradation if controller not present
-- [x] Coordinate with Launch Control XL (avoid conflicts)
+- [x] Coordinate with Launch Control XL and nanoKONTROL2 (avoid conflicts)
+
+### Phase 8: Layer Toggle Row — REMOVED
+- [removed] Bottom-row pads (notes 0-7) toggle layer pause → moved to nanoKONTROL2 M buttons (CC 48-55)
+- [removed] Layer-exists indicator on bottom row → moved to nanoKONTROL2 S buttons (CC 32-39)
+- [removed] `onLayerButtonPressed` / `updateLayerButtonLed` / `updateAllLayerButtonLeds` / `setBottomButtonLed`
 
 ---
 
@@ -531,9 +518,11 @@ Primary layer control + feedback remains on the **RGB pad grid bottom row** (not
 - Implementation: `src/ApcMiniController.h`, `src/ApcMiniController.cpp`
 - Config grid mapping: `ofxMarkSynth::PerformanceNavigator` is the source of truth (shared with the `ofxMarkSynth` ImGui pad-grid UI)
 - Pads (notes 8-63): RGB via SysEx, hold-to-confirm (amber while held)
-- Layers (notes 0-7): toggle pause slots with bright/dim white
-- Track buttons (notes 100-107): only 106/107 (◄/►) used as prev/next inputs; the rest are unused
-- Side buttons (notes 112-119) and Shift (122): currently unused/dimmed
+- Pads (notes 0-7): unused, held off
+- Faders 1-3 (CC 48-50): bound to `agency` / `AudioResp` / `VideoResp` via `kFaderBindings` (soft-takeover pickup)
+- Faders 4-9 (CC 51-56): unused
+- Track buttons (notes 100-107): unused
+- Side buttons (notes 112-119) and Shift (122): unused/dimmed
 
 ## References
 

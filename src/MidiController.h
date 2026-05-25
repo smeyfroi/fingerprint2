@@ -34,7 +34,6 @@ class MidiController : public ofxMidiListener {
   static constexpr LedColor kDimIntentColor = {8, 8, 0};        // Dim yellow
 
   // Encoder colors
-  static constexpr LedColor kAgencyEncoderColor = {64, 0, 0};    // Red (encoder 0)
   static constexpr LedColor kBlueEncoderColor = {0, 0, 32};      // Blue (encoders 2, 10)
   static constexpr LedColor kCyanEncoderColor = {0, 32, 32};    // Cyan (encoders 3, 11)
   static constexpr LedColor kPurpleEncoderColor = {32, 0, 64};   // Purple (encoders 4, 12, 14)
@@ -68,8 +67,6 @@ class MidiController : public ofxMidiListener {
   // LaunchControl XL encoders (24 knobs) send CC 13-36 in DAW mode.
   static constexpr int kEncoderCcFirst = 13;
   static constexpr int kEncoderCcLast = 36;
-
-  static constexpr int kAgencyEncoderPickupToleranceCc = 6;
 
   // Relative/nudge tuning clutch with hysteresis (larger band).
   static constexpr int kLowClutchEnterCc = 4;
