@@ -13,9 +13,7 @@ constexpr int kFaderKnobOffset = 24;
 constexpr float kIntentEpsilon = 0.0001f;
 }
 
-MidiController::MidiController() {
-  shiftModeParameter.addListener(this, &MidiController::onShiftModeChanged);
-}
+MidiController::MidiController() = default;
 
 void MidiController::update() {
   // Process queued button events on the main thread
@@ -54,6 +52,7 @@ void MidiController::update() {
   }
 
   updateIntentIndicatorLeds();
+  updateSnapshotSlotLeds();
 }
 
 void MidiController::newMidiMessage(ofxMidiMessage& message) {
@@ -100,50 +99,55 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
     }
   };
 
-  // === Shift button (CC 63 on channel 7) - latching toggle ===
-  if (cc == kShiftButtonCC && channel == kShiftButtonChannel) {
-    if (pressed) {
-      shiftModeParameter = !shiftModeParameter;
-      // LED update and display update happen in onShiftModeChanged
-    }
-    return;
-  }
-
   // === Top row function buttons (CC 37-44) ===
   // Used as intent indicator LEDs only (no button actions).
   if (cc >= kFunctionButtonCCFirst && cc <= kFunctionButtonCCLast) {
     return;
   }
 
-  // === Bottom row buttons (CC 45-52) ===
-  // Always active Mod Snapshot load (independent of shift mode).
+  // === Bottom row buttons (CC 45-52) — Mod Snapshot load 1-8 ===
+  // While held: white press-feedback (the per-frame existence refresh is
+  // suppressed for held slots). On release: revert to the slot's existence
+  // colour (lit if occupied, off if empty).
   if (cc >= kBottomRowButtonCCFirst && cc <= kBottomRowButtonCCLast) {
-    int index = cc - kBottomRowButtonCCFirst;
+    int index = cc - kBottomRowButtonCCFirst;  // slot 0-7
     if (pressed) {
+      snapshotSlotHeld[static_cast<size_t>(index)] = true;
       setButtonLedByCC(cc, kButtonPressedColor);
       if (synthPtr) {
         synthPtr->loadModSnapshotSlot(index);
         showTempDisplay("Snapshot", std::to_string(index + 1));
       }
     } else {
-      setButtonLedByCC(cc, kAgencyModeColor);
+      snapshotSlotHeld[static_cast<size_t>(index)] = false;
+      const bool occupied = synthPtr && synthPtr->isModSnapshotSlotOccupied(index);
+      const LedColor rest = occupied ? kSnapshotPresentColor : kOffColor;
+      setButtonLedByCC(cc, rest);
+      lastSnapshotSlotColors[static_cast<size_t>(index)] = rest;
     }
     return;
   }
 
   // === Fader movement (CC 5-12) ===
-  // Faders are bound via the addon (pickup/soft-takeover); we only drive OLED overlays.
+  // Faders are bound via the addon (pickup/soft-takeover); we only drive OLED
+  // overlays. Faders always map to the Intent system (activations + master);
+  // the old shift-mode layer-alpha bank was removed — layer alpha now lives on
+  // the APC Mini.
   if (cc >= 5 && cc <= 12) {
     if (synthPtr && display) {
       const uint64_t nowMs = ofGetElapsedTimeMillis();
       const int faderIndex = cc - 5; // 0-7
       auto& state = faderOverlayStates[static_cast<size_t>(faderIndex)];
 
-      if (shiftModeParameter) {
-        // Shift ON: faders map to layer alphas.
-        ofParameterGroup& layerAlphaParameters = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
-        if (faderIndex >= 0 && faderIndex < static_cast<int>(layerAlphaParameters.size())) {
-          ofParameter<float>& param = layerAlphaParameters.getFloat(static_cast<size_t>(faderIndex));
+      ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
+      if (intentParameters.size() > 0) {
+        const size_t masterIndex = intentParameters.size() - 1;
+        const size_t activationCount = std::min<size_t>(7, masterIndex);
+        const bool isMaster = (faderIndex == 7);
+
+        if (isMaster || static_cast<size_t>(faderIndex) < activationCount) {
+          ofParameter<float>& param = isMaster ? intentParameters.getFloat(masterIndex)
+                                               : intentParameters.getFloat(static_cast<size_t>(faderIndex));
           const float paramValue = param.get();
 
           const bool ccChanged = (state.lastCcValue >= 0) && (state.lastCcValue != value);
@@ -154,29 +158,6 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
 
           state.lastCcValue = value;
           state.lastParamValue = paramValue;
-        }
-      } else {
-        // Shift OFF: faders map to intent activations + master.
-        ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
-        if (intentParameters.size() > 0) {
-          const size_t masterIndex = intentParameters.size() - 1;
-          const size_t activationCount = std::min<size_t>(7, masterIndex);
-          const bool isMaster = (faderIndex == 7);
-
-          if (isMaster || static_cast<size_t>(faderIndex) < activationCount) {
-            ofParameter<float>& param = isMaster ? intentParameters.getFloat(masterIndex)
-                                                 : intentParameters.getFloat(static_cast<size_t>(faderIndex));
-            const float paramValue = param.get();
-
-            const bool ccChanged = (state.lastCcValue >= 0) && (state.lastCcValue != value);
-            const bool paramChanged = (std::abs(paramValue - state.lastParamValue) > 1e-4f);
-            const bool pickupLikely = ccChanged && !paramChanged;
-
-            maybeShowFaderOverlay(faderIndex, param.getName(), paramValue, pickupLikely, nowMs);
-
-            state.lastCcValue = value;
-            state.lastParamValue = paramValue;
-          }
         }
       }
     }
@@ -326,62 +307,10 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
     return;
   }
 
-  // === Transport buttons (all on channel 1, except Shift handled above) ===
-
-  // Play button (CC 116)
-  if (cc == kPlayButtonCC) {
-    if (pressed) {
-      if (!shiftModeParameter) {
-        // Pause/Play
-        sendKeyPress(' ');
-        showTempDisplay("Transport", "Pause/Play");
-      } else {
-        // Hibernate
-        sendKeyPress('H');
-        showTempDisplay("Transport", "Hibernate");
-      }
-    } else {
-      if (!shiftModeParameter) {
-        sendKeyRelease(' ');
-      } else {
-        sendKeyRelease('H');
-      }
-    }
-    return;
-  }
-
-  // Record button (CC 118) - Save Image in both modes
-  if (cc == kRecordTransportCC) {
-    if (pressed) {
-      sendKeyPress('S');
-      showTempDisplay("Action", "Save Image");
-    } else {
-      sendKeyRelease('S');
-    }
-    return;
-  }
-
-  // Track Left button (CC 103) - Previous Config (same in both modes)
-  if (cc == kTrackLeftCC) {
-    if (pressed) {
-      sendKeyPress(OF_KEY_LEFT);
-      showTempDisplay("Config", "Previous");
-    } else {
-      sendKeyRelease(OF_KEY_LEFT);
-    }
-    return;
-  }
-
-  // Track Right button (CC 102) - Next Config (same in both modes)
-  if (cc == kTrackRightCC) {
-    if (pressed) {
-      sendKeyPress(OF_KEY_RIGHT);
-      showTempDisplay("Config", "Next");
-    } else {
-      sendKeyRelease(OF_KEY_RIGHT);
-    }
-    return;
-  }
+  // Transport buttons (Play/Pause, Hibernate, Save Image, Prev/Next config)
+  // are intentionally NOT handled here — they live on the KORG NanoKontrol2.
+  // The Novation is faders→Intent, encoders→audio nudge, top-row intent LEDs,
+  // bottom-row snapshot recall.
 
   // Unhandled CCs ignored.
 }
@@ -405,47 +334,26 @@ void MidiController::setButtonLedByCC(int cc, const LedColor& color) {
   }
 }
 
-MidiController::LedColor MidiController::getButtonRestoreColor(int cc) const {
-  auto it = buttonRestoreColors.find(cc);
-  if (it != buttonRestoreColors.end()) {
-    return it->second;
-  }
-  return kOffColor;
-}
-
-void MidiController::sendKeyPress(int key) {
-  if (!synthPtr) return;
-  synthPtr->keyPressed(key);
-  heldKeys.insert(key);
-}
-
-void MidiController::sendKeyRelease(int key) {
-  if (!synthPtr) return;
-  if (heldKeys.count(key)) {
-    synthPtr->keyReleased(key);
-    heldKeys.erase(key);
-  }
-}
-
-void MidiController::onShiftModeChanged(bool& value) {
-  ofLogNotice("MidiController") << "Shift mode changed to "
-                               << (value ? "Layer mode (green)" : "Snapshot mode (red)");
-  applyFaderBank();
-  updateModeLeds();
-  showTempDisplay("Shift", value ? "On" : "Off");
-}
-
-void MidiController::updateModeLeds() {
+void MidiController::updateSnapshotSlotLeds() {
   auto* leds = lc ? lc->getLeds() : nullptr;
-  if (!leds) return;
+  if (!leds || !synthPtr) return;
 
-  // Bottom row buttons (9-16): always Mod Snapshot buttons
-  for (int i = 9; i <= 16; ++i) {
-    leds->setButtonLED(i, kAgencyModeColor);
+  // Bottom row buttons (9-16) map to snapshot slots 0-7. Each lights when its
+  // slot holds a saved snapshot, off when empty. Change-detected against the
+  // cache so we only emit MIDI on actual transitions (covers snapshots being
+  // saved/cleared live in the GUI). Slots currently held are skipped so the
+  // white press-feedback isn't stomped before release.
+  for (int slot = 0; slot < 8; ++slot) {
+    if (snapshotSlotHeld[static_cast<size_t>(slot)]) continue;
+
+    const bool occupied = synthPtr->isModSnapshotSlotOccupied(slot);
+    const LedColor desired = occupied ? kSnapshotPresentColor : kOffColor;
+    LedColor& current = lastSnapshotSlotColors[static_cast<size_t>(slot)];
+    if (desired.r != current.r || desired.g != current.g || desired.b != current.b) {
+      leds->setButtonLED(slot + 9, desired);
+      current = desired;
+    }
   }
-
-  // Top row buttons (1-8): intent indicators (updated per-frame)
-  updateIntentIndicatorLeds();
 }
 
 void MidiController::updateIntentIndicatorLeds() {
@@ -497,10 +405,15 @@ void MidiController::setupInitialLeds() {
   }
   lastIntentIndicatorColors.fill(kOffColor);
 
-  // === Bottom row buttons (9-16): Mod Snapshot 1-8 (always active) ===
+  // === Bottom row buttons (9-16): Mod Snapshot 1-8 ===
+  // Start all off; updateSnapshotSlotLeds() (per-frame) lights the slots that
+  // actually hold a snapshot. Reset the cache + held flags so the first
+  // refresh re-sends the occupied slots.
   for (int i = 9; i <= 16; ++i) {
-    leds->setButtonLED(i, kAgencyModeColor);
+    leds->setButtonLED(i, kOffColor);
   }
+  lastSnapshotSlotColors.fill(kOffColor);
+  snapshotSlotHeld.fill(false);
 
   // === Encoder LEDs (1-based numbering, encoders 1-24) ===
   // Row 1 (encoders 1-8): indices 0-7 in addon terminology
@@ -532,35 +445,13 @@ void MidiController::setupInitialLeds() {
   leds->setEncoderLED(22, kMagentaEncoderColor); // Encoder 21 - magenta
 }
 
-void MidiController::setLayerAlphasFullyOn() {
-  if (!synthPtr) return;
-
-  ofParameterGroup& layerAlphaParameters = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
-  size_t count = std::min<size_t>(8, layerAlphaParameters.size());
-  for (size_t i = 0; i < count; ++i) {
-    ofParameter<float>& layerParameter = layerAlphaParameters.getFloat(i);
-    layerParameter = layerParameter.getMax();
-  }
-}
-
 void MidiController::applyFaderBank() {
   if (!lc || !synthPtr) return;
 
   lc->clearFaders();
 
-  if (shiftModeParameter) {
-    ofParameterGroup& layerAlphaParameters = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
-    size_t count = std::min<size_t>(8, layerAlphaParameters.size());
-    for (size_t i = 0; i < count; ++i) {
-      ofParameter<float>& layerParameter = layerAlphaParameters.getFloat(i);
-      int knobIndex = kFaderKnobOffset + (int)i;
-      lc->knobPickup(knobIndex, layerParameter);
-      ofLogNotice("MidiController") << "Binding MIDI fader " << i << " (knob index " << knobIndex
-                                    << ") to Layer alpha parameter (pickup): " << layerParameter.getName();
-    }
-    return;
-  }
-
+  // Faders always bind to the Intent system (activations + master). The old
+  // shift-mode layer-alpha bank was removed — layer alpha lives on the APC Mini.
   ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
   if (intentParameters.size() == 0) return;
 
@@ -654,7 +545,6 @@ void MidiController::onSynthWillUnload() {
     lc->shutdown();
   }
   synthPtr.reset();
-  heldKeys.clear();
 }
 
 void MidiController::exit() {
@@ -664,7 +554,6 @@ void MidiController::exit() {
     lc.reset();
   }
   display.reset();
-  heldKeys.clear();
 }
 
 void MidiController::updateStationaryDisplay() {
@@ -739,22 +628,6 @@ void MidiController::maybeShowFaderOverlay(int faderIndex, const std::string& na
     state.lastName = nameLine;
     state.lastValue = valueLine;
   }
-}
-
-void MidiController::showLayerAlphaOverlay(int layerIndex, bool pickedUp) {
-  if (!synthPtr || !display) return;
-  if (layerIndex < 0) return;
-
-  ofParameterGroup& layerAlphaParameters = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
-  if (layerIndex >= static_cast<int>(layerAlphaParameters.size())) return;
-
-  ofParameter<float>& param = layerAlphaParameters.getFloat(static_cast<size_t>(layerIndex));
-  const float paramValue = param.get();
-  const uint64_t nowMs = ofGetElapsedTimeMillis();
-  maybeShowFaderOverlay(layerIndex, param.getName(), paramValue, !pickedUp, nowMs);
-
-  auto& state = faderOverlayStates[static_cast<size_t>(layerIndex)];
-  state.lastParamValue = paramValue;
 }
 
 void MidiController::disableControlAutoDisplays() {

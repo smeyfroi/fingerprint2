@@ -195,8 +195,13 @@ void NanoKontrol2Controller::handleSliderCC(int cc, int value) {
 void NanoKontrol2Controller::handleButtonCC(int cc, int value) {
   if (!synthPtr) return;
 
-  // S buttons (CC 32..39): no press action, LED-only.
+  // S buttons (CC 32..39): unused — no press action.
   if (cc >= kSButtonCCFirst && cc <= kSButtonCCLast) {
+    return;
+  }
+
+  // R buttons (CC 64..71): LED-only "layer exists" indicator, no press action.
+  if (cc >= kRButtonCCFirst && cc <= kRButtonCCLast) {
     return;
   }
 
@@ -243,10 +248,16 @@ void NanoKontrol2Controller::pollAndUpdateLeds() {
 
   const auto& pauseParamPtrs = synthPtr->getRenderSubsystem().getLayerPauseParamPtrs();
 
-  // S buttons (CC 32..39): lit iff layer exists in current config.
-  for (int i = 0; i < kSButtonCount; ++i) {
+  // R buttons (CC 64..71): lit iff layer exists in current config.
+  // (Moved here from the S buttons — bottom-of-strip indicator next to fader.)
+  for (int i = 0; i < kRButtonCount; ++i) {
     bool exists = i < static_cast<int>(pauseParamPtrs.size()) && pauseParamPtrs[i] != nullptr;
-    setLed(kSButtonCCFirst + i, exists);
+    setLed(kRButtonCCFirst + i, exists);
+  }
+
+  // S buttons (CC 32..39): now unused — keep them dark.
+  for (int i = 0; i < kSButtonCount; ++i) {
+    setLed(kSButtonCCFirst + i, false);
   }
 
   // M buttons (CC 48..55): lit iff layer paused.

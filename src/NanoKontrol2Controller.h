@@ -22,8 +22,9 @@ namespace ofxMarkSynth {
 ///
 /// Default-mode (Scene 1, factory) MIDI map, all on channel 1:
 ///   Sliders 1-8  : CC 0..7        (input only — layer alpha, with pickup)
-///   S buttons    : CC 32..39      (LED only — lit when layer N exists)
+///   S buttons    : CC 32..39      (unused — kept dark)
 ///   M buttons    : CC 48..55      (toggle layer pause; LED reflects pause)
+///   R buttons    : CC 64..71      (LED only — lit when layer N exists)
 ///   Rewind       : CC 43          (prev config; LED always-on + flash)
 ///   FFwd         : CC 44          (next config; LED always-on + flash)
 ///   Stop         : CC 42          (hibernate; LED while HIBERNATED/FADING_OUT)
@@ -57,6 +58,13 @@ public:
   static constexpr int kMButtonCCFirst = 48;
   static constexpr int kMButtonCCLast = 55;
   static constexpr int kMButtonCount = 8;
+
+  // === R buttons (CC 64..71) — factory-default Record-arm row ===
+  // LED-only "layer N exists" indicator (moved here from the S buttons so the
+  // light sits on the bottom button of each channel strip, next to the fader).
+  static constexpr int kRButtonCCFirst = 64;
+  static constexpr int kRButtonCCLast = 71;
+  static constexpr int kRButtonCount = 8;
 
   // === Transport buttons ===
   static constexpr int kPlayButtonCC = 41;

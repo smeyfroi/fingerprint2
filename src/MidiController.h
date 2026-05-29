@@ -18,15 +18,12 @@ class MidiController : public ofxMidiListener {
   using LedColor = ofxLaunchControlXL3Leds::Color;
 
   // === LED Color Constants ===
-  // Agency/Layer toggle and top row button colors
-  static constexpr LedColor kAgencyModeColor = {127, 0, 0};     // Bright red
-  static constexpr LedColor kLayerModeColor = {0, 127, 0};      // Bright green
-  // Softer alternatives:
-  // static constexpr LedColor kAgencyModeColor = {64, 0, 0};
-  // static constexpr LedColor kLayerModeColor = {0, 64, 0};
+  // Snapshot slot resting colour — bottom row buttons (9-16) light this when
+  // their snapshot slot is occupied, off when empty.
+  static constexpr LedColor kSnapshotPresentColor = {32, 32, 32}; // Dim white
 
   // Feedback and utility colors
-  static constexpr LedColor kButtonPressedColor = {127, 127, 127}; // White
+  static constexpr LedColor kButtonPressedColor = {127, 127, 127}; // White (momentary press)
   static constexpr LedColor kOffColor = {0, 0, 0};
 
   // Intent indicator colors (top row)
@@ -48,13 +45,11 @@ class MidiController : public ofxMidiListener {
   static constexpr int kBottomRowButtonCCFirst = 45;
   static constexpr int kBottomRowButtonCCLast = 52;
 
-  // Hardware transport buttons
-  static constexpr int kShiftButtonCC = 63;          // Shift (channel 7)
-  static constexpr int kShiftButtonChannel = 7;      // Shift is on channel 7
-  static constexpr int kPlayButtonCC = 116;          // Play (channel 1)
-  static constexpr int kRecordTransportCC = 118;     // Record (channel 1)
-  static constexpr int kTrackLeftCC = 103;           // Track Left (channel 1)
-  static constexpr int kTrackRightCC = 102;          // Track Right (channel 1)
+  // Transport/Shift buttons intentionally NOT handled by the Novation any more.
+  // Play/Pause, Hibernate, Save Image and Prev/Next config all live on the
+  // KORG NanoKontrol2 (and layer control on the APC Mini). The Novation is now
+  // faders→Intent, encoders→audio nudge, top-row intent LEDs, bottom-row
+  // snapshot recall only.
 
   // Temporary display duration (milliseconds)
   static constexpr uint64_t kTempDisplayDurationMs = 1000;
@@ -85,26 +80,17 @@ class MidiController : public ofxMidiListener {
   void onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr);
   void onSynthWillUnload();
   void exit();
-  void onShiftModeChanged(bool& value);
-
-  // External controllers (e.g. APC Mini) can request a layer overlay.
-  // `pickedUp=false` shows "[PICKUP]" until engaged.
-  void showLayerAlphaOverlay(int layerIndex, bool pickedUp);
 
   void newMidiMessage(ofxMidiMessage& message) override;
 
  private:
   void applyFaderBank();
-  void setLayerAlphasFullyOn();
   void setupInitialLeds();
-  void updateModeLeds();
   void updateIntentIndicatorLeds();
+  void updateSnapshotSlotLeds();
   void handleButtonCC(int channel, int cc, int value);
 
   void setButtonLedByCC(int cc, const LedColor& color);
-  LedColor getButtonRestoreColor(int cc) const;
-  void sendKeyPress(int key);
-  void sendKeyRelease(int key);
   void updateStationaryDisplay();
   void showTempDisplay(const std::string& name, const std::string& value);
   void maybeShowFaderOverlay(int faderIndex, const std::string& name, float paramValue, bool pickupLikely, uint64_t nowMs);
@@ -112,7 +98,6 @@ class MidiController : public ofxMidiListener {
 
   std::unique_ptr<ofxLaunchControlXL> lc;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
-  ofParameter<bool> shiftModeParameter { "Shift Mode", false };  // false = Snapshot mode, true = Layer mode
   std::unique_ptr<ofxLaunchControlXL3Display> display;
   bool lastRecordingState = false;  // For polling recording state changes
   bool lastSavingState = false;     // For polling save-in-progress state changes
@@ -124,11 +109,14 @@ class MidiController : public ofxMidiListener {
     kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor
   };
 
-  // LED state tracking for restore after momentary press feedback
-  std::unordered_map<int, LedColor> buttonRestoreColors;
-
-  // Track held keys for keyReleased calls (needed for arrow keys)
-  std::unordered_set<int> heldKeys;
+  // Bottom row (buttons 9-16 / snapshot slots 0-7) LED state cache + held
+  // flags. Slots are lit only when their snapshot exists; while a button is
+  // physically held we suppress the per-frame existence refresh so the white
+  // press-feedback persists until release.
+  std::array<LedColor, 8> lastSnapshotSlotColors {
+    kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor
+  };
+  std::array<bool, 8> snapshotSlotHeld { false, false, false, false, false, false, false, false };
 
   enum class EncoderClutchMode {
     Active,
