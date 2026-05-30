@@ -2,6 +2,7 @@
 #include "ofApp.h"
 #include "ofAppGLFWWindow.h"
 #include <GLFW/glfw3.h>
+#include <ApplicationServices/ApplicationServices.h>
 
 // Window sizes when not fullscreen
 const int MAIN_WINDOW_X = 512;
@@ -33,6 +34,14 @@ ofGLFWWindowSettings createWindowSettings(glm::vec2 position, glm::vec2 size, bo
   return settings;
 }
 
+// Returns true if either Option/Alt key is physically held right now. We read
+// the modifier straight from the OS because main() runs before any oF window or
+// event loop exists, so ofGetKeyPressed() is not usable here.
+bool isOptionKeyHeldAtLaunch() {
+  return (CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState)
+          & kCGEventFlagMaskAlternate) != 0;
+}
+
 } // namespace
 
 //========================================================================
@@ -58,11 +67,18 @@ int main() {
     monitorPositions[i] = {(float)x, (float)y};
   }
   
+  // Hold Option/Alt at launch to force the single-screen windowed layout even
+  // when a second monitor is connected (parallels Shift-to-rechoose-config).
+  const bool forceSingleScreen = isOptionKeyHeldAtLaunch();
+  if (forceSingleScreen) {
+    ofLogNotice() << "Option held at launch: forcing single-screen mode";
+  }
+
   int mainMonitorId = 0;
   int guiMonitorId = count > 1 ? 1 : 0;
   
   ofGLFWWindowSettings mainSettings, guiSettings;
-  if (count > 1) {
+  if (!forceSingleScreen && count > 1) {
     mainSettings = createWindowSettings(monitorPositions[mainMonitorId],
                                         monitorSizes[mainMonitorId],
                                         true);
