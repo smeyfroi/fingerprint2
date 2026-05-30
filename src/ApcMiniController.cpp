@@ -362,18 +362,18 @@ void ApcMiniController::newMidiMessage(ofxMidiMessage& message) {
 }
 
 void ApcMiniController::handleNoteOn(int note, int velocity) {
-  // Config pads (rows 1-7, notes 8-63) — the only interactive input now.
+  // Config pads (rows 0-7, notes 0-63) — the only interactive input now.
   if (note >= kConfigPadNoteFirst && note <= kConfigPadNoteLast) {
     onPadPressed(note);
     return;
   }
 
-  // Bottom row pads (notes 0-7), physical Track buttons (100-107),
-  // side buttons, and Shift are all unused — ignore.
+  // Physical Track buttons (100-107), side buttons, and Shift are all
+  // unused — ignore.
 }
 
 void ApcMiniController::handleNoteOff(int note) {
-  // Config pads (rows 1-7, notes 8-63) - need release for hold-to-confirm
+  // Config pads (rows 0-7, notes 0-63) - need release for hold-to-confirm
   if (note >= kConfigPadNoteFirst && note <= kConfigPadNoteLast) {
     onPadReleased(note);
     return;
@@ -453,7 +453,7 @@ void ApcMiniController::buildPadConfigMap() {
   auto& nav = synthPtr->getPerformanceNavigator();
   const auto& configs = nav.getConfigs();
 
-  // Populate from the navigator's resolved 8x7 grid (y=0 is top row).
+  // Populate from the navigator's resolved 8x8 grid (y=0 is top row, y=7 bottom).
   for (int y = 0; y < ofxMarkSynth::PerformanceNavigator::GRID_HEIGHT; ++y) {
     for (int x = 0; x < ofxMarkSynth::PerformanceNavigator::GRID_WIDTH; ++x) {
       const int configIdx = nav.getGridConfigIndex(x, y);
@@ -480,7 +480,7 @@ void ApcMiniController::updateAllPadLeds() {
 
   uint64_t nowMs = ofGetElapsedTimeMillis();
 
-  // Paint all config pads every time (56 pads).
+  // Paint all config pads every time (64 pads).
   // This avoids getting "stuck" when the device drops a SysEx but our cached
   // padCurrentColors thinks it succeeded.
   std::vector<std::pair<int, RgbColor>> updates;
@@ -644,7 +644,7 @@ void ApcMiniController::onPadReleased(int padNote) {
 void ApcMiniController::clearAllLeds() {
   if (!connected) return;
 
-  // Clear all 64 pads (includes layer pads on bottom row)
+  // Clear all 64 pads (all config pads, including the bottom row)
   std::vector<std::pair<int, RgbColor>> padUpdates;
   for (int i = 0; i < kPadCount; i++) {
     padUpdates.push_back({i, kColorOff});

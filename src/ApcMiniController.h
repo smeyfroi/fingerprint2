@@ -17,12 +17,12 @@ namespace ofxMarkSynth {
 /// Controller for Akai APC Mini MK2
 ///
 /// Features:
-/// - 8x7 RGB pad grid (rows 1-7) for config selection (hold-to-confirm).
+/// - 8x8 RGB pad grid (rows 0-7) for config selection (hold-to-confirm).
 /// - Faders 1-3 drive the three top-of-sidebar synth-level parameters
 ///   (agency / AudioResp / VideoResp) with soft-takeover pickup.
 ///
-/// The bottom row of pads and faders 4-9 are unused — layer alpha control,
-/// layer mute toggles, and prev/next config moved to the nanoKONTROL2
+/// Faders 4-9 are unused — layer alpha control, layer mute toggles, and
+/// prev/next config moved to the nanoKONTROL2
 /// (see docs/NanoKontrol2-Controller.md).
 ///
 /// Works alongside MidiController (Launch Control XL) and
@@ -66,13 +66,13 @@ public:
 
   static constexpr int kShiftButtonNote = 122;
 
-  // === Config Grid (Rows 1-7, notes 8-63) ===
-  // The physical bottom row of the grid (notes 0-7) is unused; we clear
-  // those pads on connect and leave them dark. Layer alpha + mute live on
-  // the nanoKONTROL2 (see docs/NanoKontrol2-Controller.md).
-  static constexpr int kConfigPadNoteFirst = 8;
+  // === Config Grid (Rows 0-7, notes 0-63) ===
+  // All 8 physical rows are config-selection pads. Config grid row y=7 maps
+  // to the bottom physical row (notes 0-7) via xyToPadNote. Layer alpha + mute
+  // live on the nanoKONTROL2 (see docs/NanoKontrol2-Controller.md).
+  static constexpr int kConfigPadNoteFirst = 0;
   static constexpr int kConfigPadNoteLast = 63;
-  static constexpr int kConfigPadCount = 56;  // 7 rows * 8 columns
+  static constexpr int kConfigPadCount = 64;  // 8 rows * 8 columns
 
   // === Faders (CC 48..56) ===
   // Faders 1-3 (CC 48-50) drive the three top-of-sidebar synth-level
