@@ -240,6 +240,7 @@ void ApcMiniController::update() {
       if (configIndex >= 0) {
         // Trigger the config switch.
         auto& nav = synthPtr->getPerformanceNavigator();
+        nav.clearPreviewConfig(); // commit reached — drop the held-cell preview
         nav.jumpTo(configIndex);
         ofLogNotice("ApcMiniController") << "Config jump triggered to index " << configIndex;
 
@@ -615,6 +616,12 @@ void ApcMiniController::onPadPressed(int padNote) {
   currentHold.padNote = padNote;
   currentHold.startTimeMs = ofGetElapsedTimeMillis();
 
+  // Publish a transient preview of the held cell so the GUI can show what's
+  // behind it during the hold-to-commit window. Cleared on release/commit.
+  if (synthPtr && info.configIndex >= 0) {
+    synthPtr->getPerformanceNavigator().setPreviewConfig(info.configIndex);
+  }
+
   // Force a send even if our cached color is stale.
   padCurrentColors[padNote] = kColorOff;
 
@@ -626,6 +633,10 @@ void ApcMiniController::onPadPressed(int padNote) {
 }
 
 void ApcMiniController::onPadReleased(int padNote) {
+  // Clear the held-cell preview on any pad release.
+  if (synthPtr) {
+    synthPtr->getPerformanceNavigator().clearPreviewConfig();
+  }
   if (currentHold.active && currentHold.padNote == padNote) {
     // Released before threshold - cancel hold.
     currentHold.active = false;
