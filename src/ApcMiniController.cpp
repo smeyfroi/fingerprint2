@@ -228,6 +228,12 @@ void ApcMiniController::update() {
   // Check for hold timeout
   if (currentHold.active) {
     uint64_t elapsed = nowMs - currentHold.startTimeMs;
+    // Publish hold-to-commit progress (0..1) so the GUI can show how close the
+    // hold is to committing.
+    if (synthPtr) {
+      float p = static_cast<float>(elapsed) / static_cast<float>(kHoldThresholdMs);
+      synthPtr->getPerformanceNavigator().setPreviewProgress(p > 1.0f ? 1.0f : p);
+    }
     if (elapsed >= kHoldThresholdMs) {
       // Trigger config switch
       int heldPad = currentHold.padNote;
@@ -619,7 +625,9 @@ void ApcMiniController::onPadPressed(int padNote) {
   // Publish a transient preview of the held cell so the GUI can show what's
   // behind it during the hold-to-commit window. Cleared on release/commit.
   if (synthPtr && info.configIndex >= 0) {
-    synthPtr->getPerformanceNavigator().setPreviewConfig(info.configIndex);
+    auto& nav = synthPtr->getPerformanceNavigator();
+    nav.setPreviewProgress(0.0f);
+    nav.setPreviewConfig(info.configIndex);
   }
 
   // Force a send even if our cached color is stale.
