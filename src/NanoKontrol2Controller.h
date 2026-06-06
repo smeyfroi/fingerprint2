@@ -21,10 +21,12 @@ namespace ofxMarkSynth {
 /// work; sliders and buttons still work as inputs regardless.
 ///
 /// Default-mode (Scene 1, factory) MIDI map, all on channel 1:
-///   Sliders 1-8  : CC 0..7        (input only — layer alpha, with pickup)
+///   Sliders 1-7  : CC 0..6        (input only — layer alpha, with pickup)
+///   Slider 8     : CC 7           (input only — master composite alpha)
 ///   S buttons    : CC 32..39      (unused — kept dark)
 ///   M buttons    : CC 48..55      (toggle layer pause; LED reflects pause)
-///   R buttons    : CC 64..71      (LED only — lit when layer N exists)
+///   R buttons    : CC 64..71      (LED only — lit when layer N exists;
+///                                  rightmost is always-on for master alpha)
 ///   Rewind       : CC 43          (prev config; LED always-on + flash)
 ///   FFwd         : CC 44          (next config; LED always-on + flash)
 ///   Stop         : CC 42          (hibernate; LED while HIBERNATED/FADING_OUT)
@@ -48,6 +50,11 @@ public:
   static constexpr int kSliderCCFirst = 0;
   static constexpr int kSliderCCLast = 7;
   static constexpr int kSliderCount = 8;
+
+  // Rightmost slider (index 7) is reserved as the master composite alpha
+  // rather than a per-layer alpha. Layer alphas therefore map to sliders 0..6.
+  // Its R-button LED is held always-on as a hardware cue (see pollAndUpdateLeds).
+  static constexpr int kMasterAlphaFaderIndex = kSliderCount - 1;
 
   // === S buttons (CC 32..39) ===
   static constexpr int kSButtonCCFirst = 32;

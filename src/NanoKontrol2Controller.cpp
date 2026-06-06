@@ -166,10 +166,20 @@ void NanoKontrol2Controller::handleSliderCC(int cc, int value) {
   int faderIndex = cc - kSliderCCFirst;
   if (faderIndex < 0 || faderIndex >= kSliderCount) return;
 
-  ofParameterGroup& alphas = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
-  if (faderIndex >= static_cast<int>(alphas.size())) return;
+  auto& render = synthPtr->getRenderSubsystem();
 
-  ofParameter<float>& param = alphas.getFloat(faderIndex);
+  // Rightmost fader drives the master composite alpha; the rest drive per-layer
+  // alphas by index. Both go through the same FaderTakeover pickup below.
+  ofParameter<float>* paramPtr = nullptr;
+  if (faderIndex == kMasterAlphaFaderIndex) {
+    paramPtr = &render.getMasterAlphaParameter();
+  } else {
+    ofParameterGroup& alphas = render.getLayerAlphaParameters();
+    if (faderIndex >= static_cast<int>(alphas.size())) return;
+    paramPtr = &alphas.getFloat(faderIndex);
+  }
+
+  ofParameter<float>& param = *paramPtr;
   float min = param.getMin();
   float max = param.getMax();
   float normalized = static_cast<float>(value) / 127.0f;
@@ -237,9 +247,13 @@ void NanoKontrol2Controller::pollAndUpdateLeds() {
 
   // R buttons (CC 64..71): lit iff layer exists in current config.
   // (Moved here from the S buttons — bottom-of-strip indicator next to fader.)
+  // The rightmost button belongs to the master alpha fader and is always lit,
+  // matching the "active strip" cue the layer faders get.
   for (int i = 0; i < kRButtonCount; ++i) {
-    bool exists = i < static_cast<int>(pauseParamPtrs.size()) && pauseParamPtrs[i] != nullptr;
-    setLed(kRButtonCCFirst + i, exists);
+    bool lit = (i == kMasterAlphaFaderIndex)
+               ? true
+               : (i < static_cast<int>(pauseParamPtrs.size()) && pauseParamPtrs[i] != nullptr);
+    setLed(kRButtonCCFirst + i, lit);
   }
 
   // S buttons (CC 32..39): now unused — keep them dark.
