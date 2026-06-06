@@ -10,8 +10,6 @@ ofxDividedArea
 ofxFontStash2
 ofxImGui
 ofxIntrospector
-ofxMidi
-ofxLaunchControllers
 ofxMotionFromVideo
 ofxParticleSet
 ofxParticleField
@@ -23,5 +21,6 @@ ofxTimeMeasurements
 ofxTinyEXR
 ofxSyphon
 ofxMarkSynth
+ofxMidi
 ofxNetwork
 ofxOsc
