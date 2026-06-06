@@ -146,10 +146,14 @@ private:
     std::atomic <float> value;
     std::atomic <float> values[3];
 
-    // Soft takeover / pickup.
+    // Soft takeover. When pickupEnabled, each incoming MIDI value is converted
+    // to a parameter delta using Ableton-style value scaling (see
+    // FaderTakeover.h): the movement is scaled against the remaining runway on
+    // the side the fader is moving, so pulling down ducks immediately and
+    // endpoints (0 / max) self-align. lastMidi holds the previous normalized
+    // MIDI value (-1 = no prior sample, next message just baselines).
     bool pickupEnabled;
-    bool pickupArmed;
-    int pickupTolerance;
+    float lastMidi;
 
     std::atomic <bool> bActive;
     float minf;

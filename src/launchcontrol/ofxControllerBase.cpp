@@ -5,6 +5,8 @@
 #include <cmath>
 #include <unordered_set>
 
+#include "FaderTakeover.h"
+
 ofxControllerBase::ofxControllerBase(){
 	name = "launch control";
 
@@ -229,45 +231,57 @@ void ofxControllerBase::processMessage(const ofxMidiMessage & msg){
                    }else if(msg.control == knobs[i][k].controlNum && knobs[i][k].typeCode != LC_TYPECODE_UNASSIGNED){
                        auto & binding = knobs[i][k];
 
-                       // Soft takeover: ignore knob changes until the physical control
-                       // reaches the current parameter value (within tolerance).
-                       if(binding.pickupEnabled && binding.pickupArmed){
-                           float currentMidi = 0.0f;
+                       // Soft takeover via value scaling: scale the fader's
+                       // movement against the runway remaining on the side
+                       // it's moving. Pulling down ducks the param immediately;
+                       // pushing up converges to 1:1 at the top. No threshold,
+                       // no armed flag — reading the param fresh each call
+                       // means external changes self-correct on the next nudge.
+                       if(binding.pickupEnabled){
+                           float m = (float)msg.value / 127.0f;
+                           float pNorm = 0.0f;
                            switch(binding.typeCode){
                             case LC_TYPECODE_FLOAT:
                                 if(binding.pParamf){
-                                    // Map without clamping first, then clamp to valid MIDI range.
-                                    // This allows values outside min/max to still pickup at endpoints.
-                                    currentMidi = ofMap(*(binding.pParamf), binding.minf, binding.maxf, 0.0f, 127.0f, false);
-                                    currentMidi = ofClamp(currentMidi, 0.0f, 127.0f);
+                                    float span = binding.maxf - binding.minf;
+                                    pNorm = (span != 0.0f) ? (*(binding.pParamf) - binding.minf) / span : 0.0f;
                                 }
                                 break;
                             case LC_TYPECODE_INT:
                                 if(binding.pParami){
-                                    // Map without clamping first, then clamp to valid MIDI range.
-                                    currentMidi = ofMap((float)*(binding.pParami), (float)binding.mini, (float)binding.maxi, 0.0f, 127.0f, false);
-                                    currentMidi = ofClamp(currentMidi, 0.0f, 127.0f);
+                                    float span = (float)(binding.maxi - binding.mini);
+                                    pNorm = (span != 0.0f) ? ((float)*(binding.pParami) - (float)binding.mini) / span : 0.0f;
                                 }
                                 break;
                             default:
                                 break;
                            }
+                           if(pNorm < 0.0f) pNorm = 0.0f;
+                           else if(pNorm > 1.0f) pNorm = 1.0f;
 
-                           if(std::abs((float)msg.value - currentMidi) > binding.pickupTolerance){
-                               continue;
+                           float newP = FaderTakeover::valueScale(m, binding.lastMidi, pNorm);
+
+                           switch(binding.typeCode){
+                            case LC_TYPECODE_FLOAT:
+                                binding.value = binding.minf + newP * (binding.maxf - binding.minf);
+                                break;
+                            case LC_TYPECODE_INT:
+                                binding.value = (float)binding.mini + newP * (float)(binding.maxi - binding.mini);
+                                break;
+                            default:
+                                break;
                            }
-
-                           binding.pickupArmed = false;
-                       }
-
-                       switch(binding.typeCode){
-                        case LC_TYPECODE_FLOAT:
-                            binding.value = ofMap(msg.value, 0, 127, binding.minf, binding.maxf);
-                            break;
- 
-                        case LC_TYPECODE_INT:
-                            binding.value = ofMap(msg.value, 0, 127, binding.mini, binding.maxi);
-                            break;
+                       } else {
+                           switch(binding.typeCode){
+                            case LC_TYPECODE_FLOAT:
+                                binding.value = ofMap(msg.value, 0, 127, binding.minf, binding.maxf);
+                                break;
+                            case LC_TYPECODE_INT:
+                                binding.value = ofMap(msg.value, 0, 127, binding.mini, binding.maxi);
+                                break;
+                            default:
+                                break;
+                           }
                        }
                        binding.bUpdate = true;
                    }
@@ -344,8 +358,7 @@ ofxControllerBase::Binding::Binding(){
     values[2] = 0.0f;
 
     pickupEnabled = false;
-    pickupArmed = false;
-    pickupTolerance = 2;
+    lastMidi = -1.0f;
 
     minf = 0.0f;
     maxf = 0.0f;
@@ -379,8 +392,7 @@ ofxControllerBase::Binding::Binding(const Binding & other){
     values[2].store(other.values[2]);
 
     pickupEnabled = other.pickupEnabled;
-    pickupArmed = other.pickupArmed;
-    pickupTolerance = other.pickupTolerance;
+    lastMidi = other.lastMidi;
 
     minf = other.minf;
     maxf = other.maxf;
@@ -616,7 +628,9 @@ void ofxControllerBase::knob(int index, ofParameter <int> & param, int min, int 
     }
 }
 
-void ofxControllerBase::knobPickup(int index, ofParameter <float> & param, float min, float max, int tolerance){
+// The 'tolerance' parameter is retained for API compatibility but is unused:
+// value-scaling has no pickup threshold to tune.
+void ofxControllerBase::knobPickup(int index, ofParameter <float> & param, float min, float max, int /*tolerance*/){
     if(midiIn.isOpen()){
         if(index >= 0 && index < (int)knobs.size()){
             knobs[index].emplace_back();
@@ -628,15 +642,14 @@ void ofxControllerBase::knobPickup(int index, ofParameter <float> & param, float
             knobs[index].back().value = param;
             knobs[index].back().z1 = param;
             knobs[index].back().pickupEnabled = true;
-            knobs[index].back().pickupArmed = true;
-            knobs[index].back().pickupTolerance = tolerance;
+            knobs[index].back().lastMidi = -1.0f;
         }else{
             ofLogError() << "ofxLaunchControls: wrong indices for knobPickup() function, binding ignored";
         }
     }
 }
 
-void ofxControllerBase::knobPickup(int index, ofParameter <int> & param, int min, int max, int tolerance){
+void ofxControllerBase::knobPickup(int index, ofParameter <int> & param, int min, int max, int /*tolerance*/){
     if(midiIn.isOpen()){
         if(index >= 0 && index < (int)knobs.size()){
             knobs[index].emplace_back();
@@ -648,8 +661,7 @@ void ofxControllerBase::knobPickup(int index, ofParameter <int> & param, int min
             knobs[index].back().value = (float)param;
             knobs[index].back().z1 = (float)param;
             knobs[index].back().pickupEnabled = true;
-            knobs[index].back().pickupArmed = true;
-            knobs[index].back().pickupTolerance = tolerance;
+            knobs[index].back().lastMidi = -1.0f;
         }else{
             ofLogError() << "ofxLaunchControls: wrong indices for knobPickup() function, binding ignored";
         }
@@ -847,8 +859,7 @@ void ofxControllerBase::clearBindings(){
         b.values[2].store(0.0f);
 
         b.pickupEnabled = false;
-        b.pickupArmed = false;
-        b.pickupTolerance = 2;
+        b.lastMidi = -1.0f;
 
         b.bActive.store(false);
 

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "FaderTakeover.h"
 #include "ofMain.h"
 
 ApcMiniController::ApcMiniController() {
@@ -10,7 +11,6 @@ ApcMiniController::ApcMiniController() {
   padLedRetryUntilMs.fill(0);
   for (auto& fs : faderStates) {
     fs.lastMidiValue = -1.0f;
-    fs.pickedUp = false;
   }
 }
 
@@ -415,32 +415,17 @@ void ApcMiniController::handleFaderCC(int faderIndex, int value) {
   }
 
   ofParameter<float>& param = paramWrapper->get().cast<float>();
-  float normalized = static_cast<float>(value) / 127.0f;
-  auto& fs = faderStates[faderIndex];
-
-  if (!fs.pickedUp) {
-    float paramValue = param.get();
-    float paramNormalized = (paramValue - param.getMin()) / (param.getMax() - param.getMin());
-
-    if (std::abs(normalized - paramNormalized) <= kPickupThreshold) {
-      fs.pickedUp = true;
-      ofLogVerbose("ApcMiniController") << "Fader " << faderIndex
-                                        << " (" << paramName << ") picked up";
-    } else {
-      fs.lastMidiValue = normalized;
-      return;
-    }
-  }
-
   float min = param.getMin();
   float max = param.getMax();
-  param.set(min + normalized * (max - min));
-  fs.lastMidiValue = normalized;
+  float normalized = static_cast<float>(value) / 127.0f;
+  float p = (param.get() - min) / (max - min);
+  auto& fs = faderStates[faderIndex];
+  float newP = FaderTakeover::valueScale(normalized, fs.lastMidiValue, p);
+  param.set(min + newP * (max - min));
 }
 
 void ApcMiniController::resetFaderPickupStates() {
   for (auto& fs : faderStates) {
-    fs.pickedUp = false;
     fs.lastMidiValue = -1.0f;
   }
 }

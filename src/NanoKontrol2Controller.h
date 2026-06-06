@@ -74,7 +74,6 @@ public:
   static constexpr int kRecordButtonCC = 45;
 
   // === Timing ===
-  static constexpr float kPickupThreshold = 0.05f;     // 5% soft-takeover
   static constexpr uint64_t kFlashDurationMs = 120;    // Rewind/FFwd press flash
 
   NanoKontrol2Controller();
@@ -102,10 +101,11 @@ private:
   // === Synth Reference ===
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
 
-  // === Fader pickup state (one per slider) ===
+  // === Fader takeover state (one per slider) ===
+  // Holds the previous normalized MIDI value for value-scaling. -1 means
+  // "no prior sample" — next message just baselines, no param movement.
   struct FaderState {
     float lastMidiValue = -1.0f;
-    bool pickedUp = false;
   };
   std::array<FaderState, kSliderCount> faderStates;
 

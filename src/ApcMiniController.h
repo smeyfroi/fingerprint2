@@ -95,7 +95,6 @@ public:
 
   // === Timing ===
   static constexpr uint64_t kHoldThresholdMs = 400;
-  static constexpr float kPickupThreshold = 0.05f;  // 5% soft-takeover
 
   // === LED Colors (RGB) ===
   struct RgbColor {
@@ -184,10 +183,11 @@ private:
   void queuePadLedUpdate(int padNote);
   void flushQueuedLedUpdates();
 
-  // === Fader pickup state (one per bound fader) ===
+  // === Fader takeover state (one per bound fader) ===
+  // Holds the previous normalized MIDI value for value-scaling. -1 means
+  // "no prior sample" — next message just baselines, no param movement.
   struct FaderState {
     float lastMidiValue = -1.0f;
-    bool pickedUp = false;
   };
   std::array<FaderState, kBoundFaderCount> faderStates;
 
