@@ -23,6 +23,8 @@ namespace ofxMarkSynth {
 /// Default-mode (Scene 1, factory) MIDI map, all on channel 1:
 ///   Sliders 1-7  : CC 0..6        (input only — layer alpha, with pickup)
 ///   Slider 8     : CC 7           (input only — master composite alpha)
+///   Knobs 1-7    : CC 16..22      (unused)
+///   Knob 8       : CC 23          (input only — layer-thumbnail gain, w/ pickup)
 ///   S buttons    : CC 32..39      (unused — kept dark)
 ///   M buttons    : CC 48..55      (toggle layer pause; LED reflects pause)
 ///   R buttons    : CC 64..71      (LED only — lit when layer N exists;
@@ -55,6 +57,14 @@ public:
   // rather than a per-layer alpha. Layer alphas therefore map to sliders 0..6.
   // Its R-button LED is held always-on as a hardware cue (see pollAndUpdateLeds).
   static constexpr int kMasterAlphaFaderIndex = kSliderCount - 1;
+
+  // === Knobs (CC 16..23) — factory-default rotary row ===
+  // Only the rightmost knob (channel 8, sitting above the master-alpha fader)
+  // is mapped: it drives the GUI's layer-thumbnail alpha-coverage gain with the
+  // same value-scaling takeover as the faders. The other seven are ignored.
+  static constexpr int kKnobCCFirst = 16;
+  static constexpr int kKnobCCLast = 23;
+  static constexpr int kThumbGainKnobCC = 23;
 
   // === S buttons (CC 32..39) ===
   static constexpr int kSButtonCCFirst = 32;
@@ -116,6 +126,11 @@ private:
   };
   std::array<FaderState, kSliderCount> faderStates;
 
+  // Takeover state for the master-column knob (CC 23 → layer-thumbnail gain).
+  // Same value-scaling pickup as the faders; kept separate since it isn't a
+  // slider and doesn't share the layer/master indexing.
+  FaderState thumbGainKnobState;
+
   // === LED cache: only send when desired state changes ===
   std::unordered_map<int, int> lastSentLedValue;  // cc → last sent value (0 or 127)
 
@@ -140,6 +155,7 @@ private:
   // === Main-thread event handling ===
   void drainCCEvents();
   void handleSliderCC(int cc, int value);
+  void handleKnobCC(int cc, int value);
   void handleButtonCC(int cc, int value);
 
   // === LED management ===

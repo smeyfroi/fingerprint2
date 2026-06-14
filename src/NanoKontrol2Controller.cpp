@@ -152,6 +152,8 @@ void NanoKontrol2Controller::drainCCEvents() {
 
     if (event.cc >= kSliderCCFirst && event.cc <= kSliderCCLast) {
       handleSliderCC(event.cc, event.value);
+    } else if (event.cc >= kKnobCCFirst && event.cc <= kKnobCCLast) {
+      handleKnobCC(event.cc, event.value);
     } else {
       handleButtonCC(event.cc, event.value);
     }
@@ -186,6 +188,23 @@ void NanoKontrol2Controller::handleSliderCC(int cc, int value) {
   float p = (param.get() - min) / (max - min);
   auto& fs = faderStates[faderIndex];
   float newP = FaderTakeover::valueScale(normalized, fs.lastMidiValue, p);
+  param.set(min + newP * (max - min));
+}
+
+void NanoKontrol2Controller::handleKnobCC(int cc, int value) {
+  if (!synthPtr) return;
+  // Only the master-column knob is mapped; the other seven are ignored for now.
+  if (cc != kThumbGainKnobCC) return;
+
+  // Drive the GUI's layer-thumbnail gain through the same value-scaling takeover
+  // as the faders, so the knob picks the parameter up smoothly rather than
+  // jumping it on first touch.
+  ofParameter<float>& param = synthPtr->getLayerThumbGainParameter();
+  float min = param.getMin();
+  float max = param.getMax();
+  float normalized = static_cast<float>(value) / 127.0f;
+  float p = (param.get() - min) / (max - min);
+  float newP = FaderTakeover::valueScale(normalized, thumbGainKnobState.lastMidiValue, p);
   param.set(min + newP * (max - min));
 }
 
@@ -328,4 +347,5 @@ void NanoKontrol2Controller::resetFaderPickupStates() {
   for (auto& fs : faderStates) {
     fs.lastMidiValue = -1.0f;
   }
+  thumbGainKnobState.lastMidiValue = -1.0f;
 }
