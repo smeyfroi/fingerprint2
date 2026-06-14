@@ -12,8 +12,10 @@
 	<string>${PRODUCT_BUNDLE_IDENTIFIER}</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>Fingerprints</string>
 	<key>CFBundleName</key>
-	<string>${TARGET_NAME}</string>
+	<string>Fingerprints</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleSignature</key>
