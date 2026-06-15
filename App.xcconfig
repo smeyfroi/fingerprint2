@@ -1,0 +1,17 @@
+// App.xcconfig — permanent code-signing settings.
+//
+// Project.xcconfig ends with `#include? "App.xcconfig"`, so these values are applied
+// LAST and override the placeholder `CODE_SIGN_IDENTITY = -` there. projectGenerator
+// never touches this file, so the signing config survives a regenerate.
+//
+// Debug stays on the inherited ad-hoc identity ("-") for fast local iteration.
+// Release is signed for Developer ID distribution + notarization (Hardened Runtime +
+// secure timestamp + of.entitlements, which the project already wires via
+// CODE_SIGN_ENTITLEMENTS).
+
+DEVELOPMENT_TEAM = EZCN55TA7J
+
+CODE_SIGN_STYLE[config=Release] = Manual
+CODE_SIGN_IDENTITY[config=Release] = Developer ID Application
+ENABLE_HARDENED_RUNTIME[config=Release] = YES
+OTHER_CODE_SIGN_FLAGS[config=Release] = $(inherited) --timestamp

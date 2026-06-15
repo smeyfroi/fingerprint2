@@ -1,4 +1,5 @@
 *.app
+*.zip
 .DS_Store
 /bin/data/Arial Unicode.ttf
 /obj
