@@ -40,9 +40,10 @@
   "textSourcesDir": "text",
 
   "_comment_audio": "Audio file mode is ACTIVE. To switch to mic, move the underscore from the mic keys to the file keys.",
+  "_comment_audioBufferSize": "Shared by both modes (it is the analysis FFT window): always keep it set. Live mic uses the same window as file playback so a recorded take and its replay analyse identically.",
+  "audioBufferSize": 512,
   "sourceAudioFile": "belfast/20250208-violin-video-separate-scale.wav",
   "audioOutDeviceName": "Apple Inc.: MacBook Pro Speakers",
-  "audioBufferSize": 512,
   "audioChannels": 1,
   "sourceAudioStartPosition": "0:00",
 
