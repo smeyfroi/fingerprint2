@@ -51,6 +51,7 @@ void ofApp::setup(){
   ResourceManager resources = loadSessionResourceManagerOrExit({
     .appNamespace = "fingerprint2",
     .dialogTitle = "Choose fingerprint2 session config (JSON)",
+    .forceChoose = forceChooseConfig,
   });
 
   synthPtr = ofxMarkSynth::Synth::create("fingerprint2", ofxMarkSynth::ModConfig {

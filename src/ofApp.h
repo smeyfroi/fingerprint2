@@ -12,6 +12,7 @@ class ofApp : public ofBaseApp {
 public:
   void setup() override;
   void setGuiWindowPtr(std::shared_ptr<ofAppBaseWindow> windowPtr) { guiWindowPtr = windowPtr; }
+  void setForceChooseConfig(bool v) { forceChooseConfig = v; }
   void attachGuiWindowListeners();
   void detachGuiWindowListeners();
   void onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e);
@@ -41,6 +42,7 @@ private:
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
   bool guiWindowListenersAttached { false };
   bool isShuttingDown { false };
+  bool forceChooseConfig { false };
   MidiController midiController;
   ApcMiniController apcMiniController;
   NanoKontrol2Controller nanoKontrolController;

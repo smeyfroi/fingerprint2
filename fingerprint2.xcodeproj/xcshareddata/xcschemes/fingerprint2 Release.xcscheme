@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "E4B69B5A0A3A1756003C02F2"
-               BuildableName = "fingerprint2.app"
+               BuildableName = "Fingerprints.app"
                BlueprintName = "fingerprint2"
                ReferencedContainer = "container:fingerprint2.xcodeproj">
             </BuildableReference>
@@ -31,7 +31,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E4B69B5A0A3A1756003C02F2"
-            BuildableName = "fingerprint2.app"
+            BuildableName = "Fingerprints.app"
             BlueprintName = "fingerprint2"
             ReferencedContainer = "container:fingerprint2.xcodeproj">
          </BuildableReference>
@@ -54,12 +54,12 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E4B69B5A0A3A1756003C02F2"
-            BuildableName = "fingerprint2.app"
+            BuildableName = "Fingerprints.app"
             BlueprintName = "fingerprint2"
             ReferencedContainer = "container:fingerprint2.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-       <EnvironmentVariables>
+      <EnvironmentVariables>
          <EnvironmentVariable
             key = "OS_ACTIVITY_MODE"
             value = "disable"
@@ -88,7 +88,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E4B69B5A0A3A1756003C02F2"
-            BuildableName = "fingerprint2.app"
+            BuildableName = "Fingerprints.app"
             BlueprintName = "fingerprint2"
             ReferencedContainer = "container:fingerprint2.xcodeproj">
          </BuildableReference>

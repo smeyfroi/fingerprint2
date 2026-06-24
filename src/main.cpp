@@ -52,6 +52,16 @@ bool isControlKeyHeldAtLaunch() {
           & kCGEventFlagMaskControl) != 0;
 }
 
+// Returns true if either Shift key is physically held right now (OS-level, like
+// the checks above). Held at launch to force the session-config chooser dialog
+// instead of reusing the remembered config. Read here because ofGetKeyPressed()
+// can't see the key in ofApp::setup(), where the chooser runs — which is why the
+// chooser's own forceChooseKey check never fired.
+bool isShiftKeyHeldAtLaunch() {
+  return (CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState)
+          & kCGEventFlagMaskShift) != 0;
+}
+
 } // namespace
 
 //========================================================================
@@ -92,6 +102,13 @@ int main() {
     ofLogNotice() << "Control held at launch: swapping main/gui displays";
   }
 
+  // Hold Shift at launch to re-choose the session config (instead of booting the
+  // remembered one). Detected OS-level here for the reasons above; passed to ofApp.
+  const bool forceChooseConfig = isShiftKeyHeldAtLaunch();
+  if (forceChooseConfig) {
+    ofLogNotice() << "Shift held at launch: choosing session config";
+  }
+
   int mainMonitorId = 0;
   int guiMonitorId = count > 1 ? 1 : 0;
 
@@ -121,6 +138,7 @@ int main() {
   auto guiWindow = ofCreateWindow(guiSettings);
 
   auto mainApp = std::make_shared<ofApp>();
+  mainApp->setForceChooseConfig(forceChooseConfig);
   mainApp->setGuiWindowPtr(guiWindow);
   mainApp->attachGuiWindowListeners();
 	ofRunApp(mainWindow, mainApp);
