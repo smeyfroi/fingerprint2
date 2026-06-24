@@ -44,7 +44,7 @@
   "audioBufferSize": 512,
   "sourceAudioFile": "belfast/20250208-violin-video-separate-scale.wav",
   "audioOutDeviceName": "Apple Inc.: MacBook Pro Speakers",
-  "audioChannels": 1,
+  "_outputChannels": 2,
   "sourceAudioStartPosition": "0:00",
 
   "_micDeviceName": "Apple Inc.: MacBook Pro Microphone",
