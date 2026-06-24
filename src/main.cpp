@@ -42,6 +42,16 @@ bool isOptionKeyHeldAtLaunch() {
           & kCGEventFlagMaskAlternate) != 0;
 }
 
+// Returns true if either Control key is physically held right now. Read the same
+// OS-level way as the Option check above. Used as a launch-time toggle to swap
+// which physical display shows the main visuals vs the GUI: the screen macOS
+// treats as primary (GLFW monitor 0) can flip between gigs, which otherwise
+// lands the GUI on the projector instead of the laptop.
+bool isControlKeyHeldAtLaunch() {
+  return (CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState)
+          & kCGEventFlagMaskControl) != 0;
+}
+
 } // namespace
 
 //========================================================================
@@ -74,9 +84,21 @@ int main() {
     ofLogNotice() << "Option held at launch: forcing single-screen mode";
   }
 
+  // Hold Control at launch to swap which display gets the main visuals vs the
+  // GUI, for when macOS has elected the projector (rather than the laptop) as
+  // the primary monitor. Only meaningful with multiple monitors.
+  const bool swapDisplays = isControlKeyHeldAtLaunch();
+  if (swapDisplays) {
+    ofLogNotice() << "Control held at launch: swapping main/gui displays";
+  }
+
   int mainMonitorId = 0;
   int guiMonitorId = count > 1 ? 1 : 0;
-  
+
+  if (swapDisplays && count > 1) {
+    std::swap(mainMonitorId, guiMonitorId);
+  }
+
   ofGLFWWindowSettings mainSettings, guiSettings;
   if (!forceSingleScreen && count > 1) {
     mainSettings = createWindowSettings(monitorPositions[mainMonitorId],
