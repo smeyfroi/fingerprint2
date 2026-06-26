@@ -27,11 +27,20 @@ project still builds a correctly named + signed app. Neither `.pbxproj` sets
 Running `projectGenerator` (to pick up new addon files) reformats the `.pbxproj`
 (classic plist → JSON style) and reverts its product *reference* and the scheme
 `BuildableName` to `fingerprint2.app`. This does **not** change the build output —
-that follows `PRODUCT_NAME` from `Project.xcconfig` (so `xcodebuild` still emits
-`bin/Fingerprints.app`). It only affects the Xcode **Run** button's product lookup.
-To clear it, set `BuildableName = "Fingerprints.app"` (and `"FingerprintsDebug.app"`
-for the Debug scheme) back in the two `*.xcscheme` files, or just ignore it and use
-`./notarize.sh` below.
+that follows `PRODUCT_NAME` from `Project.xcconfig` (so `xcodebuild` and
+`./notarize.sh` still emit `bin/Fingerprints.app`).
+
+But it **does break launching from Xcode** (the Run button): Xcode looks for the
+product named in the scheme's `BuildableName` (`fingerprint2.app`), which no build
+produces, so you get `IDELaunchErrorDomain Code 20` /
+`"fingerprint2.app couldn't be opened … no such file"`. **Fix: restore the scheme
+`BuildableName`s to match the per-config product:**
+
+- `fingerprint2 Release.xcscheme` → `BuildableName = "Fingerprints.app"`
+- `fingerprint2 Debug.xcscheme` → `BuildableName = "FingerprintsDebug.app"` (Debug `PRODUCT_NAME` is `FingerprintsDebug`)
+
+Each scheme has the name in ~4 `BuildableReference` entries — change them all.
+(`./notarize.sh` builds via `xcodebuild`, not the Run button, so it works regardless.)
 
 ## After regenerating the Xcode project (to add new addon files)
 
@@ -39,7 +48,7 @@ for the Debug scheme) back in the two `*.xcscheme` files, or just ignore it and 
 target. After running it:
 
 1. `git checkout -- Project.xcconfig` — restore the custom icon, product name, and hi-res flag.
-2. (optional) Restore the scheme `BuildableName`s if you want Xcode's Run button to find `Fingerprints.app`.
+2. **Restore the scheme `BuildableName`s** (see "Regen residue" above) — required for the Xcode Run button to launch the app (`Fingerprints.app` for the Release scheme, `FingerprintsDebug.app` for the Debug scheme). `git checkout <good-commit> -- "fingerprint2.xcodeproj/xcshareddata/xcschemes/"*.xcscheme` restores them, then re-apply the Debug name if needed.
 
 Day-to-day **`make` builds need none of this** — the makefile globs the addon `src/`,
 so new Mods compile without regenerating the project.
