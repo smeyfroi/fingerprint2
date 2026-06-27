@@ -38,6 +38,7 @@ class OscController {
 public:
   static constexpr int kReceivePort = 8000;  // iPad  -> here
   static constexpr int kSendPort    = 9000;  // here  -> iPad
+  static constexpr int kSurfaceLayers = 7;   // layer strips on the surface (hardware-bounded)
 
   OscController();
   ~OscController();

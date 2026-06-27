@@ -206,13 +206,20 @@ void OscController::sendCurrentState() {
   auto& alphas = render.getLayerAlphaParameters();
   const auto& pausePtrs = render.getLayerPauseParamPtrs();
 
+  // Send active + values for every strip the surface has (kSurfaceLayers), so a
+  // config with fewer layers marks the surplus strips inactive — the surface
+  // hides them — instead of leaving stale faders/labels behind.
   const int nLayers = static_cast<int>(alphas.size());
-  for (int i = 0; i < nLayers; ++i) {
-    ofParameter<float>& a = alphas.getFloat(i);
-    sendFloat("/layer/" + ofToString(i) + "/alpha", normOf(a));
-    sendString("/layer/" + ofToString(i) + "/name", a.getName());
+  for (int i = 0; i < kSurfaceLayers; ++i) {
+    const bool active = (i < nLayers);
+    sendFloat("/layer/" + ofToString(i) + "/active", active ? 1.0f : 0.0f);
+    if (active) {
+      ofParameter<float>& a = alphas.getFloat(i);
+      sendFloat("/layer/" + ofToString(i) + "/alpha", normOf(a));
+      sendString("/layer/" + ofToString(i) + "/name", a.getName());
+    }
   }
-  for (int i = 0; i < static_cast<int>(pausePtrs.size()); ++i) {
+  for (int i = 0; i < static_cast<int>(pausePtrs.size()) && i < kSurfaceLayers; ++i) {
     if (pausePtrs[i]) {
       sendFloat("/layer/" + ofToString(i) + "/pause", pausePtrs[i]->get() ? 1.0f : 0.0f);
     }
