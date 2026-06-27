@@ -66,12 +66,14 @@ void ofApp::onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e) {
   midiController.onSynthWillUnload();
   apcMiniController.onSynthWillUnload();
   nanoKontrolController.onSynthWillUnload();
+  oscController.onSynthWillUnload();
 }
 
 void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
   midiController.onSynthDidLoad(synthPtr);
   apcMiniController.onSynthDidLoad(synthPtr);
   nanoKontrolController.onSynthDidLoad(synthPtr);
+  oscController.onSynthDidLoad(synthPtr);
 }
 
 //--------------------------------------------------------------
@@ -84,6 +86,7 @@ void ofApp::update(){
   midiController.update();
   apcMiniController.update();
   nanoKontrolController.update();
+  oscController.update();
 }
 
 //--------------------------------------------------------------
@@ -116,6 +119,7 @@ void ofApp::exit(){
   midiController.exit();
   apcMiniController.exit();
   nanoKontrolController.exit();
+  oscController.exit();
 
   if (synthPtr) {
     ofRemoveListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload);

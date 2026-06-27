@@ -5,6 +5,7 @@
 #include "ApcMiniController.h"
 #include "MidiController.h"
 #include "NanoKontrol2Controller.h"
+#include "OscController.h"
 #include "ofxMarkSynth.h"
 
 class ofApp : public ofBaseApp {
@@ -46,4 +47,5 @@ private:
   MidiController midiController;
   ApcMiniController apcMiniController;
   NanoKontrol2Controller nanoKontrolController;
+  OscController oscController;
 };
