@@ -2,10 +2,11 @@
 #
 # Notarize + staple the Release app for Developer ID distribution.
 #
-# Signing is owned entirely by App.xcconfig (Developer ID + Hardened Runtime +
-# secure timestamp + of.entitlements, scoped to the Release config), so the
-# xcodebuild step below already produces a properly signed app. This script only
-# adds the steps Xcode can't: the notary-service submission and ticket stapling.
+# Signing identity / Hardened Runtime / entitlements are owned by App.xcconfig
+# (Release config). The secure --timestamp is deliberately NOT in App.xcconfig
+# (so everyday Release builds stay offline); this script adds it on the
+# xcodebuild line below, since notarization requires it. The script also does
+# the notary submission + ticket stapling that Xcode can't.
 #
 # Re-runnable. Bump CURRENT_PROJECT_VERSION in Project.xcconfig for each new submission.
 #
@@ -20,7 +21,7 @@ ZIP="bin/Fingerprints.zip"
 
 # --- 1. Build Release (signed by App.xcconfig) ----------------------------
 echo "==> [1/4] Building Release…"
-xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release build | tail -20
+xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release OTHER_CODE_SIGN_FLAGS="--timestamp" build | tail -20
 test -d "$APP" || { echo "ERROR: build did not produce $APP"; exit 1; }
 
 # --- 2. Verify the build really is Developer ID signed + hardened ----------

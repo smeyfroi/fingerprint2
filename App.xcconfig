@@ -14,4 +14,33 @@ DEVELOPMENT_TEAM = EZCN55TA7J
 CODE_SIGN_STYLE[config=Release] = Manual
 CODE_SIGN_IDENTITY[config=Release] = Developer ID Application
 ENABLE_HARDENED_RUNTIME[config=Release] = YES
-OTHER_CODE_SIGN_FLAGS[config=Release] = $(inherited) --timestamp
+// --timestamp is intentionally NOT set here, so everyday Release builds are
+// fully OFFLINE (the secure timestamp needs internet to Apple). notarize.sh
+// re-adds --timestamp for distribution builds; local Release runs fine without it.
+
+// Debug signing: Developer ID (Manual), with NO timestamp and NO hardened
+// runtime. It signs entirely OFFLINE -- uses your local cert/key, never
+// contacts Apple (only Release's --timestamp does that) and doesn't prompt.
+// Payoff vs ad-hoc: a STABLE identity, so the macOS Local Network privacy
+// grant persists across rebuilds instead of re-prompting every time.
+CODE_SIGN_STYLE[config=Debug] = Manual
+CODE_SIGN_IDENTITY[config=Debug] = Developer ID Application
+
+// --- App identity & icon -------------------------------------------------
+// Kept HERE, not in Project.xcconfig, because projectGenerator rewrites
+// Project.xcconfig's "App Settings" and icon blocks back to openFrameworks
+// defaults on every regenerate. App.xcconfig is never touched by the PG, so
+// these survive -- no more restoring naming/icon after each regen.
+PRODUCT_NAME = Fingerprints
+PRODUCT_NAME[config=Debug] = FingerprintsDebug
+PRODUCT_BUNDLE_IDENTIFIER = com.meyfroidt.fingerprints
+PRODUCT_BUNDLE_IDENTIFIER[config=Debug] = com.meyfroidt.fingerprints.debug
+MARKETING_VERSION = 1.0.0
+
+// Privacy usage string for macOS Local Network access -- REQUIRED for the
+// permission prompt and the Settings entry to appear at all. Without it macOS
+// silently denies the app's local-network use (no prompt, not in the list).
+INFOPLIST_KEY_NSLocalNetworkUsageDescription = Fingerprints exchanges OSC control data over your local network with a TouchOSC surface on iPad.
+
+ICON_NAME = icon.icns
+ICON_FILE = $(ICON_NAME)
