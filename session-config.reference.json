@@ -42,12 +42,12 @@
   "_comment_audio": "Audio file-replay mode is ACTIVE via an all-file audioSources rig. To switch to a live mic, comment out audioSources and uncomment micDeviceName (or give audioSources device entries).",
   "_comment_audioBufferSize": "Shared by both modes (it is the analysis FFT window): always keep it set. Live mic uses the same window as file playback so a recorded take and its replay analyse identically.",
   "audioBufferSize": 512,
+  "_comment_startPosition": "Per-FILE replay start: add \"startPosition\": \"MM:SS\" to an audioSources file entry to seek THAT file. The file owner's value wins; lanes sharing one file start together. (Replaces the old shared top-level sourceAudioStartPosition.)",
   "audioSources": [
-    { "id": "main", "file": "belfast/20250208-violin-video-separate-scale.wav", "reduce": "downmix" }
+    { "id": "main", "file": "belfast/20250208-violin-video-separate-scale.wav", "reduce": "downmix", "startPosition": "0:00" }
   ],
   "audioOutDeviceName": "Apple Inc.: MacBook Pro Speakers",
   "_outputChannels": 2,
-  "sourceAudioStartPosition": "0:00",
 
   "_micDeviceName": "Apple Inc.: MacBook Pro Microphone",
 
@@ -63,16 +63,14 @@
     {
       "_comment": "Movement 1 (old C++ commented block)",
       "startupPerformanceConfigName": "00-movement1-source",
-      "audioSources": [ { "id": "main", "file": "cork/audio-2025-06-16-10-54-26-096.wav", "reduce": "downmix" } ],
-      "sourceAudioStartPosition": "0:30",
+      "audioSources": [ { "id": "main", "file": "cork/audio-2025-06-16-10-54-26-096.wav", "reduce": "downmix", "startPosition": "0:30" } ],
       "sourceVideoFile": "cork/video-flow-recording-2025-06-15-17-10-00-689.mp4",
       "sourceVideoStartPosition": "00:10"
     },
     {
       "_comment": "Movement 2",
       "startupPerformanceConfigName": "10-movement2-tributaries",
-      "audioSources": [ { "id": "main", "file": "cork/audio-2025-06-16-11-07-55-682.wav", "reduce": "downmix" } ],
-      "sourceAudioStartPosition": "0:04",
+      "audioSources": [ { "id": "main", "file": "cork/audio-2025-06-16-11-07-55-682.wav", "reduce": "downmix", "startPosition": "0:04" } ],
       "sourceVideoFile": "cork/video-flow-recording-2025-06-15-14-14-04-398.mp4",
       "sourceVideoStartPosition": "0:05"
     },
@@ -80,7 +78,6 @@
       "_comment": "Movement 3",
       "startupPerformanceConfigName": "20-movement3-cataract",
       "audioSources": [ { "id": "main", "file": "cork/audio-2025-06-16-11-16-14-782.wav", "reduce": "downmix" } ],
-      "sourceAudioStartPosition": "0:00",
       "sourceVideoFile": "cork/video-flow-recording-2025-06-15-16-49-53-721.mp4",
       "sourceVideoStartPosition": "04:15"
     },
@@ -88,7 +85,6 @@
       "_comment": "Movement 4 (video)",
       "startupPerformanceConfigName": "30-movement4-meander.json",
       "audioSources": [ { "id": "main", "file": "cork/audio-2025-06-16-11-33-11-976.wav", "reduce": "downmix" } ],
-      "sourceAudioStartPosition": "0:00",
       "sourceVideoFile": "cork/video-flow-recording-2025-06-16-11-07-56-314.mp4",
       "sourceVideoStartPosition": "00:03"
     },
@@ -96,7 +92,6 @@
       "_comment": "Movement 5 (audio)",
       "startupPerformanceConfigName": "40-movement5-delta.json",
       "audioSources": [ { "id": "main", "file": "cork/audio-2025-06-16-11-25-03-931.wav", "reduce": "downmix" } ],
-      "sourceAudioStartPosition": "0:00",
       "sourceVideoFile": "cork/video-flow-recording-2025-06-16-11-25-04-661.mp4",
       "sourceVideoStartPosition": "00:36"
     }
