@@ -16,8 +16,16 @@ editor, change it there, and re-export over the top.
 - **Send Port `8000`** (iPad → Mac; `OscController` listens here)
 - **Receive Port `9000`** (Mac → iPad; `OscController` echoes state here)
 
-Both devices on the same Wi-Fi; the app needs the
-`com.apple.security.network.{server,client}` entitlements (already set).
+Every widget message sends/receives on **all connections** (the "∞" option), so
+you can map several — e.g. **connection 0 = home Wi-Fi, connection 1 = travel
+router** — and the surface uses whichever is live, no per-venue reconfiguring.
+Unreachable connections just fail silently.
+
+Both devices on the same Wi-Fi/LAN. The app needs the
+`com.apple.security.network.{server,client}` entitlements (already set) **and**
+macOS **Local Network** permission granted to the app (System Settings → Privacy
+& Security → Local Network) — required for the Mac→iPad feedback direction. A
+Developer-ID-signed build (Debug or Release) keeps that grant across rebuilds.
 
 ## Address map
 
@@ -37,17 +45,33 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/synth/agency` | ⇄ | `agency` |
 | `/synth/audiogain` | ⇄ | `AudioResp` |
 | `/synth/motiongain` | ⇄ | `VideoResp` |
-| `/sync` | → | handshake (see below) |
+| `/agency/level` | ← | overall agency level (read-only meter) |
+| `/agency/<i>/budget` | ← | controller `i` charge-to-fire = budget ÷ threshold (read-only) |
+| `/agency/<i>/armed` | ← | controller `i` armed (budget ≥ threshold; lights the fire-line) |
+| `/agency/<i>/name` | ← | controller `i` name (`Agency` prefix stripped) |
+| `/agency/<i>/active` | ← | 0 hides / 1 shows controller slot `i` |
+| `/agency/<i>/force` | → | force-trigger controller `i` (momentary) |
+| `/sync` | → | heartbeat / discovery (see below) |
 
-## Behaviour baked into the surface (root Lua script)
+## Sync behaviour (surface Lua + `OscController`)
 
-- **Handshake:** on entering Control mode the surface sends `/sync` a few times
-  over ~3 s, so the Mac learns the iPad's address and pushes current state
-  without needing a first fader touch. It then goes quiet (no perpetual
-  heartbeat that would fight live edits).
-- **Inactive layers:** `OscController` sends `/layer/<i>/active` for all 7
-  strips on every config load; the surface **hides** the strips a config
-  doesn't define.
+- **Heartbeat / discovery:** the surface pings `/sync` on connect and every
+  ~2 s thereafter, so the Mac learns — and relearns, after an app restart or an
+  iPad IP change — the surface's address. The Mac treats `/sync` as keepalive
+  only: it pushes state on **first contact** and on **config load**, never on
+  the heartbeat itself, so the heartbeat can't fight live edits.
+- **Slow state sync:** beyond those pushes, `OscController` re-pushes the full
+  control state every ~2 s **while the surface is idle** (no control message for
+  ~1.5 s), so parameter moves from the desktop GUI or a MIDI controller reach
+  the surface. The idle gate keeps it from yanking a fader you're mid-drag on,
+  and doubles as a robustness backstop if a first-contact push is ever missed.
+- **Agency meters:** each controller meter shows **charge-to-fire** (budget ÷
+  its trigger threshold), so near-the-top = about to fire and full = armed; the
+  amber bar at the top of the meter is the trigger line and lights when armed.
+  `Force` triggers immediately regardless of budget.
+- **Inactive layers / agency slots:** `OscController` sends `/layer/<i>/active`
+  (all 7 strips) and `/agency/<i>/active` (all 4 slots) on every config load;
+  the surface **hides** the ones a config doesn't define.
 
 ## Layout
 

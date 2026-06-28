@@ -7,6 +7,7 @@
 
 #include "ofMain.h"
 #include "ofxMarkSynth.h"
+#include "processMods/AgencyControllerMod.hpp"
 
 const std::array<std::string, 6> OscController::kIntentNames = {
   "Energy", "Density", "Structure", "Chaos", "Persistence", "Stillness"
@@ -21,6 +22,8 @@ OscController::~OscController() {
 void OscController::update() {
   if (!synthPtr) return;
   pollIncoming();
+  streamIndicators();
+  maybePeriodicSync();
 }
 
 void OscController::exit() {
@@ -33,6 +36,7 @@ void OscController::exit() {
 
 void OscController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synth) {
   synthPtr = synth;
+  cacheAgencyMods();
   if (!listening) startReceiver();
   // Push the new config's values so an already-connected surface snaps to them
   // (master alpha in particular is not serialised and resets to 1.0 each load).
@@ -42,6 +46,7 @@ void OscController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& s
 void OscController::onSynthWillUnload() {
   // Keep the socket bound across reloads; just drop the synth reference so we
   // never touch parameters mid-swap (mirrors the MIDI controllers).
+  agencyModNames_.clear();
   synthPtr.reset();
 }
 
@@ -72,28 +77,44 @@ void OscController::pollIncoming() {
     ofxOscMessage m;
     if (!receiver.getNextMessage(m)) break;
 
-    // Learn (or relearn) the surface's address from any inbound traffic, so we
-    // can echo state back without a hard-coded client IP.
+    // Learn the surface's address from any inbound traffic, so we can echo
+    // state back without a hard-coded client IP. On FIRST contact with a new
+    // host (which includes after an app restart, when remoteHost is cleared)
+    // push current state once so the surface snaps to it.
     const std::string host = m.getRemoteHost();
     const bool newHost = (!host.empty() && host != remoteHost);
     if (newHost) {
       remoteHost = host;
       ensureSender(host);
-    }
-
-    // Handshake: the surface sends /sync when it enters control mode (see its
-    // root script), so we push current state immediately rather than waiting
-    // for the first fader touch.
-    if (m.getAddress() == "/sync") {
       if (senderReady) sendCurrentState();
-      continue;
     }
 
-    // First contact via an ordinary control message: sync the surface once too.
-    if (newHost && senderReady) sendCurrentState();
+    // /sync is the surface's keepalive/discovery heartbeat (sent on connect and
+    // then every ~2s). Its only job is to arm the sender above; once the host
+    // is known it is a no-op here, so it never re-pushes state and never fights
+    // live edits. Real pushes happen on first contact (above) and on config
+    // load (onSynthDidLoad -> sendCurrentState).
+    if (m.getAddress() == "/sync") continue;
 
+    // Real control traffic: remember when the surface was last touched so the
+    // periodic sync can hold off while the performer is actively editing.
+    lastControlInMs_ = ofGetElapsedTimeMillis();
     handleMessage(m);
   }
+}
+
+void OscController::maybePeriodicSync() {
+  if (!synthPtr || !senderReady) return;
+  const uint64_t now = ofGetElapsedTimeMillis();
+  if (now - lastFullSyncMs_ < kFullSyncIntervalMs) return;
+  // Hold off if the surface sent control traffic recently: re-pushing mid-drag
+  // would echo a slightly-stale value back and fight the performer's finger.
+  // The /sync heartbeat is excluded (it never stamps lastControlInMs_), so an
+  // idle-but-connected surface still gets re-synced. This idle gate doubles as
+  // echo-suppression, which is why no per-parameter guard is needed.
+  if (now - lastControlInMs_ < kIdleGuardMs) return;
+  lastFullSyncMs_ = now;
+  sendCurrentState();
 }
 
 namespace {
@@ -111,6 +132,20 @@ namespace {
     }
     outIdx = std::stoi(mid);
     return true;
+  }
+
+  // Strip a leading "Agency"/"agency" from a controller name (the panel title
+  // already says AGENCY) so the on-screen labels are short and unambiguous.
+  std::string agencyShortName(const std::string& name) {
+    std::string s = name;
+    if (s.size() >= 6) {
+      const std::string head = s.substr(0, 6);
+      if (head == "Agency" || head == "agency") s.erase(0, 6);
+    }
+    while (!s.empty() && (s.front() == ' ' || s.front() == '-' || s.front() == '_')) {
+      s.erase(0, 1);
+    }
+    return s.empty() ? name : s;
   }
 }  // namespace
 
@@ -136,6 +171,10 @@ void OscController::handleMessage(const ofxOscMessage& m) {
     if (auto* p = synthParam("AudioResp")) setNormalized(*p, v);
   } else if (addr == "/synth/motiongain") {
     if (auto* p = synthParam("VideoResp")) setNormalized(*p, v);
+  } else if (matchIndexed(addr, "/agency/", "/force", idx)) {
+    if (v > 0.5f) {  // momentary press
+      if (auto mod = agencyMod(idx)) mod->requestForceTrigger();
+    }
   }
 }
 
@@ -240,4 +279,56 @@ void OscController::sendCurrentState() {
   if (auto* p = synthParam("agency"))    sendFloat("/synth/agency", normOf(*p));
   if (auto* p = synthParam("AudioResp")) sendFloat("/synth/audiogain", normOf(*p));
   if (auto* p = synthParam("VideoResp")) sendFloat("/synth/motiongain", normOf(*p));
+
+  // Agency controller slots: name + active (the live budget/armed values are
+  // streamed separately at 5 Hz by streamIndicators()).
+  for (int i = 0; i < kAgencySlots; ++i) {
+    const bool active = (i < static_cast<int>(agencyModNames_.size()));
+    sendFloat("/agency/" + ofToString(i) + "/active", active ? 1.0f : 0.0f);
+    if (active) sendString("/agency/" + ofToString(i) + "/name",
+                           agencyShortName(agencyModNames_[i]));
+  }
+}
+
+void OscController::cacheAgencyMods() {
+  agencyModNames_.clear();
+  if (!synthPtr) return;
+  for (const auto& [name, mod] : synthPtr->getMods()) {
+    if (std::dynamic_pointer_cast<ofxMarkSynth::AgencyControllerMod>(mod)) {
+      agencyModNames_.push_back(name);
+    }
+  }
+  std::sort(agencyModNames_.begin(), agencyModNames_.end());  // stable slot order
+}
+
+std::shared_ptr<ofxMarkSynth::AgencyControllerMod> OscController::agencyMod(int slot) {
+  if (!synthPtr || slot < 0 || slot >= static_cast<int>(agencyModNames_.size())) {
+    return nullptr;
+  }
+  const auto& mods = synthPtr->getMods();
+  auto it = mods.find(agencyModNames_[slot]);
+  if (it == mods.end()) return nullptr;
+  return std::dynamic_pointer_cast<ofxMarkSynth::AgencyControllerMod>(it->second);
+}
+
+void OscController::streamIndicators() {
+  if (!synthPtr || !senderReady) return;
+  const uint64_t now = ofGetElapsedTimeMillis();
+  if (now - lastStreamMs_ < kIndicatorIntervalMs) return;
+  lastStreamMs_ = now;
+
+  sendFloat("/agency/level", std::clamp(synthPtr->getAgency(), 0.0f, 1.0f));
+
+  for (int i = 0; i < kAgencySlots; ++i) {
+    auto mod = agencyMod(i);
+    if (!mod) continue;
+    const float budget = mod->getBudget();
+    const float thr = mod->getBudgetThreshold();
+    // Meter = CHARGE-TO-FIRE: budget as a fraction of its trigger threshold, so
+    // "near the top" = about to fire and full = armed. (Raw budget hid the
+    // threshold and made the state unreadable.)
+    const float charge = (thr > 0.0f) ? std::clamp(budget / thr, 0.0f, 1.0f) : 0.0f;
+    sendFloat("/agency/" + ofToString(i) + "/budget", charge);
+    sendFloat("/agency/" + ofToString(i) + "/armed", (budget >= thr) ? 1.0f : 0.0f);
+  }
 }
