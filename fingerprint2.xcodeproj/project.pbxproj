@@ -1279,6 +1279,7 @@
 		"29E5DBB8-2A05-4241-ABF6-6308C437E071": {
 			"children": [
 				"944308D7-B2C1-40D0-89CB-76C4F64DB2D6",
+				"FD38C1C8-FA99-4F93-969B-8EDDBBEC5322",
 				"BE4458AF-C34B-4BE8-88BE-E32BBACCB902",
 				"92ECC50A-1EEA-4FCB-AE8B-296F80608528",
 				"D99F85C6-DAE2-40AF-B0E4-09DF1C9265AC",
@@ -7859,6 +7860,13 @@
 		"FD2CAF7D-F2DD-4FEA-BA00-A0AA5C3F0A96": {
 			"fileRef": "96FC4C49-6DB2-489A-85E9-A08AA4497733",
 			"isa": "PBXBuildFile"
+		},
+		"FD38C1C8-FA99-4F93-969B-8EDDBBEC5322": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "DrawingLayer.hpp",
+			"sourceTree": "<group>"
 		},
 		"FEE3A470-7AFC-41D5-A8C7-73D135859553": {
 			"fileEncoding": "4",
