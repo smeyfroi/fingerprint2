@@ -26,7 +26,7 @@ namespace ofxMarkSynth {
 ///   /master/alpha       fader   -> master composite alpha
 ///   /intent/<i>         fader   -> intent activation i (0..5: Energy..Stillness)
 ///   /intent/strength    fader   -> master intent strength
-///   /synth/agency       fader   -> "agency"
+///   /synth/agency       fader   -> "Agency"
 ///   /synth/audiogain    fader   -> "AudioResp"
 ///   /synth/motiongain   fader   -> "VideoResp"
 ///   /agency/level       (out)   -> overall agency level (read-only meter)

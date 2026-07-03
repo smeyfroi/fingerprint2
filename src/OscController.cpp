@@ -166,7 +166,7 @@ void OscController::handleMessage(const ofxOscMessage& m) {
   } else if (matchIndexed(addr, "/intent/", "", idx)) {
     if (auto* p = intentParam(idx)) setNormalized(*p, v);
   } else if (addr == "/synth/agency") {
-    if (auto* p = synthParam("agency")) setNormalized(*p, v);
+    if (auto* p = synthParam("Agency")) setNormalized(*p, v);
   } else if (addr == "/synth/audiogain") {
     if (auto* p = synthParam("AudioResp")) setNormalized(*p, v);
   } else if (addr == "/synth/motiongain") {
@@ -193,8 +193,8 @@ ofParameter<float>* OscController::intentParam(int i) {
 
 ofParameter<float>* OscController::intentStrengthParam() {
   auto& g = synthPtr->getIntentParameterGroup();
-  if (!g.contains("Intent Strength")) return nullptr;
-  return &g.getFloat("Intent Strength");
+  if (!g.contains("IntentStrength")) return nullptr;
+  return &g.getFloat("IntentStrength");
 }
 
 ofParameter<float>* OscController::synthParam(const std::string& namePrefix) {
@@ -272,11 +272,11 @@ void OscController::sendCurrentState() {
       sendFloat("/intent/" + ofToString(i), normOf(g.getFloat(kIntentNames[i])));
     }
   }
-  if (g.contains("Intent Strength")) {
-    sendFloat("/intent/strength", normOf(g.getFloat("Intent Strength")));
+  if (g.contains("IntentStrength")) {
+    sendFloat("/intent/strength", normOf(g.getFloat("IntentStrength")));
   }
 
-  if (auto* p = synthParam("agency"))    sendFloat("/synth/agency", normOf(*p));
+  if (auto* p = synthParam("Agency"))    sendFloat("/synth/agency", normOf(*p));
   if (auto* p = synthParam("AudioResp")) sendFloat("/synth/audiogain", normOf(*p));
   if (auto* p = synthParam("VideoResp")) sendFloat("/synth/motiongain", normOf(*p));
 
