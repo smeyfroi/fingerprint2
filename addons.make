@@ -13,7 +13,6 @@ ofxIntrospector
 ofxMotionFromVideo
 ofxParticleSet
 ofxParticleField
-ofxPlottable
 ofxPointClusters
 ofxSelfOrganizingMap
 ofxSomPalette
