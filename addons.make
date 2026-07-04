@@ -5,14 +5,10 @@ ofxAudioFile
 ofxSoundObjects
 ofxAudioData
 ofxConvexHull
-ofxRenderer
-ofxDividedArea
 ofxFontStash2
 ofxImGui
 ofxIntrospector
-ofxMotionFromVideo
 ofxParticleSet
-ofxParticleField
 ofxPointClusters
 ofxSelfOrganizingMap
 ofxSomPalette
