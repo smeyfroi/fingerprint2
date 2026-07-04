@@ -8,8 +8,6 @@ ofxConvexHull
 ofxFontStash2
 ofxImGui
 ofxIntrospector
-ofxParticleSet
-ofxPointClusters
 ofxSelfOrganizingMap
 ofxSomPalette
 ofxTimeMeasurements
