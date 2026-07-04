@@ -8,7 +8,6 @@ ofxFontStash2
 ofxImGui
 ofxIntrospector
 ofxSelfOrganizingMap
-ofxSomPalette
 ofxTimeMeasurements
 ofxTinyEXR
 ofxSyphon
