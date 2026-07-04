@@ -2,6 +2,10 @@
 
 #include "ofxTimeMeasurements.h"
 
+// Stage 17: the session loader moved out of the ofxMarkSynth umbrella into
+// config/session/. Include it directly (previously pulled in via ofxMarkSynth.h).
+#include "config/session/SessionResourceLoader.hpp"
+
 using namespace ofxMarkSynth;
 
 void ofApp::attachGuiWindowListeners() {
