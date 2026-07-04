@@ -554,6 +554,13 @@ void MidiController::exit() {
     lc.reset();
   }
   display.reset();
+  // Release our strong reference to the Synth (Stage 14). The other controllers
+  // (Apc/NanoKontrol/Osc) already reset theirs in exit(); this one was missing it,
+  // which was harmless while the Synth<->Gui cycle meant ~Synth never ran anyway.
+  // Now that Stage 14 breaks that cycle, a lingering strong ref here would keep the
+  // Synth alive past ofApp::exit()'s synthPtr.reset() and defer ~Synth (and the
+  // audited teardown) — so drop it.
+  synthPtr.reset();
 }
 
 void MidiController::updateStationaryDisplay() {
