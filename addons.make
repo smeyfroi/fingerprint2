@@ -3,7 +3,6 @@ ofxGui
 ofxGist
 ofxAudioFile
 ofxSoundObjects
-ofxAudioData
 ofxConvexHull
 ofxFontStash2
 ofxImGui
