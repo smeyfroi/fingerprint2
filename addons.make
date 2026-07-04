@@ -1,4 +1,3 @@
-ofxHistoryPlot
 ofxGui
 ofxGist
 ofxAudioFile
@@ -6,7 +5,6 @@ ofxSoundObjects
 ofxConvexHull
 ofxFontStash2
 ofxImGui
-ofxIntrospector
 ofxSelfOrganizingMap
 ofxTimeMeasurements
 ofxTinyEXR
