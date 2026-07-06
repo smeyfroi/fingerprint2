@@ -1,11 +1,11 @@
-ofxGui
-ofxGist
 ofxAudioFile
-ofxSoundObjects
 ofxConvexHull
 ofxFontStash2
+ofxGist
+ofxGui
 ofxImGui
 ofxSelfOrganizingMap
+ofxSoundObjects
 ofxTimeMeasurements
 ofxTinyEXR
 ofxSyphon
