@@ -2924,7 +2924,10 @@
 				"3525E77A-25B2-49AB-8EC9-6E95B2A4CC86",
 				"31D147BF-CB5F-43A0-9D54-0DCE938DFB41",
 				"BFA59DFD-655C-4EA8-8464-23052BB89767",
-				"CE985EB4-8139-40A9-9EAD-891FEC91751F"
+				"CE985EB4-8139-40A9-9EAD-891FEC91751F",
+				"7F5DA977-8C4B-4637-9A05-0460400B77CB",
+				"6B444FBE-3231-4E05-ACEE-28E5F74D79CD",
+				"E00A9777-5754-4596-974A-BDF29521D90C"
 			],
 			"isa": "PBXGroup",
 			"name": "sinkMods",
@@ -7388,7 +7391,8 @@
 				"C8F59D23-EA58-452E-8589-486D71D89477",
 				"F1A90F1E-CDEB-44A8-8626-5E539B7BFDDB",
 				"0DA11D46-31BC-4A45-860E-97C42A77E55A",
-				"19716AC0-0AF1-4F53-9A01-BB43EB2AB502"
+				"19716AC0-0AF1-4F53-9A01-BB43EB2AB502",
+				"C08928E3-97EA-4EDC-AFBA-30EBBC42D934"
 			],
 			"isa": "PBXSourcesBuildPhase",
 			"runOnlyForDeploymentPostprocessing": "0"
@@ -8654,6 +8658,31 @@
 			"lastKnownFileType": "sourcecode.cpp.h",
 			"name": "Oklab.h",
 			"sourceTree": "<group>"
+		},
+		"7F5DA977-8C4B-4637-9A05-0460400B77CB": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.cpp",
+			"name": "VoiceDepositMod.cpp",
+			"sourceTree": "<group>"
+		},
+		"6B444FBE-3231-4E05-ACEE-28E5F74D79CD": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "VoiceDepositMod.hpp",
+			"sourceTree": "<group>"
+		},
+		"E00A9777-5754-4596-974A-BDF29521D90C": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "VoiceDepositShader.h",
+			"sourceTree": "<group>"
+		},
+		"C08928E3-97EA-4EDC-AFBA-30EBBC42D934": {
+			"fileRef": "7F5DA977-8C4B-4637-9A05-0460400B77CB",
+			"isa": "PBXBuildFile"
 		}
 	},
 	"rootObject": "E4B69B4C0A3A1720003C02F2"
