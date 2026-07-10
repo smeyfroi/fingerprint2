@@ -170,13 +170,17 @@ void NanoKontrol2Controller::handleSliderCC(int cc, int value) {
 
   auto& render = synthPtr->getRenderSubsystem();
 
-  // Rightmost fader drives the master composite alpha; the rest drive per-layer
-  // alphas by index. Both go through the same FaderTakeover pickup below.
+  // Rightmost fader drives the master composite alpha; the rest ride GROUPS
+  // when the config authors a chains manifest (room / voice1 / ... — the same
+  // strips the iPad shows), else per-layer alphas by index. All go through the
+  // same FaderTakeover pickup below.
   ofParameter<float>* paramPtr = nullptr;
   if (faderIndex == kMasterAlphaFaderIndex) {
     paramPtr = &render.getMasterAlphaParameter();
   } else {
-    ofParameterGroup& alphas = render.getLayerAlphaParameters();
+    ofParameterGroup& alphas = render.hasChainManifest()
+        ? render.getChainAlphaParameters()
+        : render.getLayerAlphaParameters();
     if (faderIndex >= static_cast<int>(alphas.size())) return;
     paramPtr = &alphas.getFloat(faderIndex);
   }
@@ -224,12 +228,17 @@ void NanoKontrol2Controller::handleButtonCC(int cc, int value) {
   // Press-only: ignore release (value == 0).
   if (value == 0) return;
 
-  // M buttons (CC 48..55): toggle pause for the corresponding layer.
+  // M buttons (CC 48..55): toggle pause for the corresponding strip — a GROUP
+  // when the config authors a chains manifest, else the layer.
   if (cc >= kMButtonCCFirst && cc <= kMButtonCCLast) {
     int idx = cc - kMButtonCCFirst;
-    const auto& pauseParamPtrs = synthPtr->getRenderSubsystem().getLayerPauseParamPtrs();
+    auto& render = synthPtr->getRenderSubsystem();
+    const bool groups = render.hasChainManifest();
+    const auto& pauseParamPtrs = groups ? render.getChainPauseParamPtrs()
+                                        : render.getLayerPauseParamPtrs();
     if (idx < static_cast<int>(pauseParamPtrs.size()) && pauseParamPtrs[idx]) {
-      synthPtr->getRenderSubsystem().toggleLayerPause(idx);
+      if (groups) render.toggleChainPause(idx);
+      else render.toggleLayerPause(idx);
     }
     return;
   }
@@ -262,7 +271,12 @@ void NanoKontrol2Controller::handleButtonCC(int cc, int value) {
 void NanoKontrol2Controller::pollAndUpdateLeds() {
   if (!connected || !synthPtr) return;
 
-  const auto& pauseParamPtrs = synthPtr->getRenderSubsystem().getLayerPauseParamPtrs();
+  // Strip LEDs track whatever the strips are bound to: groups when the config
+  // authors a chains manifest, layers otherwise.
+  auto& render = synthPtr->getRenderSubsystem();
+  const auto& pauseParamPtrs = render.hasChainManifest()
+      ? render.getChainPauseParamPtrs()
+      : render.getLayerPauseParamPtrs();
 
   // R buttons (CC 64..71): lit iff layer exists in current config.
   // (Moved here from the S buttons — bottom-of-strip indicator next to fader.)

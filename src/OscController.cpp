@@ -179,7 +179,13 @@ void OscController::handleMessage(const ofxOscMessage& m) {
 }
 
 ofParameter<float>* OscController::layerAlphaParam(int i) {
-  auto& alphas = synthPtr->getRenderSubsystem().getLayerAlphaParameters();
+  // The strips ride GROUPS when the config authors a chains manifest (the strip
+  // names pushed by sendCurrentState relabel the surface automatically, so the
+  // same TouchOSC layout serves both worlds); manifest-less configs keep the
+  // per-layer binding.
+  auto& render = synthPtr->getRenderSubsystem();
+  auto& alphas = render.hasChainManifest() ? render.getChainAlphaParameters()
+                                           : render.getLayerAlphaParameters();
   if (i < 0 || i >= static_cast<int>(alphas.size())) return nullptr;
   return &alphas.getFloat(i);
 }
@@ -210,11 +216,16 @@ void OscController::setNormalized(ofParameter<float>& p, float norm) {
 
 void OscController::setLayerPause(int i, bool paused) {
   auto& render = synthPtr->getRenderSubsystem();
-  const auto& pausePtrs = render.getLayerPauseParamPtrs();
+  const bool groups = render.hasChainManifest();
+  const auto& pausePtrs = groups ? render.getChainPauseParamPtrs()
+                                 : render.getLayerPauseParamPtrs();
   if (i < 0 || i >= static_cast<int>(pausePtrs.size()) || !pausePtrs[i]) return;
-  // toggleLayerPause() flips; only flip when the desired state differs so an
+  // toggle*Pause() flips; only flip when the desired state differs so an
   // absolute toggle value from the surface lands deterministically.
-  if (pausePtrs[i]->get() != paused) render.toggleLayerPause(i);
+  if (pausePtrs[i]->get() != paused) {
+    if (groups) render.toggleChainPause(i);
+    else render.toggleLayerPause(i);
+  }
 }
 
 float OscController::normOf(ofParameter<float>& p) {
@@ -242,8 +253,13 @@ void OscController::sendCurrentState() {
   if (!synthPtr || !senderReady) return;
 
   auto& render = synthPtr->getRenderSubsystem();
-  auto& alphas = render.getLayerAlphaParameters();
-  const auto& pausePtrs = render.getLayerPauseParamPtrs();
+  // Groups when the config authors a chains manifest — the /name pushes relabel
+  // the surface strips to the chain names (room / voice1 / ...).
+  const bool groups = render.hasChainManifest();
+  auto& alphas = groups ? render.getChainAlphaParameters()
+                        : render.getLayerAlphaParameters();
+  const auto& pausePtrs = groups ? render.getChainPauseParamPtrs()
+                                 : render.getLayerPauseParamPtrs();
 
   // Send active + values for every strip the surface has (kSurfaceLayers), so a
   // config with fewer layers marks the surplus strips inactive — the surface
