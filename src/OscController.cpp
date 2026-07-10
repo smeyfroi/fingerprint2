@@ -127,6 +127,10 @@ namespace {
     const std::string mid =
         addr.substr(prefix.size(), addr.size() - prefix.size() - suffix.size());
     if (mid.empty()) return false;
+    // Length cap before stoi: a hostile/buggy datagram like /layer/9999999999999/alpha
+    // would otherwise throw std::out_of_range, uncaught, and kill the app mid-show.
+    // No real strip index needs more than 3 digits.
+    if (mid.size() > 3) return false;
     for (char c : mid) {
       if (!std::isdigit(static_cast<unsigned char>(c))) return false;
     }
