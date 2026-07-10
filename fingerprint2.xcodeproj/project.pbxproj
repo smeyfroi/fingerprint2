@@ -808,10 +808,6 @@
 			"name": "ofxfs2_nanovg_gl.h",
 			"sourceTree": "<group>"
 		},
-		"1B1E7BDF-242E-4259-92C0-5341D6CBCD29": {
-			"fileRef": "64105019-FA54-4F35-B171-00D71A9BE6E6",
-			"isa": "PBXBuildFile"
-		},
 		"1B6776A3-51F9-4516-AF4D-051DE82D9FD9": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -2681,13 +2677,6 @@
 			"name": "OscPacketListener.h",
 			"sourceTree": "<group>"
 		},
-		"5C4F06A6-981D-4E72-99E6-2A8D5A3CEA77": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.h",
-			"name": "FeatureColourMod.hpp",
-			"sourceTree": "<group>"
-		},
 		"5CCDE90F-B1F6-4C0F-A1DC-BDC68A9B9BE7": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -2982,13 +2971,6 @@
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.h",
 			"name": "FluidSimulation.h",
-			"sourceTree": "<group>"
-		},
-		"64105019-FA54-4F35-B171-00D71A9BE6E6": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.cpp",
-			"name": "FeatureColourMod.cpp",
 			"sourceTree": "<group>"
 		},
 		"64CD872F-BF77-445B-9F9B-EB2CE8821132": {
@@ -3752,8 +3734,6 @@
 				"BEA78EC5-C17B-4D39-B0B5-AFDE041E43DB",
 				"4C931201-C2F3-4DA8-B906-88264DA66325",
 				"7E2C057C-2BAF-435E-ABE5-0699FDC204C6",
-				"64105019-FA54-4F35-B171-00D71A9BE6E6",
-				"5C4F06A6-981D-4E72-99E6-2A8D5A3CEA77",
 				"8A7C7639-BD33-4C05-A2A1-DCF0B0E91D6B",
 				"E413D439-AE5B-4BE1-8A7D-834B26C0266A",
 				"E8E55997-DBB7-4F31-A020-F603840219FA",
@@ -7294,7 +7274,6 @@
 				"6DF1FE92-35F3-4290-BF13-22508CA9F4F8",
 				"350728B3-7F98-4882-9F9C-C14E40171FEA",
 				"5E837398-F654-4499-B275-A408B5181745",
-				"1B1E7BDF-242E-4259-92C0-5341D6CBCD29",
 				"859CCA59-3F3A-421D-A9F2-FF0B803BB1E0",
 				"F3DC5574-151B-4F86-9083-825463CDC959",
 				"8ED797E1-B8BB-45CC-A182-5D5F24784622",
