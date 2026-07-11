@@ -170,7 +170,9 @@ void OscController::handleMessage(const ofxOscMessage& m) {
   } else if (matchIndexed(addr, "/intent/", "", idx)) {
     if (auto* p = intentParam(idx)) setNormalized(*p, v);
   } else if (addr == "/synth/agency") {
-    if (auto* p = synthParam("Agency")) setNormalized(*p, v);
+    // Param renamed MachineAgency (operator doctrine 2026-07-11); the OSC address stays
+    // /synth/agency so the TouchOSC layout keeps working.
+    if (auto* p = synthParam("MachineAgency")) setNormalized(*p, v);
   } else if (addr == "/synth/audiogain") {
     if (auto* p = synthParam("AudioResp")) setNormalized(*p, v);
   } else if (addr == "/synth/motiongain") {

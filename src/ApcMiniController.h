@@ -88,7 +88,7 @@ public:
   // Only the first kBoundFaderCount entries are used; remaining faders
   // are silently dropped.
   static constexpr std::array<const char*, kBoundFaderCount> kFaderBindings = {
-    "Agency",     // Fader 1 (CC 48)
+    "MachineAgency", // Fader 1 (CC 48) — renamed 2026-07-11 (operator doctrine)
     "AudioResp",  // Fader 2 (CC 49) — "AudioGain" in the sidebar
     "VideoResp",  // Fader 3 (CC 50) — "MotionGain" in the sidebar
   };
