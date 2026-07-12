@@ -370,14 +370,17 @@ void MidiController::updateIntentIndicatorLeds() {
 
       float masterStrength = intentParameters.getFloat(masterIndex).get();
 
-      // All 8 LEDs mirror the 8 poles; master strength lives on the APC now, so it
+      // All 8 LEDs mirror the 8 poles in their axis-pair hue (same hues as the
+      // GUI Intents panel); master strength lives on the APC now, so here it
       // only gates brightness (dim = poles armed but strength at zero).
       for (size_t i = 0; i < activationCount; ++i) {
         float value = intentParameters.getFloat(i).get();
+        const LedColor& bright = kAxisBrightIntentColors[(i / 2) % 4];
+        const LedColor& dim = kAxisDimIntentColors[(i / 2) % 4];
         if (masterStrength <= kIntentEpsilon) {
-          desiredColors[i] = kDimIntentColor;
+          desiredColors[i] = dim;
         } else {
-          desiredColors[i] = (value > kIntentEpsilon) ? kBrightIntentColor : kDimIntentColor;
+          desiredColors[i] = (value > kIntentEpsilon) ? bright : dim;
         }
       }
     }

@@ -26,9 +26,22 @@ class MidiController : public ofxMidiListener {
   static constexpr LedColor kButtonPressedColor = {127, 127, 127}; // White (momentary press)
   static constexpr LedColor kOffColor = {0, 0, 0};
 
-  // Intent indicator colors (top row)
-  static constexpr LedColor kBrightIntentColor = {127, 127, 0};  // Bright yellow
-  static constexpr LedColor kDimIntentColor = {8, 8, 0};        // Dim yellow
+  // Intent indicator colors (top row): the 8 poles are 4 bipolar pairs and each
+  // pair shares a hue — the SAME axis hues as the GUI's Intents panel (presence
+  // coral, motion cyan, order violet, memory green), so hardware and screen read
+  // as one vocabulary. Indexed by pole/2; dim = armed but master strength at 0.
+  static constexpr std::array<LedColor, 4> kAxisBrightIntentColors {{
+    {127, 60, 45},   // presence: coral
+    {45, 100, 127},  // motion:   cyan
+    {95, 65, 127},   // order:    violet
+    {55, 110, 70},   // memory:   green
+  }};
+  static constexpr std::array<LedColor, 4> kAxisDimIntentColors {{
+    {10, 5, 4},
+    {4, 8, 10},
+    {8, 5, 10},
+    {4, 9, 6},
+  }};
 
   // Encoder colors
   static constexpr LedColor kBlueEncoderColor = {0, 0, 32};      // Blue (encoders 2, 10)
