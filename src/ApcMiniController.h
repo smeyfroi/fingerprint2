@@ -75,13 +75,13 @@ public:
   static constexpr int kConfigPadCount = 64;  // 8 rows * 8 columns
 
   // === Faders (CC 48..56) ===
-  // Faders 1-3 (CC 48-50) drive the three top-of-sidebar synth-level
-  // parameters via soft-takeover pickup. The remaining faders (51-56)
-  // are unbound — their CCs are received and discarded.
+  // Faders 1-4 (CC 48-51) drive synth-level parameters via soft-takeover
+  // pickup. The remaining faders (52-56) are unbound — their CCs are
+  // received and discarded.
   static constexpr int kFaderCCFirst = 48;
   static constexpr int kFaderCCLast = 56;
   static constexpr int kFaderCount = 9;
-  static constexpr int kBoundFaderCount = 3;  // Faders 1-3 (CC 48-50)
+  static constexpr int kBoundFaderCount = 4;  // Faders 1-4 (CC 48-51)
 
   // Per-fader parameter binding. Each bound fader drives the named
   // ofParameter<float> resolved via Synth::findParameterByNamePrefix.
@@ -91,6 +91,8 @@ public:
     "LiveAgency",    // Fader 1 (CC 48) — renamed 2026-07-11 (operator doctrine)
     "AudioResp",  // Fader 2 (CC 49) — "AudioGain" in the sidebar
     "VideoResp",  // Fader 3 (CC 50) — "MotionGain" in the sidebar
+    "IntentStrength", // Fader 4 (CC 51) — master intent, moved off the Novation so all 8
+                      // LCXL faders carry the 8 poles (2026-07-11 axes rework)
   };
 
   // === Timing ===

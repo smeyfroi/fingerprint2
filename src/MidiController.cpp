@@ -142,12 +142,10 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
       ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
       if (intentParameters.size() > 0) {
         const size_t masterIndex = intentParameters.size() - 1;
-        const size_t activationCount = std::min<size_t>(7, masterIndex);
-        const bool isMaster = (faderIndex == 7);
+        const size_t activationCount = std::min<size_t>(8, masterIndex);
 
-        if (isMaster || static_cast<size_t>(faderIndex) < activationCount) {
-          ofParameter<float>& param = isMaster ? intentParameters.getFloat(masterIndex)
-                                               : intentParameters.getFloat(static_cast<size_t>(faderIndex));
+        if (static_cast<size_t>(faderIndex) < activationCount) {
+          ofParameter<float>& param = intentParameters.getFloat(static_cast<size_t>(faderIndex));
           const float paramValue = param.get();
 
           const bool ccChanged = (state.lastCcValue >= 0) && (state.lastCcValue != value);
@@ -368,10 +366,12 @@ void MidiController::updateIntentIndicatorLeds() {
     ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
     if (intentParameters.size() > 0) {
       size_t masterIndex = intentParameters.size() - 1;
-      size_t activationCount = std::min<size_t>(7, masterIndex);
+      size_t activationCount = std::min<size_t>(8, masterIndex);
 
       float masterStrength = intentParameters.getFloat(masterIndex).get();
 
+      // All 8 LEDs mirror the 8 poles; master strength lives on the APC now, so it
+      // only gates brightness (dim = poles armed but strength at zero).
       for (size_t i = 0; i < activationCount; ++i) {
         float value = intentParameters.getFloat(i).get();
         if (masterStrength <= kIntentEpsilon) {
@@ -380,8 +380,6 @@ void MidiController::updateIntentIndicatorLeds() {
           desiredColors[i] = (value > kIntentEpsilon) ? kBrightIntentColor : kDimIntentColor;
         }
       }
-
-      desiredColors[7] = (masterStrength > kIntentEpsilon) ? kBrightIntentColor : kDimIntentColor;
     }
   }
 
@@ -455,9 +453,11 @@ void MidiController::applyFaderBank() {
   ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
   if (intentParameters.size() == 0) return;
 
-  // Intent group is ordered: activations first, master strength last.
-  size_t masterIndex = intentParameters.size() - 1;
-  size_t activationCount = std::min<size_t>(7, masterIndex);
+  // The 8 poles occupy ALL EIGHT Novation faders (2026-07-11 axes rework: DEN SPR STL AGT
+  // ORD CHA PER EPH in group order). Master IntentStrength moved to APC Mini fader 4 —
+  // see ApcMiniController.h kFaderBindings.
+  size_t masterIndex = intentParameters.size() - 1;   // group = poles..., strength last
+  size_t activationCount = std::min<size_t>(8, masterIndex);
 
   for (size_t i = 0; i < activationCount; ++i) {
     ofParameter<float>& intentParameter = intentParameters.getFloat(i);
@@ -466,11 +466,6 @@ void MidiController::applyFaderBank() {
     ofLogNotice("MidiController") << "Binding MIDI fader " << i << " (knob index " << knobIndex
                                   << ") to Intent parameter (pickup): " << intentParameter.getName();
   }
-
-  ofParameter<float>& masterStrengthParameter = intentParameters.getFloat(masterIndex);
-  lc->knobPickup(kFaderKnobOffset + 7, masterStrengthParameter);
-  ofLogNotice("MidiController") << "Binding MIDI fader 7 (knob index " << (kFaderKnobOffset + 7)
-                                << ") to master intent (pickup): " << masterStrengthParameter.getName();
 }
 
 void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr) {
