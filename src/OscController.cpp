@@ -1,5 +1,7 @@
 #include "OscController.h"
 
+#include "subsystem/SynthSubsystems.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <optional>
@@ -298,6 +300,18 @@ void OscController::sendCurrentState() {
   if (g.contains("IntentStrength")) {
     sendFloat("/intent/strength", normOf(g.getFloat("IntentStrength")));
   }
+
+  // Measured intent surface for the ACTIVE config: one message, 8 bucket ints
+  // (-1 unmeasured, 0 below-noise, 1/2/3 moderate/solid/strong) in fader order.
+  // The TouchOSC layout's root script recolours the pole faders from this so
+  // the iPad mirrors the GUI's at-a-glance impact colouring.
+  surfaceInfo.refreshIfChanged(synthPtr->getConfigSubsystem().currentConfigPath);
+  ofxOscMessage impacts;
+  impacts.setAddress("/intent/impacts");
+  for (const auto& name : kIntentNames) {
+    impacts.addInt32Arg(surfaceInfo.bucket(name));
+  }
+  sender.sendMessage(impacts, false);
 
   if (auto* p = synthParam("Agency"))    sendFloat("/synth/agency", normOf(*p));
   if (auto* p = synthParam("AudioResp")) sendFloat("/synth/audiogain", normOf(*p));

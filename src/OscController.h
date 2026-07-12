@@ -8,6 +8,7 @@
 
 #include "ofParameter.h"
 #include "ofxOsc.h"
+#include "gui/panels/IntentSurfaceInfo.h"
 
 namespace ofxMarkSynth {
   class Synth;
@@ -66,6 +67,9 @@ public:
 
 private:
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
+  // Measured intent surface for the active config — feeds the /intent/impacts
+  // broadcast so the iPad can mirror the GUI's impact colouring.
+  ofxMarkSynth::IntentSurfaceInfo surfaceInfo;
 
   ofxOscReceiver receiver;
   ofxOscSender   sender;
