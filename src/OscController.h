@@ -25,8 +25,8 @@ namespace ofxMarkSynth {
 ///   /layer/<i>/pause    toggle  -> layer i pause
 ///   /layer/<i>/name     (out)   -> layer i name (relabels the surface strip)
 ///   /master/alpha       fader   -> master composite alpha
-///   /intent/<i>         fader   -> intent pole i (0..7: Dense Sparse Still Agitated
-///                                   Ordered Chaotic Persistent Ephemeral)
+///   /intent/<i>         fader   -> intent pole i (0..6: Dense Sparse Still Agitated
+///                                   Persistent Ephemeral Chaotic)
 ///   /intent/strength    fader   -> master intent strength
 ///   /synth/agency       fader   -> "Agency"
 ///   /synth/audiogain    fader   -> "AudioResp"
@@ -78,7 +78,7 @@ private:
   std::string remoteHost;   // learned from the first inbound packet
 
   // /intent/0../7 in on-screen order; resolved by name against the intent group.
-  static const std::array<std::string, 8> kIntentNames;
+  static const std::array<std::string, 7> kIntentNames;
 
   bool startReceiver();
   void pollIncoming();

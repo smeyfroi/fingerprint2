@@ -11,9 +11,9 @@
 #include "ofxMarkSynth.h"
 #include "processMods/AgencyControllerMod.hpp"
 
-const std::array<std::string, 8> OscController::kIntentNames = {
-  // The 8 poles (2026-07-11 axes rework), axis/fader order. /intent/0../7.
-  "Dense", "Sparse", "Still", "Agitated", "Ordered", "Chaotic", "Persistent", "Ephemeral"
+const std::array<std::string, 7> OscController::kIntentNames = {
+  // The 7 poles (2026-07-12: Ordered dropped, Chaotic solo last), fader order. /intent/0../6.
+  "Dense", "Sparse", "Still", "Agitated", "Persistent", "Ephemeral", "Chaotic"
 };
 
 OscController::OscController() = default;
