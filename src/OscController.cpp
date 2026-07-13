@@ -40,6 +40,14 @@ void OscController::exit() {
 void OscController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synth) {
   synthPtr = synth;
   cacheAgencyMods();
+  // Re-subscribe the RAII page-change listener to THIS synth's SetController.
+  // The Synth persists across config switches, so the multi-listener event
+  // outlives a reload; re-assigning here replaces only our own slot. Any
+  // consumer's page switch (APC meta row, GUI, this surface) re-pushes the grid
+  // so the iPad follows. The lambda guards senderReady/synthPtr, so a fire
+  // during an unloaded window is a safe no-op.
+  pageChangedListener_ = synthPtr->getSetController().pageChanged.newListener(
+      [this]() { if (senderReady) sendGridState(); });
   if (!listening) startReceiver();
   // Push the new config's values so an already-connected surface snaps to them
   // (master alpha in particular is not serialised and resets to 1.0 each load).
@@ -157,8 +165,42 @@ namespace {
 }  // namespace
 
 void OscController::handleMessage(const ofxOscMessage& m) {
-  if (!synthPtr || m.getNumArgs() < 1) return;
+  if (!synthPtr) return;
   const std::string& addr = m.getAddress();
+
+  // === Set-pages grid surface (tab 2) ===
+  // Handled before the generic single-float path below because /grid/press
+  // carries two ints and /grid/home may carry none. All three are no-ops unless
+  // a set is loaded — when hasSet() is false the pads/GUI/iPad keep today's
+  // buttonGrid behaviour untouched.
+  if (addr == "/grid/press") {
+    if (!synthPtr->getSetController().hasSet() || m.getNumArgs() < 2) return;
+    const int x = m.getArgAsInt32(0);
+    const int y = m.getArgAsInt32(1);
+    // A touchscreen tap is deliberate — no hold-to-confirm on this surface.
+    if (const auto* cell = synthPtr->getSetController().cellAt(x, y)) {
+      synthPtr->loadSetCellConfig(cell->config);
+      ofLogNotice("OscController") << "Grid cell load (" << x << "," << y
+                                   << "): " << cell->config;
+    }
+    return;
+  }
+  if (addr == "/grid/page") {
+    if (!synthPtr->getSetController().hasSet() || m.getNumArgs() < 1) return;
+    // Surface speaks 1-based pages; SetController is 0-based and clamps.
+    synthPtr->getSetController().setCurrentPage(m.getArgAsInt32(0) - 1);
+    return;
+  }
+  if (addr == "/grid/home") {
+    if (!synthPtr->getSetController().hasSet()) return;
+    // Trigger button (RISE-only on the surface): if it carries a value at all,
+    // act on the press edge only.
+    if (m.getNumArgs() >= 1 && m.getArgAsFloat(0) <= 0.5f) return;
+    synthPtr->loadSetCellConfig(synthPtr->getSetController().homeConfig());
+    return;
+  }
+
+  if (m.getNumArgs() < 1) return;
   const float v = m.getArgAsFloat(0);  // surface sends all values as float 0..1
   int idx = 0;
 
@@ -324,6 +366,58 @@ void OscController::sendCurrentState() {
     sendFloat("/agency/" + ofToString(i) + "/active", active ? 1.0f : 0.0f);
     if (active) sendString("/agency/" + ofToString(i) + "/name",
                            agencyShortName(agencyModNames_[i]));
+  }
+
+  // Set-pages grid tab: cell colours + current page (or a clear when no set).
+  sendGridState();
+}
+
+bool OscController::isMemoryReady() const {
+  if (!synthPtr) return false;
+  return synthPtr->getMemoryBankController().getMemoryBank().getFilledCount()
+         >= kMemoryReadyThreshold;
+}
+
+void OscController::sendGridState() {
+  if (!synthPtr || !senderReady) return;
+
+  const auto& set = synthPtr->getSetController();
+  ofxOscMessage cells;
+  cells.setAddress("/grid/cells");
+
+  if (set.hasSet()) {
+    const bool memReady = isMemoryReady();
+    // ONE message, 56 int32 in row-major order (y=0..6, x=0..7): 0xRRGGBB per
+    // assigned cell, 0 for an unassigned pad. memoryDependent cells are dimmed
+    // to kMemoryDimFactor until the bank fills (same policy as the APC pads).
+    for (int y = 0; y < kGridRows; ++y) {
+      for (int x = 0; x < kGridCols; ++x) {
+        int32_t packed = 0;
+        if (const auto* cell = set.cellAt(x, y)) {
+          ofColor c = cell->color;
+          if (cell->memoryDependent && !memReady) {
+            c.r = static_cast<unsigned char>(c.r * kMemoryDimFactor);
+            c.g = static_cast<unsigned char>(c.g * kMemoryDimFactor);
+            c.b = static_cast<unsigned char>(c.b * kMemoryDimFactor);
+          }
+          packed = (static_cast<int32_t>(c.r) << 16)
+                 | (static_cast<int32_t>(c.g) << 8)
+                 |  static_cast<int32_t>(c.b);
+        }
+        cells.addInt32Arg(packed);
+      }
+    }
+    sender.sendMessage(cells, false);
+
+    ofxOscMessage page;
+    page.setAddress("/grid/page");
+    page.addInt32Arg(set.currentPage() + 1);  // 0-based here, 1-based on the wire
+    sender.sendMessage(page, false);
+  } else {
+    // No set: clear a possibly-stale surface with one all-zero message so the
+    // tab-2 cells don't keep showing a previous session's colours.
+    for (int i = 0; i < kGridCellCount; ++i) cells.addInt32Arg(0);
+    sender.sendMessage(cells, false);
   }
 }
 

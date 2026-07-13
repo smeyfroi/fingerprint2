@@ -51,7 +51,17 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/agency/<i>/name` | ← | controller `i` name (`Agency` prefix stripped) |
 | `/agency/<i>/active` | ← | 0 hides / 1 shows controller slot `i` |
 | `/agency/<i>/force` | → | force-trigger controller `i` (momentary) |
+| `/grid/press` | → | tap set cell `x y` (`y`=0..6) — loads its config (no set → ignored) |
+| `/grid/page` | ⇄ | → switch to 1-based page; ← current page (highlights the page button) |
+| `/grid/home` | → | load the set's designated home config |
+| `/grid/cells` | ← | ONE msg, 56 `0xRRGGBB` int32 (row-major `y`=0..6, `x`=0..7); 0 = dark |
 | `/sync` | → | heartbeat / discovery (see below) |
+
+The `/grid/*` addresses drive the **SET** band (see Layout). They are live only
+while the Synth has a set loaded (`session-config.json` `setName`); with no set
+the pads/GUI/iPad keep their `buttonGrid` behaviour. Cell colours (including the
+memory-dependent 25% dim) are computed host-side and pushed as `/grid/cells`;
+the layout's root script recolours each `cell_<x>_<y>` button by name.
 
 ## Sync behaviour (surface Lua + `OscController`)
 
@@ -75,6 +85,14 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 
 ## Layout
 
-Single portrait page, three bands: **LAYERS** (7 alpha faders + pause toggles +
-name labels, master-α at right) · **INTENT** (6 activation faders + strength) ·
-**SYNTH** (agency / audio gain / motion gain).
+Portrait canvas, four bands top-to-bottom: **LAYERS** (7 alpha faders + pause
+toggles + name labels, master-α at right) · **INTENT** (7 activation faders +
+strength) · **SYNTH** (agency / audio gain / motion gain) · **SET** (8×7 grid of
+`cell_<x>_<y>` buttons + a page row `page_1..4` + `HOME`).
+
+The SET band sits **below** the control bands on one enlarged canvas (the
+documented fallback for the set-pages tab): the existing surface is untouched, so
+its proven layer/agency hide-show and intent-impact colouring keep working. The
+`gridTab` group is a self-contained unit — a ready-made pager page — so it can be
+promoted to a native TouchOSC **Pager** tab in the editor later (a pager's pages
+are just groups) without touching the OSC wiring.
