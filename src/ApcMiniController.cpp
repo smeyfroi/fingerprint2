@@ -166,7 +166,7 @@ void ApcMiniController::update() {
     auto& set = synthPtr->getSetController();
 
     // Meta-row page switch (recorded on the MIDI thread). setCurrentPage fires
-    // onPageChanged only on an actual change, which raises pendingSetFullRepaint.
+    // pageChanged only on an actual change, which raises pendingSetFullRepaint.
     int requestedPage = pendingSetPageRequest.exchange(-1);
     if (requestedPage >= 0) {
       set.setCurrentPage(requestedPage);
@@ -178,9 +178,9 @@ void ApcMiniController::update() {
       synthPtr->loadSetCellConfig(set.homeConfig());
     }
 
-    // Defensive page-change poll: onPageChanged is a single std::function slot
-    // that the GUI / OSC consumers may also claim in later waves. Polling
-    // currentPage() here guarantees the LED refresh regardless of who owns it.
+    // Defensive page-change poll: a backstop alongside the pageChanged event —
+    // polling currentPage() here guarantees the LED refresh even if the event
+    // subscription is ever disturbed across synth reloads.
     const int page = set.currentPage();
     if (page != lastKnownSetPage) {
       lastKnownSetPage = page;
@@ -391,14 +391,14 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
   // parameter values.
   resetFaderPickupStates();
 
-  // Set-mode wiring. onPageChanged is a single std::function slot; taking it here
-  // triggers the one full-grid LED rewrite per page switch. The update() poll of
-  // currentPage() is a defensive backstop in case a later consumer (GUI / OSC)
-  // claims the same slot. The lambda only flips an atomic, so it is safe from any
+  // Set-mode wiring: subscribe to the multi-listener pageChanged event (RAII
+  // token — re-registering on each synth load replaces our own listener only,
+  // never another consumer's). The update() poll of currentPage() remains as a
+  // defensive backstop. The lambda only flips an atomic, so it is safe from any
   // thread and outlives this synth (the controller is longer-lived than the set).
   {
     auto& set = synthPtr->getSetController();
-    set.onPageChanged = [this]() { pendingSetFullRepaint = true; };
+    pageChangedListener = set.pageChanged.newListener([this]() { pendingSetFullRepaint = true; });
     pendingSetPageRequest = -1;
     pendingSetHomeRequest = false;
     pendingSetFullRepaint = false;
@@ -425,7 +425,7 @@ void ApcMiniController::onSynthWillUnload() {
     c = kColorOff;
   }
 
-  // Clear pending set-mode intents. We deliberately leave onPageChanged alone:
+  // Clear pending set-mode intents. The pageChanged listener token persists:
   // this fires on every config switch (the SetController persists across them),
   // and the callback only flips an app-lifetime atomic, so it can never dangle.
   // onSynthDidLoad re-registers it and re-baselines the tracking below.

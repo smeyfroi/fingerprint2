@@ -192,6 +192,7 @@ private:
   // A page change is the one permitted full-grid rewrite. onPageChanged (or the
   // defensive poll) raises this; update() consumes it for a single repaint pass.
   std::atomic<bool> pendingSetFullRepaint { false };
+  ofEventListener pageChangedListener;  // RAII subscription to SetController::pageChanged
   int lastKnownSetPage = -1;         // Polled fallback if the callback slot is taken
   bool lastKnownMemoryReady = false; // Transition-gates the memory-dim repaint
 
