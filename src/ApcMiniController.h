@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -121,6 +122,19 @@ public:
   // === Config LED Brightness ===
   static constexpr float kConfigDimFactor = 0.20f;
 
+  // === Set-mode LED policy (SetController-driven pages) ===
+  // A memoryDependent cell is READY once the MemoryBank has collected this many
+  // textures; until then it renders as its own hue dimmed to kMemoryDimFactor.
+  // No pulsing/animation on this surface (AKAI LED timing is fragile) — the dim
+  // hue IS the "not ready" cue.
+  static constexpr int kMemoryReadyThreshold = 3;
+  static constexpr float kMemoryDimFactor = 0.25f;
+  // Meta row (hardware row mapping to y=7): pads x=0..3 = pages, pad x=7 = HOME.
+  static constexpr int kMetaRowY = 7;
+  static constexpr int kMetaPageXFirst = 0;
+  static constexpr int kMetaPageXLast = 3;
+  static constexpr int kMetaHomeX = 7;
+
   // === Config Grid Entry ===
   struct ConfigPadInfo {
     int configIndex = -1;             // Index into PerformanceNavigator::getConfigs()
@@ -169,6 +183,18 @@ private:
   int lastKnownConfigIndex = -1;  // Tracks navigator changes (including non-APC switches)
   int lastKnownHibState = -1;     // Tracks hibernation state changes
 
+  // === Set-mode state (active only while synth.getSetController().hasSet()) ===
+  // Pad presses arrive on the MIDI thread; meta-row actions (page switch / HOME)
+  // are recorded here and applied on the main thread in update() — the same
+  // thread-handoff discipline the hold-to-commit config load already uses.
+  std::atomic<int> pendingSetPageRequest { -1 };   // 0-based page to switch to, or -1
+  std::atomic<bool> pendingSetHomeRequest { false };
+  // A page change is the one permitted full-grid rewrite. onPageChanged (or the
+  // defensive poll) raises this; update() consumes it for a single repaint pass.
+  std::atomic<bool> pendingSetFullRepaint { false };
+  int lastKnownSetPage = -1;         // Polled fallback if the callback slot is taken
+  bool lastKnownMemoryReady = false; // Transition-gates the memory-dim repaint
+
   // === Hold State ===
   struct HoldState {
     bool active = false;
@@ -213,6 +239,12 @@ private:
   void onPadPressed(int padNote);
   void onPadReleased(int padNote);
   RgbColor getPadDisplayColor(int padNote) const;
+
+  // === Set-mode pad grid (page-aware; falls back to buttonGrid when no set) ===
+  void onSetPadPressed(int padNote);
+  RgbColor getSetPadDisplayColor(int padNote) const;
+  bool isMemoryReady() const;
+  static RgbColor scaleRgb(const RgbColor& c, float factor);
 
   // Coordinate conversion (y=0 is top row, but MIDI note 0 is bottom-left)
   // So we invert Y: y=0 maps to row 7 (notes 56-63), y=7 maps to row 0 (notes 0-7)

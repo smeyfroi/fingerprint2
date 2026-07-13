@@ -138,6 +138,10 @@ void ApcMiniController::update() {
 
   uint64_t nowMs = ofGetElapsedTimeMillis();
 
+  // A loaded set turns the grid into page-aware set cells + a meta row; with no
+  // set the pads keep their buttonGrid behaviour unchanged.
+  const bool setMode = synthPtr->getSetController().hasSet();
+
   // Apply any LED updates requested by MIDI callbacks early.
   // This improves perceived responsiveness for hold/amber feedback.
   flushQueuedLedUpdates();
@@ -155,8 +159,55 @@ void ApcMiniController::update() {
     lastHoldAmberSendMs = 0;
   }
 
+  // === Set mode: apply meta-row intents, follow page changes, track memory
+  // readiness. Navigator/hibernation LED tracking below is skipped — set cells
+  // show their set colour, not a current-config highlight. ===
+  if (setMode) {
+    auto& set = synthPtr->getSetController();
+
+    // Meta-row page switch (recorded on the MIDI thread). setCurrentPage fires
+    // onPageChanged only on an actual change, which raises pendingSetFullRepaint.
+    int requestedPage = pendingSetPageRequest.exchange(-1);
+    if (requestedPage >= 0) {
+      set.setCurrentPage(requestedPage);
+    }
+
+    // Meta-row HOME: load the set's safe config. The grid layout is unchanged by
+    // a config load (cell colours come from the set file), so no full repaint.
+    if (pendingSetHomeRequest.exchange(false)) {
+      synthPtr->loadSetCellConfig(set.homeConfig());
+    }
+
+    // Defensive page-change poll: onPageChanged is a single std::function slot
+    // that the GUI / OSC consumers may also claim in later waves. Polling
+    // currentPage() here guarantees the LED refresh regardless of who owns it.
+    const int page = set.currentPage();
+    if (page != lastKnownSetPage) {
+      lastKnownSetPage = page;
+      pendingSetFullRepaint = true;
+    }
+
+    // The one permitted full-grid rewrite, as a single batch pass.
+    if (pendingSetFullRepaint.exchange(false)) {
+      updateAllPadLeds();
+      lastKnownMemoryReady = isMemoryReady();  // resync so the block below is a no-op
+    }
+
+    // Memory readiness crossing: repaint only the memoryDependent cells, and only
+    // on the transition (delta writes, never per-frame).
+    const bool ready = isMemoryReady();
+    if (ready != lastKnownMemoryReady) {
+      lastKnownMemoryReady = ready;
+      for (const auto& cell : set.cellsForCurrentPage()) {
+        if (cell.memoryDependent) {
+          updatePadLed(xyToPadNote(cell.x, cell.y));
+        }
+      }
+    }
+  }
+
   // Track external config changes (e.g. keyboard / other controller)
-  {
+  if (!setMode) {
     auto& nav = synthPtr->getPerformanceNavigator();
     int currentIdx = nav.getCurrentIndex();
     bool needsRecompute = (currentIdx != lastKnownConfigIndex);
@@ -194,7 +245,7 @@ void ApcMiniController::update() {
   }
 
   // Track hibernation state changes so current config brightness updates
-  {
+  if (!setMode) {
     int hibState = static_cast<int>(synthPtr->getHibernationState());
     if (hibState != lastKnownHibState) {
       if (currentConfigPadNote >= 0 && currentConfigPadNote < kPadCount) {
@@ -229,32 +280,51 @@ void ApcMiniController::update() {
   if (currentHold.active) {
     uint64_t elapsed = nowMs - currentHold.startTimeMs;
     // Publish hold-to-commit progress (0..1) so the GUI can show how close the
-    // hold is to committing.
-    if (synthPtr) {
+    // hold is to committing. Set mode has no navigator preview.
+    if (!setMode) {
       float p = static_cast<float>(elapsed) / static_cast<float>(kHoldThresholdMs);
       synthPtr->getPerformanceNavigator().setPreviewProgress(p > 1.0f ? 1.0f : p);
     }
     if (elapsed >= kHoldThresholdMs) {
       // Trigger config switch
       int heldPad = currentHold.padNote;
-      int configIndex = padConfigMap[heldPad].configIndex;
 
-      // Clear hold state first
-      currentHold.active = false;
-      currentHold.padNote = -1;
+      if (setMode) {
+        // A held set cell (y=0..6) commits to loading its config. Meta-row pads
+        // never start a hold, so heldPad always resolves to a cell here.
+        int x, y;
+        padNoteToXY(heldPad, x, y);
+        const auto* cell = synthPtr->getSetController().cellAt(x, y);
 
-      if (configIndex >= 0) {
-        // Trigger the config switch.
-        auto& nav = synthPtr->getPerformanceNavigator();
-        nav.clearPreviewConfig(); // commit reached — drop the held-cell preview
-        nav.jumpTo(configIndex);
-        ofLogNotice("ApcMiniController") << "Config jump triggered to index " << configIndex;
+        currentHold.active = false;
+        currentHold.padNote = -1;
 
-        // Defer a full repaint slightly to avoid overwhelming SysEx during transitions.
-        pendingFullPadRepaintAtMs = nowMs + 180;
-      } else {
-        // Refresh LEDs after ending hold (if still relevant)
+        if (cell != nullptr) {
+          synthPtr->loadSetCellConfig(cell->config);
+          ofLogNotice("ApcMiniController") << "Set cell config load: " << cell->config;
+        }
+        // Set-cell colours don't change on load; just restore this pad from amber.
         updatePadLed(heldPad);
+      } else {
+        int configIndex = padConfigMap[heldPad].configIndex;
+
+        // Clear hold state first
+        currentHold.active = false;
+        currentHold.padNote = -1;
+
+        if (configIndex >= 0) {
+          // Trigger the config switch.
+          auto& nav = synthPtr->getPerformanceNavigator();
+          nav.clearPreviewConfig(); // commit reached — drop the held-cell preview
+          nav.jumpTo(configIndex);
+          ofLogNotice("ApcMiniController") << "Config jump triggered to index " << configIndex;
+
+          // Defer a full repaint slightly to avoid overwhelming SysEx during transitions.
+          pendingFullPadRepaintAtMs = nowMs + 180;
+        } else {
+          // Refresh LEDs after ending hold (if still relevant)
+          updatePadLed(heldPad);
+        }
       }
     }
   }
@@ -321,6 +391,21 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
   // parameter values.
   resetFaderPickupStates();
 
+  // Set-mode wiring. onPageChanged is a single std::function slot; taking it here
+  // triggers the one full-grid LED rewrite per page switch. The update() poll of
+  // currentPage() is a defensive backstop in case a later consumer (GUI / OSC)
+  // claims the same slot. The lambda only flips an atomic, so it is safe from any
+  // thread and outlives this synth (the controller is longer-lived than the set).
+  {
+    auto& set = synthPtr->getSetController();
+    set.onPageChanged = [this]() { pendingSetFullRepaint = true; };
+    pendingSetPageRequest = -1;
+    pendingSetHomeRequest = false;
+    pendingSetFullRepaint = false;
+    lastKnownSetPage = set.hasSet() ? set.currentPage() : -1;
+    lastKnownMemoryReady = set.hasSet() ? isMemoryReady() : false;
+  }
+
   // Update all LEDs
   updateAllPadLeds();
   dimInactiveControls();
@@ -339,6 +424,16 @@ void ApcMiniController::onSynthWillUnload() {
   for (auto& c : padCurrentColors) {
     c = kColorOff;
   }
+
+  // Clear pending set-mode intents. We deliberately leave onPageChanged alone:
+  // this fires on every config switch (the SetController persists across them),
+  // and the callback only flips an app-lifetime atomic, so it can never dangle.
+  // onSynthDidLoad re-registers it and re-baselines the tracking below.
+  pendingSetPageRequest = -1;
+  pendingSetHomeRequest = false;
+  pendingSetFullRepaint = false;
+  lastKnownSetPage = -1;
+  lastKnownMemoryReady = false;
 
   synthPtr.reset();
   currentConfigPadNote = -1;
@@ -547,31 +642,78 @@ void ApcMiniController::processPadLedRetries() {
 }
 
 
-ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) const {
-  const auto& info = padConfigMap[padNote];
-
-  auto scale = [](RgbColor c, float factor) -> RgbColor {
-    auto clamp255 = [](float v) -> uint8_t {
-      if (v < 0.0f) return 0;
-      if (v > 255.0f) return 255;
-      return static_cast<uint8_t>(v);
-    };
-
-    return {
-      clamp255(static_cast<float>(c.r) * factor),
-      clamp255(static_cast<float>(c.g) * factor),
-      clamp255(static_cast<float>(c.b) * factor),
-    };
+ApcMiniController::RgbColor ApcMiniController::scaleRgb(const RgbColor& c, float factor) {
+  auto clamp255 = [](float v) -> uint8_t {
+    if (v < 0.0f) return 0;
+    if (v > 255.0f) return 255;
+    return static_cast<uint8_t>(v);
   };
+  return {
+    clamp255(static_cast<float>(c.r) * factor),
+    clamp255(static_cast<float>(c.g) * factor),
+    clamp255(static_cast<float>(c.b) * factor),
+  };
+}
+
+bool ApcMiniController::isMemoryReady() const {
+  if (!synthPtr) return false;
+  return synthPtr->getMemoryBankController().getMemoryBank().getFilledCount()
+         >= kMemoryReadyThreshold;
+}
+
+ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote) const {
+  // Same orientation as the buttonGrid: xyToPadNote maps y=0 to the top physical
+  // row, so set y=7 lands on the bottom row — the meta row.
+  int x, y;
+  padNoteToXY(padNote, x, y);
+
+  const auto& set = synthPtr->getSetController();
+
+  if (y == kMetaRowY) {
+    // Meta row: pages (x=0..3) amber — current bright, other valid pages dim;
+    // HOME (x=7) amber-bright. Everything else dark. The APC can't ring, so
+    // brightness alone carries the cue.
+    if (x >= kMetaPageXFirst && x <= kMetaPageXLast) {
+      if (x >= set.pageCount()) return kColorOff;      // page not present
+      if (x == set.currentPage()) return kColorAmber;   // current page: bright
+      return scaleRgb(kColorAmber, kConfigDimFactor);   // other valid page: dim
+    }
+    if (x == kMetaHomeX) return kColorAmber;            // HOME: bright
+    return kColorOff;
+  }
+
+  // Cell rows (y=0..6). Unassigned pads stay dark.
+  const auto* cell = set.cellAt(x, y);
+  if (cell == nullptr) return kColorOff;
+
+  const RgbColor base { cell->color.r, cell->color.g, cell->color.b };
+
+  // memoryDependent cells render dimmed until the MemoryBank has collected
+  // enough textures. Home cells are already the brightest of their world (the
+  // builder guarantees it), so at rest they just show their colour.
+  if (cell->memoryDependent && !isMemoryReady()) {
+    return scaleRgb(base, kMemoryDimFactor);
+  }
+  return base;
+}
+
+ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) const {
+  // Currently holding this pad — amber (both modes; holds only start on
+  // assigned/actionable pads).
+  if (currentHold.active && currentHold.padNote == padNote) {
+    return kColorAmber;
+  }
+
+  // Set mode: page-aware set cells + meta row replace the buttonGrid display.
+  if (synthPtr && synthPtr->getSetController().hasSet()) {
+    return getSetPadDisplayColor(padNote);
+  }
+
+  const auto& info = padConfigMap[padNote];
 
   // No config assigned
   if (!info.isAssigned) {
     return kColorOff;
-  }
-
-  // Currently holding this pad - show amber
-  if (currentHold.active && currentHold.padNote == padNote) {
-    return kColorAmber;
   }
 
   // Determine whether this pad's config is the current one.
@@ -595,10 +737,16 @@ ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) c
   }
 
   // Non-current configs show a dimmed version of their color.
-  return scale(info.color, kConfigDimFactor);
+  return scaleRgb(info.color, kConfigDimFactor);
 }
 
 void ApcMiniController::onPadPressed(int padNote) {
+  // Set mode overrides the buttonGrid resolution entirely.
+  if (synthPtr && synthPtr->getSetController().hasSet()) {
+    onSetPadPressed(padNote);
+    return;
+  }
+
   const auto& info = padConfigMap[padNote];
   if (!info.isAssigned) return;
 
@@ -625,9 +773,44 @@ void ApcMiniController::onPadPressed(int padNote) {
   padLedRetryUntilMs[padNote] = ofGetElapsedTimeMillis() + 500;
 }
 
+void ApcMiniController::onSetPadPressed(int padNote) {
+  // Runs on the MIDI thread: only record intent / arm a hold. All config loads
+  // and page switches happen on the main thread in update().
+  int x, y;
+  padNoteToXY(padNote, x, y);
+  auto& set = synthPtr->getSetController();
+
+  if (y == kMetaRowY) {
+    // Meta row = instant taps (no hold, no press-time LED change).
+    if (x >= kMetaPageXFirst && x <= kMetaPageXLast) {
+      if (x < set.pageCount()) {
+        pendingSetPageRequest = x;  // 0-based page; only pages that exist are active
+      }
+    } else if (x == kMetaHomeX) {
+      pendingSetHomeRequest = true;
+    }
+    return;
+  }
+
+  // Cell rows (y=0..6): unassigned pads do nothing.
+  if (set.cellAt(x, y) == nullptr) return;
+
+  // Hold-to-confirm the config load — the same live-performance guard the
+  // buttonGrid path uses (an accidental brush must not swap the whole config).
+  currentHold.active = true;
+  currentHold.padNote = padNote;
+  currentHold.startTimeMs = ofGetElapsedTimeMillis();
+
+  // Force an amber send even if our cached colour is stale.
+  padCurrentColors[padNote] = kColorOff;
+  queuePadLedUpdate(padNote);
+  padLedRetryUntilMs[padNote] = ofGetElapsedTimeMillis() + 500;
+}
+
 void ApcMiniController::onPadReleased(int padNote) {
-  // Clear the held-cell preview on any pad release.
-  if (synthPtr) {
+  // Clear the held-cell preview on any pad release (navigator only — set mode
+  // has no navigator preview).
+  if (synthPtr && !synthPtr->getSetController().hasSet()) {
     synthPtr->getPerformanceNavigator().clearPreviewConfig();
   }
   if (currentHold.active && currentHold.padNote == padNote) {
