@@ -1550,13 +1550,6 @@
 			"name": "ArtefactPaths.cpp",
 			"sourceTree": "<group>"
 		},
-		"2EB4FBA2-031E-4981-BB33-6DEAA684B23D": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.h",
-			"name": "FboCopy.hpp",
-			"sourceTree": "<group>"
-		},
 		"2F2F804D-CEF4-486F-8680-336091C18568": {
 			"fileRef": "01F1474E-2E49-4726-8B99-8E303062A912",
 			"isa": "PBXBuildFile"
@@ -3140,10 +3133,6 @@
 			"lastKnownFileType": "sourcecode.cpp.cpp",
 			"name": "ofxSliderGroup.cpp",
 			"sourceTree": "<group>"
-		},
-		"6575F1E1-C55B-4C9D-A2AD-7A6BBA760C4D": {
-			"fileRef": "B48AD940-EDB7-48E6-BBF2-F5255C15AEFA",
-			"isa": "PBXBuildFile"
 		},
 		"65E638D3-5B98-499F-A3BE-F01A03D60184": {
 			"fileEncoding": "4",
@@ -5189,8 +5178,6 @@
 				"8E33A1EA-92BC-4060-BE29-EAB80CA2EA44",
 				"072411F4-14F4-42B9-9F1D-18D9FFEAEE9A",
 				"5EAD6D7B-3699-4A47-AE36-C94FAAC7F75C",
-				"B48AD940-EDB7-48E6-BBF2-F5255C15AEFA",
-				"2EB4FBA2-031E-4981-BB33-6DEAA684B23D",
 				"32B202B5-3DA8-4C39-B1F6-EFD652184A70",
 				"9DADD598-6AC7-4D04-B5B6-C6895BC25A4D",
 				"8EB21E40-2B00-4566-92CB-9AC392BDB52D",
@@ -5720,13 +5707,6 @@
 			"isa": "PBXGroup",
 			"name": "osc",
 			"path": "osc",
-			"sourceTree": "<group>"
-		},
-		"B48AD940-EDB7-48E6-BBF2-F5255C15AEFA": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.cpp",
-			"name": "FboCopy.cpp",
 			"sourceTree": "<group>"
 		},
 		"B4952B98-9068-494D-9280-6AF9BEA513E2": {
@@ -7429,7 +7409,6 @@
 				"A5375535-E5F1-437C-8DDA-F601B9EE1F01",
 				"7E6860DB-48E2-4D31-8AB4-585644A55DAA",
 				"46B51A8D-59FC-4C14-8197-63112E661386",
-				"6575F1E1-C55B-4C9D-A2AD-7A6BBA760C4D",
 				"F10BCB35-B4BC-406B-82D9-94AAB269A602",
 				"7194A199-856A-455F-8AE5-D4385DCE0C86",
 				"7672F220-3AA8-446C-9292-11FFB069E718",
