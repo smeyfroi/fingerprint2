@@ -531,3 +531,9 @@ The physical Track Buttons have **RED-only** LEDs (no RGB). **All unused.** Prev
 - PerformanceNavigator API: `addons/ofxMarkSynth/src/config/PerformanceNavigator.hpp`
 - LayerController API: `addons/ofxMarkSynth/src/controller/LayerController.hpp`
 - ofxMidi documentation: https://github.com/danomatika/ofxMidi
+
+## Related
+
+- [MIDI-Controller.md](MIDI-Controller.md) — Launch Control XL 3 (detailed parameter control)
+- [NanoKontrol2-Controller.md](NanoKontrol2-Controller.md) — layer alpha/mute + transport
+- [Performer guide](../../../../addons/ofxMarkSynth/docs/performer-guide.md) — the live controls these surfaces drive

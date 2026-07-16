@@ -166,3 +166,11 @@ Shows briefly when controls are used:
 - Transport button CCs: Shift=63, Play=116, Record=118, Track Left=103, Track Right=102
 - Top row button CCs: 37-44 (intent indicators)
 - Bottom row button CCs: 45-52 (mod snapshots)
+
+---
+
+## Related
+
+- [APC-Mini-Controller.md](APC-Mini-Controller.md) — config grid + synth fader trio
+- [NanoKontrol2-Controller.md](NanoKontrol2-Controller.md) — layer alpha/mute + transport
+- [Performer guide](../../../../addons/ofxMarkSynth/docs/performer-guide.md) — the live controls these surfaces drive

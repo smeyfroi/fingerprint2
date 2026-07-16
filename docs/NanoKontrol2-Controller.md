@@ -260,3 +260,9 @@ The handoff uses a lock-free ring buffer (`ButtonEvent` struct, same pattern as 
 - Render subsystem API: `addons/ofxMarkSynth/src/subsystem/SynthSubsystems.hpp`
 - Hibernation state machine: `addons/ofxMarkSynth/src/controller/HibernationController.hpp`
 - ofxMidi documentation: https://github.com/danomatika/ofxMidi
+
+## Related
+
+- [MIDI-Controller.md](MIDI-Controller.md) — Launch Control XL 3 (detailed parameter control)
+- [APC-Mini-Controller.md](APC-Mini-Controller.md) — config grid + synth fader trio
+- [Performer guide](../../../../addons/ofxMarkSynth/docs/performer-guide.md) — the live controls these surfaces drive
