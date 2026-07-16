@@ -356,7 +356,7 @@ void OscController::sendCurrentState() {
   }
   sender.sendMessage(impacts, false);
 
-  if (auto* p = synthParam("Agency"))    sendFloat("/synth/agency", normOf(*p));
+  if (auto* p = synthParam("LiveAgency")) sendFloat("/synth/agency", normOf(*p));
   if (auto* p = synthParam("AudioResp")) sendFloat("/synth/audiogain", normOf(*p));
   if (auto* p = synthParam("VideoResp")) sendFloat("/synth/motiongain", normOf(*p));
 
