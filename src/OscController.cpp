@@ -3,6 +3,7 @@
 #include "subsystem/SynthSubsystems.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cctype>
 #include <optional>
 #include <string>
@@ -453,13 +454,15 @@ void OscController::streamIndicators() {
   for (int i = 0; i < kAgencySlots; ++i) {
     auto mod = agencyMod(i);
     if (!mod) continue;
-    const float budget = mod->getBudget();
-    const float thr = mod->getBudgetThreshold();
-    // Meter = CHARGE-TO-FIRE: budget as a fraction of its trigger threshold, so
-    // "near the top" = about to fire and full = armed. (Raw budget hid the
-    // threshold and made the state unreadable.)
-    const float charge = (thr > 0.0f) ? std::clamp(budget / thr, 0.0f, 1.0f) : 0.0f;
+    // Meter = RE-ARM: elapsed fraction of the budget-modulated cooldown, so "near
+    // the top" = about to be able to fire and full = re-armed. A never-fired
+    // controller (infinite sinceTrigger) reads full.
+    const float cooldown = mod->getLastCooldownSecs();
+    const float since = mod->getSecondsSinceTrigger();
+    const float charge = (!std::isfinite(since) || cooldown <= 0.0f)
+        ? 1.0f
+        : std::clamp(since / cooldown, 0.0f, 1.0f);
     sendFloat("/agency/" + ofToString(i) + "/budget", charge);
-    sendFloat("/agency/" + ofToString(i) + "/armed", (budget >= thr) ? 1.0f : 0.0f);
+    sendFloat("/agency/" + ofToString(i) + "/armed", (charge >= 1.0f) ? 1.0f : 0.0f);
   }
 }
