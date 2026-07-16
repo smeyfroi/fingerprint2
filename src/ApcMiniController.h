@@ -184,9 +184,10 @@ private:
   int lastKnownHibState = -1;     // Tracks hibernation state changes
 
   // === Set-mode state (active only while synth.getSetController().hasSet()) ===
-  // Pad presses arrive on the MIDI thread; meta-row actions (page switch / HOME)
-  // are recorded here and applied on the main thread in update() — the same
-  // thread-handoff discipline the hold-to-commit config load already uses.
+  // Meta-row actions (page switch / HOME) are recorded when the pad event is
+  // drained and applied at a fixed point in update() — the same deferred-intent
+  // discipline the hold-to-commit config load uses. Kept atomic because the
+  // pageChanged listener below may fire from outside our drain.
   std::atomic<int> pendingSetPageRequest { -1 };   // 0-based page to switch to, or -1
   std::atomic<bool> pendingSetHomeRequest { false };
   // A page change is the one permitted full-grid rewrite. onPageChanged (or the
@@ -205,7 +206,10 @@ private:
   HoldState currentHold;
   uint64_t lastHoldAmberSendMs = 0;
 
-  // === LED Update Queue (MIDI thread → main thread) ===
+  // === LED Update Queue ===
+  // Pad repaints requested by the drained pad handlers, applied at a single
+  // flush point early in update(). (Historically fed from the MIDI thread;
+  // the mutex is retained although every producer now runs on the main thread.)
   std::mutex ledQueueMutex;
   std::vector<int> pendingPadLedUpdates;
 
@@ -227,7 +231,32 @@ private:
   bool tryConnect();
   void disconnect();
 
-  // === Message Handling ===
+  // === Thread-safe ring buffer (MIDI listener thread → main thread) ===
+  // Same single-producer/single-consumer ring as the sibling controllers, but
+  // the APC handles pads (note on/off) as well as fader CCs, so events carry
+  // the raw MIDI status alongside its two data bytes:
+  //   MIDI_NOTE_ON / MIDI_NOTE_OFF : data1 = pitch,   data2 = velocity
+  //   MIDI_CONTROL_CHANGE          : data1 = control, data2 = value
+  struct MidiEvent {
+    MidiStatus status;
+    int data1;
+    int data2;
+  };
+  // Sized generously (vs. the nanoKONTROL2's 64): pad presses plus nine fader
+  // streams can pile up behind a main-thread hitch during a config load.
+  static constexpr size_t kMidiEventBufferSize = 256;
+  std::array<MidiEvent, kMidiEventBufferSize> midiEventBuffer;
+  std::atomic<int> midiEventWriteIndex { 0 };
+  // Atomic (unlike the CC-only siblings' plain int) so the producer can detect
+  // a full ring instead of silently lapping unread events.
+  std::atomic<int> midiEventReadIndex { 0 };
+  // Raised when the producer drops an event on overflow. The drain fails safe:
+  // one of the dropped events may have been a pad release, so any overflow
+  // cancels the active hold rather than letting it mature into a config switch.
+  std::atomic<bool> midiEventOverflow { false };
+
+  // === Main-thread event handling ===
+  void drainMidiEvents();
   void handleNoteOn(int note, int velocity);
   void handleNoteOff(int note);
   void handleCC(int cc, int value);

@@ -134,6 +134,12 @@ void ApcMiniController::disconnect() {
 }
 
 void ApcMiniController::update() {
+  // Process queued MIDI events on the main thread first — all synth/navigator/
+  // set work and hold-state management happens here, never on the MIDI thread.
+  // Runs even without a synth so mid-switch events land promptly as the same
+  // no-ops they always were (each handler null-checks synthPtr).
+  drainMidiEvents();
+
   if (!synthPtr) return;
 
   uint64_t nowMs = ofGetElapsedTimeMillis();
@@ -142,7 +148,7 @@ void ApcMiniController::update() {
   // set the pads keep their buttonGrid behaviour unchanged.
   const bool setMode = synthPtr->getSetController().hasSet();
 
-  // Apply any LED updates requested by MIDI callbacks early.
+  // Apply any LED updates requested by the drained pad handlers early.
   // This improves perceived responsiveness for hold/amber feedback.
   flushQueuedLedUpdates();
 
@@ -165,8 +171,8 @@ void ApcMiniController::update() {
   if (setMode) {
     auto& set = synthPtr->getSetController();
 
-    // Meta-row page switch (recorded on the MIDI thread). setCurrentPage fires
-    // pageChanged only on an actual change, which raises pendingSetFullRepaint.
+    // Meta-row page switch (recorded by the pad-event drain). setCurrentPage
+    // fires pageChanged only on an actual change, raising pendingSetFullRepaint.
     int requestedPage = pendingSetPageRequest.exchange(-1);
     if (requestedPage >= 0) {
       set.setCurrentPage(requestedPage);
@@ -444,22 +450,87 @@ void ApcMiniController::onSynthWillUnload() {
 void ApcMiniController::newMidiMessage(ofxMidiMessage& message) {
   if (!connected) return;
 
+  // Queue events for processing on the main thread. This keeps the MIDI
+  // listener thread away from the synth's parameter tree, the navigator, the
+  // set controller and the pad config map — all owned (and rebuilt across
+  // config switches) by the main thread.
   switch (message.status) {
     case MIDI_NOTE_ON:
-      if (message.velocity > 0) {
-        handleNoteOn(message.pitch, message.velocity);
-      } else {
-        handleNoteOff(message.pitch);
-      }
-      break;
     case MIDI_NOTE_OFF:
-      handleNoteOff(message.pitch);
-      break;
     case MIDI_CONTROL_CHANGE:
-      handleCC(message.control, message.value);
       break;
     default:
-      break;
+      return;  // Statuses we never handle don't occupy ring slots.
+  }
+
+  int writeIndex = midiEventWriteIndex.load();
+  int nextIndex = (writeIndex + 1) % kMidiEventBufferSize;
+  if (nextIndex == midiEventReadIndex.load()) {
+    // Ring full (a long main-thread hitch, e.g. mid config load). Drop the
+    // incoming event but raise the overflow flag so the drain fails safe — a
+    // lost pad release must never leave a hold armed to commit.
+    midiEventOverflow.store(true);
+    return;
+  }
+
+  const bool isCC = (message.status == MIDI_CONTROL_CHANGE);
+  midiEventBuffer[writeIndex] = {
+    message.status,
+    isCC ? message.control : message.pitch,
+    isCC ? message.value : message.velocity,
+  };
+  midiEventWriteIndex.store(nextIndex);
+}
+
+void ApcMiniController::drainMidiEvents() {
+  // Overflow fail-safe: the producer had to drop events, possibly including a
+  // pad release. Cancel any active hold and clear the held-cell preview so the
+  // worst case is a hold the performer must re-press — never an unintended
+  // hold-to-commit config switch from a lost note-off.
+  if (midiEventOverflow.exchange(false)) {
+    ofLogWarning("ApcMiniController") << "MIDI event ring overflowed; cancelling any active hold";
+    if (currentHold.active) {
+      int heldPad = currentHold.padNote;
+      currentHold.active = false;
+      currentHold.padNote = -1;
+      if (heldPad >= 0 && heldPad < kPadCount) {
+        // Force a send even if our cached color is stale.
+        padCurrentColors[heldPad] = kColorOff;
+        queuePadLedUpdate(heldPad);
+      }
+    }
+    if (synthPtr && !synthPtr->getSetController().hasSet()) {
+      synthPtr->getPerformanceNavigator().clearPreviewConfig();
+    }
+  }
+
+  int writeIndex = midiEventWriteIndex.load();
+  int readIndex = midiEventReadIndex.load();
+  while (readIndex != writeIndex) {
+    const auto& event = midiEventBuffer[readIndex];
+
+    switch (event.status) {
+      case MIDI_NOTE_ON:
+        if (event.data2 > 0) {
+          handleNoteOn(event.data1, event.data2);
+        } else {
+          handleNoteOff(event.data1);
+        }
+        break;
+      case MIDI_NOTE_OFF:
+        handleNoteOff(event.data1);
+        break;
+      case MIDI_CONTROL_CHANGE:
+        handleCC(event.data1, event.data2);
+        break;
+      default:
+        break;
+    }
+
+    // Publish the new read position only after the slot is consumed — once it
+    // advances, the producer is free to reuse that slot.
+    readIndex = (readIndex + 1) % kMidiEventBufferSize;
+    midiEventReadIndex.store(readIndex);
   }
 }
 
@@ -774,8 +845,8 @@ void ApcMiniController::onPadPressed(int padNote) {
 }
 
 void ApcMiniController::onSetPadPressed(int padNote) {
-  // Runs on the MIDI thread: only record intent / arm a hold. All config loads
-  // and page switches happen on the main thread in update().
+  // Only records intent / arms a hold. Config loads and page switches are
+  // applied at a fixed point in update(), after this drain.
   int x, y;
   padNoteToXY(padNote, x, y);
   auto& set = synthPtr->getSetController();
