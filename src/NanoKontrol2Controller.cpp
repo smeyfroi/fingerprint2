@@ -2,7 +2,9 @@
 
 #include <cmath>
 
+#include "FaderPickup.h"
 #include "FaderTakeover.h"
+#include "MidiPortScan.h"
 #include "ofMain.h"
 #include "controller/HibernationController.hpp"
 
@@ -22,26 +24,12 @@ bool NanoKontrol2Controller::tryConnect() {
   midiIn.listInPorts();
   midiOut.listOutPorts();
 
-  int inPort = -1;
-  int outPort = -1;
-
-  for (int i = 0; i < midiIn.getNumInPorts(); i++) {
-    std::string name = midiIn.getInPortName(i);
-    if (name.find(kPortPattern) != std::string::npos) {
-      inPort = i;
-      ofLogNotice("NanoKontrol2Controller") << "Found input port: " << name;
-      break;
-    }
-  }
-
-  for (int i = 0; i < midiOut.getNumOutPorts(); i++) {
-    std::string name = midiOut.getOutPortName(i);
-    if (name.find(kPortPattern) != std::string::npos) {
-      outPort = i;
-      ofLogNotice("NanoKontrol2Controller") << "Found output port: " << name;
-      break;
-    }
-  }
+  int inPort = findMidiInPort(midiIn, kPortPattern);
+  if (inPort >= 0)
+    ofLogNotice("NanoKontrol2Controller") << "Found input port: " << midiIn.getInPortName(inPort);
+  int outPort = findMidiOutPort(midiOut, kPortPattern);
+  if (outPort >= 0)
+    ofLogNotice("NanoKontrol2Controller") << "Found output port: " << midiOut.getOutPortName(outPort);
 
   if (inPort < 0 || outPort < 0) {
     ofLogNotice("NanoKontrol2Controller") << "nanoKONTROL2 not found";
@@ -185,14 +173,7 @@ void NanoKontrol2Controller::handleSliderCC(int cc, int value) {
     paramPtr = &alphas.getFloat(faderIndex);
   }
 
-  ofParameter<float>& param = *paramPtr;
-  float min = param.getMin();
-  float max = param.getMax();
-  float normalized = static_cast<float>(value) / 127.0f;
-  float p = (param.get() - min) / (max - min);
-  auto& fs = faderStates[faderIndex];
-  float newP = FaderTakeover::valueScale(normalized, fs.lastMidiValue, p);
-  param.set(min + newP * (max - min));
+  applyPickup(*paramPtr, value, faderStates[faderIndex].lastMidiValue);
 }
 
 void NanoKontrol2Controller::handleKnobCC(int cc, int value) {
@@ -203,13 +184,7 @@ void NanoKontrol2Controller::handleKnobCC(int cc, int value) {
   // Drive the GUI's texture-preview gain through the same value-scaling takeover
   // as the faders, so the knob picks the parameter up smoothly rather than
   // jumping it on first touch.
-  ofParameter<float>& param = synthPtr->getPreviewGainParameter();
-  float min = param.getMin();
-  float max = param.getMax();
-  float normalized = static_cast<float>(value) / 127.0f;
-  float p = (param.get() - min) / (max - min);
-  float newP = FaderTakeover::valueScale(normalized, previewGainKnobState.lastMidiValue, p);
-  param.set(min + newP * (max - min));
+  applyPickup(synthPtr->getPreviewGainParameter(), value, previewGainKnobState.lastMidiValue);
 }
 
 void NanoKontrol2Controller::handleButtonCC(int cc, int value) {

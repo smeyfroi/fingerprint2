@@ -374,9 +374,7 @@ void OscController::sendCurrentState() {
 }
 
 bool OscController::isMemoryReady() const {
-  if (!synthPtr) return false;
-  return synthPtr->getMemoryBankController().getMemoryBank().getFilledCount()
-         >= kMemoryReadyThreshold;
+  return synthPtr && MemoryReadyPolicy::isReady(*synthPtr);
 }
 
 void OscController::sendGridState() {

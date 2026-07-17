@@ -11,6 +11,8 @@
 #include "ofxOsc.h"
 #include "gui/panels/IntentSurfaceInfo.h"
 
+#include "MemoryReadyPolicy.h"
+
 namespace ofxMarkSynth {
   class Synth;
   class AgencyControllerMod;
@@ -73,8 +75,8 @@ public:
   // A memoryDependent cell is READY once the MemoryBank has collected this many
   // textures; until then its colour is dimmed (mirrors ApcMiniController's policy
   // so the iPad and the pads agree). No pulsing — the dim IS the "not ready" cue.
-  static constexpr int kMemoryReadyThreshold = 3;
-  static constexpr float kMemoryDimFactor = 0.25f;
+  static constexpr int kMemoryReadyThreshold = MemoryReadyPolicy::kReadyThreshold;
+  static constexpr float kMemoryDimFactor = MemoryReadyPolicy::kDimFactor;
 
   OscController();
   ~OscController();

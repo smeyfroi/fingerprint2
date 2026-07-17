@@ -10,6 +10,8 @@
 #include "ofxMidi.h"
 #include "ofxMarkSynth.h"
 
+#include "MemoryReadyPolicy.h"
+
 // Forward declaration for Synth's config info
 namespace ofxMarkSynth {
   class Synth;
@@ -127,8 +129,8 @@ public:
   // textures; until then it renders as its own hue dimmed to kMemoryDimFactor.
   // No pulsing/animation on this surface (AKAI LED timing is fragile) — the dim
   // hue IS the "not ready" cue.
-  static constexpr int kMemoryReadyThreshold = 3;
-  static constexpr float kMemoryDimFactor = 0.25f;
+  static constexpr int kMemoryReadyThreshold = MemoryReadyPolicy::kReadyThreshold;
+  static constexpr float kMemoryDimFactor = MemoryReadyPolicy::kDimFactor;
   // Meta row (hardware row mapping to y=7): pads x=0..3 = pages, pad x=7 = HOME.
   static constexpr int kMetaRowY = 7;
   static constexpr int kMetaPageXFirst = 0;

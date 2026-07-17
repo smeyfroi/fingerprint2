@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "FaderPickup.h"
 #include "FaderTakeover.h"
 #include "ofMain.h"
 
@@ -581,13 +582,7 @@ void ApcMiniController::handleFaderCC(int faderIndex, int value) {
   }
 
   ofParameter<float>& param = paramWrapper->get().cast<float>();
-  float min = param.getMin();
-  float max = param.getMax();
-  float normalized = static_cast<float>(value) / 127.0f;
-  float p = (param.get() - min) / (max - min);
-  auto& fs = faderStates[faderIndex];
-  float newP = FaderTakeover::valueScale(normalized, fs.lastMidiValue, p);
-  param.set(min + newP * (max - min));
+  applyPickup(param, value, faderStates[faderIndex].lastMidiValue);
 }
 
 void ApcMiniController::resetFaderPickupStates() {
@@ -727,9 +722,7 @@ ApcMiniController::RgbColor ApcMiniController::scaleRgb(const RgbColor& c, float
 }
 
 bool ApcMiniController::isMemoryReady() const {
-  if (!synthPtr) return false;
-  return synthPtr->getMemoryBankController().getMemoryBank().getFilledCount()
-         >= kMemoryReadyThreshold;
+  return synthPtr && MemoryReadyPolicy::isReady(*synthPtr);
 }
 
 ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote) const {
