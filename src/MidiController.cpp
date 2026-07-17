@@ -17,12 +17,9 @@ MidiController::MidiController() = default;
 
 void MidiController::update() {
   // Process queued button events on the main thread
-  int writeIndex = buttonEventWriteIndex.load();
-  while (buttonEventReadIndex != writeIndex) {
-    const auto& event = buttonEventBuffer[buttonEventReadIndex];
+  buttonEventRing.drain([this](const ButtonEvent& event) {
     handleButtonCC(event.channel, event.cc, event.value);
-    buttonEventReadIndex = (buttonEventReadIndex + 1) % kButtonEventBufferSize;
-  }
+  });
 
   // Dismiss temporary display after timeout
   if (tempDisplayDismissTimeMs > 0 && ofGetElapsedTimeMillis() >= tempDisplayDismissTimeMs) {
@@ -59,10 +56,7 @@ void MidiController::newMidiMessage(ofxMidiMessage& message) {
   // Queue button CC events for processing on the main thread.
   // This avoids threading issues with OpenGL calls (e.g., video recording).
   if (message.status == MIDI_CONTROL_CHANGE) {
-    int writeIndex = buttonEventWriteIndex.load();
-    buttonEventBuffer[writeIndex] = {message.channel, message.control, message.value};
-    int nextIndex = (writeIndex + 1) % kButtonEventBufferSize;
-    buttonEventWriteIndex.store(nextIndex);
+    buttonEventRing.push({message.channel, message.control, message.value});
   }
 }
 

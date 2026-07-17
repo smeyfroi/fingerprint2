@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "MidiEventRing.h"
 #include "ofxMarkSynth.h"
 #include "ofxMidi.h"
 
@@ -140,14 +141,12 @@ private:
   uint64_t ffwdFlashUntilMs = 0;
 
   // === Thread-safe ring buffer (MIDI listener thread → main thread) ===
+  // Drop-on-full SPSC ring shared with the other MIDI surfaces (MS-069).
   struct CCEvent {
     int cc;
     int value;
   };
-  static constexpr size_t kCCEventBufferSize = 64;
-  std::array<CCEvent, kCCEventBufferSize> ccEventBuffer;
-  std::atomic<int> ccEventWriteIndex { 0 };
-  int ccEventReadIndex { 0 };
+  MidiEventRing<CCEvent, 64> ccEventRing;
 
   // === Connection ===
   bool tryConnect();

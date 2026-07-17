@@ -126,18 +126,12 @@ void NanoKontrol2Controller::newMidiMessage(ofxMidiMessage& message) {
   // Queue CC events for processing on the main thread. This avoids touching
   // ofParameter / OpenGL-adjacent state from the MIDI listener thread.
   if (message.status == MIDI_CONTROL_CHANGE) {
-    int writeIndex = ccEventWriteIndex.load();
-    ccEventBuffer[writeIndex] = { message.control, message.value };
-    int nextIndex = (writeIndex + 1) % kCCEventBufferSize;
-    ccEventWriteIndex.store(nextIndex);
+    ccEventRing.push({ message.control, message.value });
   }
 }
 
 void NanoKontrol2Controller::drainCCEvents() {
-  int writeIndex = ccEventWriteIndex.load();
-  while (ccEventReadIndex != writeIndex) {
-    const auto& event = ccEventBuffer[ccEventReadIndex];
-
+  ccEventRing.drain([this](const CCEvent& event) {
     if (event.cc >= kSliderCCFirst && event.cc <= kSliderCCLast) {
       handleSliderCC(event.cc, event.value);
     } else if (event.cc >= kKnobCCFirst && event.cc <= kKnobCCLast) {
@@ -145,9 +139,7 @@ void NanoKontrol2Controller::drainCCEvents() {
     } else {
       handleButtonCC(event.cc, event.value);
     }
-
-    ccEventReadIndex = (ccEventReadIndex + 1) % kCCEventBufferSize;
-  }
+  });
 }
 
 void NanoKontrol2Controller::handleSliderCC(int cc, int value) {

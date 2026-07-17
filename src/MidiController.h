@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "MidiEventRing.h"
 #include "ofxLaunchControllers.h"
 #include "ofxMarkSynth.h"
 #include "ofxMidi.h"
@@ -156,14 +157,12 @@ class MidiController : public ofxMidiListener {
 
   std::array<FaderOverlayState, 8> faderOverlayStates;
 
-  // Thread-safe ring buffer for button/CC events (MIDI thread → main thread)
+  // Thread-safe ring buffer for button/CC events (MIDI thread → main thread).
+  // Drop-on-full SPSC ring shared with the other MIDI surfaces (MS-069).
   struct ButtonEvent {
     int channel;
     int cc;
     int value;
   };
-  static constexpr size_t kButtonEventBufferSize = 64;
-  std::array<ButtonEvent, kButtonEventBufferSize> buttonEventBuffer;
-  std::atomic<int> buttonEventWriteIndex{0};
-  int buttonEventReadIndex{0};
+  MidiEventRing<ButtonEvent, 64> buttonEventRing;
 };
