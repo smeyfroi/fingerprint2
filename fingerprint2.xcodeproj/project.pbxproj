@@ -208,7 +208,9 @@
 				"7F3CA023-07E6-496B-B4DD-0AC135E46F90",
 				"0A2081E4-7089-46D9-A89E-731DFD92737A",
 				"F8BDEB63-059B-4057-BD82-DFE6BA90F186",
+				"F60767DE-F423-4928-85A8-96E4386E99CE",
 				"935936BD-8ACE-4944-872E-BAB74D5981AB",
+				"2A73419A-A921-4AC8-B8BA-4E9408C41BCC",
 				"511D9A71-4C2A-423A-8B0E-76E2B45F9976",
 				"88126393-9989-4C37-9778-3746ABCBB108"
 			],
@@ -1363,6 +1365,13 @@
 		"2A447FC4-0CD5-44EF-B16E-6ED442F35EFA": {
 			"fileRef": "115CB8B6-64D7-435F-BA3B-67BCC12A15B5",
 			"isa": "PBXBuildFile"
+		},
+		"2A73419A-A921-4AC8-B8BA-4E9408C41BCC": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "OfflineAudioAnalysisPanel.hpp",
+			"sourceTree": "<group>"
 		},
 		"2B017A57-D2B4-49F0-9241-592D1AC7778F": {
 			"fileRef": "C3FC560A-30F2-43B1-8CD8-4690282B0262",
@@ -7124,6 +7133,7 @@
 				"B1DFE3BA-7F1A-4E4A-8FBB-F09581DB7866",
 				"2EAB744E-19D5-4A32-A190-7BBA3DF5E499",
 				"B07E18E7-E28D-44EA-A273-B30482F49190",
+				"ED283CE5-5A54-45D5-A63D-7D7581AFD639",
 				"CDBFA0C6-3545-421F-A070-4754D484DA81",
 				"CD060E6C-2A19-4E83-9E54-6E93896880AA",
 				"E629E43E-0D94-4087-B072-8DFA4AF7447B",
@@ -7893,6 +7903,10 @@
 			"name": "ofxSoundSpliter.h",
 			"sourceTree": "<group>"
 		},
+		"ED283CE5-5A54-45D5-A63D-7D7581AFD639": {
+			"fileRef": "F60767DE-F423-4928-85A8-96E4386E99CE",
+			"isa": "PBXBuildFile"
+		},
 		"ED48D42F-FBBC-486C-94D3-040C3B75908E": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -8167,6 +8181,13 @@
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.cpp",
 			"name": "NodeEditorLayout.cpp",
+			"sourceTree": "<group>"
+		},
+		"F60767DE-F423-4928-85A8-96E4386E99CE": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.cpp",
+			"name": "OfflineAudioAnalysisPanel.cpp",
 			"sourceTree": "<group>"
 		},
 		"F6945F3B-9CD7-4195-BD4B-1E6F7131B6A8": {
