@@ -6292,7 +6292,9 @@
 				"E2FFDA35-3425-48C1-BEF6-52BDF8A33160",
 				"C781F05C-73D6-46F4-A0DE-832A00F49D1A",
 				"11B2D773-FBE3-4661-9A8D-79C53588062B",
+				"61E14EB3-3CFA-44EE-BE2C-BC98C6E6626F",
 				"87BFFC22-9879-4F08-AF2B-7FEE5DEBE6E8",
+				"DC569230-5D85-404A-9880-9306101346DB",
 				"0B937ED0-B910-4C77-9C52-9449F54EBD23",
 				"C8A290AE-B997-45DE-8480-E0E6C4448DC1",
 				"EBEEDB02-2CAF-4334-90F9-D1F3C9C39441",
@@ -6876,7 +6878,7 @@
 			"files": [],
 			"inputPaths": [],
 			"isa": "PBXShellScriptBuildPhase",
-			"name": "Run Script — Compile OF",
+			"name": "Run Script \u2014 Compile OF",
 			"outputPaths": [],
 			"runOnlyForDeploymentPostprocessing": "0",
 			"shellPath": "/bin/sh",
@@ -7176,6 +7178,7 @@
 				"EB5BB433-F1F0-4686-A5A5-18EBF855C3B7",
 				"233E50E7-8F13-4095-9A11-8607E2B43AAC",
 				"F1FC56FD-964A-4AEC-ABB6-36BCC0F8D387",
+				"8AF3D819-D085-4DFD-A3E0-EB5612E1E055",
 				"E8A51B97-7190-4593-A4F6-3412FB82F3F2",
 				"4095F248-0836-4C9E-9DE2-DBDA2D4EC9F8",
 				"00A0785B-FA8B-4ED2-97F2-1BE1F9AD394A",
@@ -8455,6 +8458,24 @@
 		"FFD98587-CCA3-4AA2-A912-7F523A146E23": {
 			"fileRef": "CC38789E-4DF3-4976-85D9-7BBAA4A410A9",
 			"isa": "PBXBuildFile"
+		},
+		"61E14EB3-3CFA-44EE-BE2C-BC98C6E6626F": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.cpp",
+			"name": "StrokeMod.cpp",
+			"sourceTree": "<group>"
+		},
+		"8AF3D819-D085-4DFD-A3E0-EB5612E1E055": {
+			"isa": "PBXBuildFile",
+			"fileRef": "61E14EB3-3CFA-44EE-BE2C-BC98C6E6626F"
+		},
+		"DC569230-5D85-404A-9880-9306101346DB": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "StrokeMod.hpp",
+			"sourceTree": "<group>"
 		}
 	},
 	"rootObject": "E4B69B4C0A3A1720003C02F2"
