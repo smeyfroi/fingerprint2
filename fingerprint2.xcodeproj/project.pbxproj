@@ -2525,7 +2525,7 @@
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.h",
-			"name": "DebugViewPanel.hpp",
+			"name": "OutputViewPanel.hpp",
 			"sourceTree": "<group>"
 		},
 		"52E833E9-739F-4132-9A25-7A1FACB766EF": {
@@ -4346,7 +4346,7 @@
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.cpp",
-			"name": "DebugViewPanel.cpp",
+			"name": "OutputViewPanel.cpp",
 			"sourceTree": "<group>"
 		},
 		"92410FE8-0984-4E41-B7A5-28BE9BB6AEC7": {
