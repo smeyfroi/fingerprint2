@@ -181,10 +181,18 @@ private:
   // === Pad Grid State ===
   std::array<ConfigPadInfo, kPadCount> padConfigMap;
   std::array<RgbColor, kPadCount> padCurrentColors;
-  std::array<uint64_t, kPadCount> padLedRetryUntilMs;
-  uint64_t lastPadLedRetrySendMs = 0;
-  int retryScanStart = 0;
   uint64_t pendingFullPadRepaintAtMs = 0;
+  // Paced LED service (2026-07-31, replacing the retry-window machinery): full
+  // repaints drain through a cursor within a per-frame budget (no blocking
+  // sleeps, no bursts), and a permanent heal sweep resends a couple of pads a
+  // frame UNCONDITIONALLY — the device is write-only, so a cache can never
+  // prove a message landed; the slow round-robin self-heals any drop within
+  // ~0.6 s, forever, instead of re-blasting the grid ~7x after every repaint.
+  static constexpr int kPadRepaintBudgetPerFrame = 12;
+  static constexpr int kPadHealPerFrame = 2;
+  int padRepaintCursor = kPadCount;   // kPadCount = idle
+  int padHealCursor = 0;
+  std::string lastKnownSetConfigStem;
   int currentConfigPadNote = -1;  // Which pad has the currently loaded config
   int lastKnownConfigIndex = -1;  // Tracks navigator changes (including non-APC switches)
   int lastKnownHibState = -1;     // Tracks hibernation state changes
@@ -271,7 +279,8 @@ private:
   void buildPadConfigMap();
   void updateAllPadLeds();
   void updatePadLed(int padNote);
-  void processPadLedRetries();
+  void servicePadLeds();
+  std::string currentConfigStem() const;
   void onPadPressed(int padNote);
   void onPadReleased(int padNote);
   RgbColor getPadDisplayColor(int padNote) const;

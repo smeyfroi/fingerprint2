@@ -9,7 +9,6 @@
 
 ApcMiniController::ApcMiniController() {
   padCurrentColors.fill(kColorOff);
-  padLedRetryUntilMs.fill(0);
   for (auto& fs : faderStates) {
     fs.lastMidiValue = -1.0f;
   }
@@ -160,7 +159,6 @@ void ApcMiniController::update() {
     if (lastHoldAmberSendMs == 0 || nowMs - lastHoldAmberSendMs >= 120) {
       setPadRgbBatch({{currentHold.padNote, kColorAmber}});
       padCurrentColors[currentHold.padNote] = kColorAmber;
-      padLedRetryUntilMs[currentHold.padNote] = nowMs + 500;
       lastHoldAmberSendMs = nowMs;
     }
   } else {
@@ -168,8 +166,8 @@ void ApcMiniController::update() {
   }
 
   // === Set mode: apply pager intents, follow page changes, track memory
-  // readiness. Navigator/hibernation LED tracking below is skipped — set cells
-  // show their set colour, not a current-config highlight. ===
+  // readiness and the active cell (bright white). The buttonGrid navigator/
+  // hibernation tracking below is skipped. ===
   if (setMode) {
     auto& set = synthPtr->getSetController();
 
@@ -210,6 +208,18 @@ void ApcMiniController::update() {
           updatePadLed(xyToPadNote(cell.x, cell.y));
         }
       }
+    }
+
+    // Active-cell highlight: repaint the old and new active pads when the
+    // loaded config changes (however it was switched — pad, GUI, keyboard).
+    const std::string stem = currentConfigStem();
+    if (stem != lastKnownSetConfigStem) {
+      for (const auto& cell : set.cellsForCurrentPage()) {
+        if (cell.config == stem || cell.config == lastKnownSetConfigStem) {
+          updatePadLed(xyToPadNote(cell.x, cell.y));
+        }
+      }
+      lastKnownSetConfigStem = stem;
     }
   }
 
@@ -341,11 +351,7 @@ void ApcMiniController::update() {
     updateAllPadLeds();
   }
 
-  // Keep hold feedback + recent changes reliable.
-  if (currentHold.active && currentHold.padNote >= 0 && currentHold.padNote < kPadCount) {
-    padLedRetryUntilMs[currentHold.padNote] = nowMs + 500;
-  }
-  processPadLedRetries();
+  servicePadLeds();
 }
 
 void ApcMiniController::exit() {
@@ -637,26 +643,13 @@ void ApcMiniController::buildPadConfigMap() {
 }
 
 void ApcMiniController::updateAllPadLeds() {
+  // Arm the paced repaint: servicePadLeds() drains the cursor a budgeted few
+  // pads per frame (fresh colours at send time), so a full-grid rewrite never
+  // blocks the main thread and never bursts — the old path blasted 16 SysEx
+  // with blocking 2 ms sleeps and then re-blasted the grid for 1.5 s of retry
+  // windows, which is exactly the sustained traffic the device choked on.
   if (!connected) return;
-
-  uint64_t nowMs = ofGetElapsedTimeMillis();
-
-  // Paint all config pads every time (64 pads).
-  // This avoids getting "stuck" when the device drops a SysEx but our cached
-  // padCurrentColors thinks it succeeded.
-  std::vector<std::pair<int, RgbColor>> updates;
-  updates.reserve(kConfigPadCount);
-
-  for (int padNote = kConfigPadNoteFirst; padNote <= kConfigPadNoteLast; padNote++) {
-    RgbColor color = getPadDisplayColor(padNote);
-    updates.push_back({padNote, color});
-    padCurrentColors[padNote] = color;
-
-    // Retry window for dropped chunks (covers a full scan of all pads).
-    padLedRetryUntilMs[padNote] = nowMs + 1500;
-  }
-
-  setPadRgbBatch(updates);
+  padRepaintCursor = 0;
 }
 
 
@@ -667,54 +660,54 @@ void ApcMiniController::updatePadLed(int padNote) {
   if (color != padCurrentColors[padNote]) {
     setPadRgb(padNote, color);
     padCurrentColors[padNote] = color;
-
-    // Some SysEx updates get dropped; retry for a moment.
-    padLedRetryUntilMs[padNote] = ofGetElapsedTimeMillis() + 350;
+    // No retry window needed: the heal sweep in servicePadLeds() resends every
+    // pad within ~0.6 s regardless, which covers the occasional dropped SysEx.
   }
 }
 
-void ApcMiniController::processPadLedRetries() {
+void ApcMiniController::servicePadLeds() {
   if (!connected) return;
 
-  uint64_t nowMs = ofGetElapsedTimeMillis();
-
-  // Trickle retries to avoid overwhelming the device/driver.
-  if (nowMs - lastPadLedRetrySendMs < 40) return;
-
-  static constexpr size_t kMaxRetryPadsPerTick = 12;
-
   std::vector<std::pair<int, RgbColor>> updates;
-  updates.reserve(kMaxRetryPadsPerTick);
 
-  auto maybeAdd = [&](int padNote) {
-    if (padNote < 0 || padNote >= kPadCount) return;
-    if (padLedRetryUntilMs[padNote] <= nowMs) return;
-    for (const auto& [n, _] : updates) {
-      if (n == padNote) return;
+  // 1) Paced full repaint: drain the cursor within a per-frame budget, colours
+  //    computed fresh at send time. A 64-pad rewrite completes in ~6 frames
+  //    (~100 ms) with at most 3 SysEx per frame.
+  int budget = kPadRepaintBudgetPerFrame;
+  while (padRepaintCursor < kPadCount && budget-- > 0) {
+    const int note = padRepaintCursor++;
+    const RgbColor c = getPadDisplayColor(note);
+    updates.push_back({note, c});
+    padCurrentColors[note] = c;
+  }
+
+  // 2) Permanent heal sweep (only once no repaint is in flight): resend a
+  //    couple of pads per frame round-robin, UNCONDITIONALLY. The device is
+  //    write-only — the cache can never prove a message landed — so the slow
+  //    sweep is the only thing that guarantees every drop heals (<= ~0.6 s at
+  //    60 fps), at a constant, gentle 2 messages/frame the old hardware can
+  //    actually keep up with.
+  if (padRepaintCursor >= kPadCount) {
+    for (int i = 0; i < kPadHealPerFrame; ++i) {
+      const int note = padHealCursor;
+      padHealCursor = (padHealCursor + 1) % kPadCount;
+      const RgbColor c = getPadDisplayColor(note);
+      updates.push_back({note, c});
+      padCurrentColors[note] = c;
     }
-    updates.push_back({padNote, padCurrentColors[padNote]});
-  };
-
-  // Priority: held pad and current-config pad.
-  if (currentHold.active) {
-    maybeAdd(currentHold.padNote);
   }
-  maybeAdd(currentConfigPadNote);
-
-  // Fair scan across all pads.
-  for (int i = 0; i < kPadCount && updates.size() < kMaxRetryPadsPerTick; i++) {
-    int padNote = (retryScanStart + i) % kPadCount;
-    maybeAdd(padNote);
-  }
-
-  retryScanStart = (retryScanStart + 1) % kPadCount;
 
   if (!updates.empty()) {
-    lastPadLedRetrySendMs = nowMs;
     setPadRgbBatch(updates);
   }
 }
 
+std::string ApcMiniController::currentConfigStem() const {
+  if (!synthPtr) return {};
+  const auto& path = synthPtr->getConfigSubsystem().getCurrentConfigPath();
+  if (path.empty()) return {};
+  return ofFilePath::getBaseName(path);
+}
 
 ApcMiniController::RgbColor ApcMiniController::scaleRgb(const RgbColor& c, float factor) {
   auto clamp255 = [](float v) -> uint8_t {
@@ -744,6 +737,14 @@ ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote
 
   const auto* cell = set.cellAt(x, y);
   if (cell == nullptr) return kColorOff;
+
+  // The ACTIVE cell — the currently-loaded config — renders bright white, a
+  // colour no at-rest pad wears (owner 2026-07-31), overriding both its hue
+  // and the memory dim.
+  const std::string stem = currentConfigStem();
+  if (!stem.empty() && cell->config == stem) {
+    return kColorBrightWhite;
+  }
 
   const RgbColor base { cell->color.r, cell->color.g, cell->color.b };
 
@@ -825,11 +826,9 @@ void ApcMiniController::onPadPressed(int padNote) {
   // Force a send even if our cached color is stale.
   padCurrentColors[padNote] = kColorOff;
 
-  // LED updates are applied on the main thread in update().
+  // LED updates are applied on the main thread in update(); the heal sweep
+  // covers any dropped send while held (plus the 120 ms amber refresh).
   queuePadLedUpdate(padNote);
-
-  // If the first SysEx is dropped, keep retrying while held.
-  padLedRetryUntilMs[padNote] = ofGetElapsedTimeMillis() + 500;
 }
 
 void ApcMiniController::onSetPadPressed(int padNote) {
@@ -851,7 +850,6 @@ void ApcMiniController::onSetPadPressed(int padNote) {
   // Force an amber send even if our cached colour is stale.
   padCurrentColors[padNote] = kColorOff;
   queuePadLedUpdate(padNote);
-  padLedRetryUntilMs[padNote] = ofGetElapsedTimeMillis() + 500;
 }
 
 void ApcMiniController::onPadReleased(int padNote) {
@@ -883,8 +881,9 @@ void ApcMiniController::clearAllLeds() {
   for (int i = 0; i < kPadCount; i++) {
     padUpdates.push_back({i, kColorOff});
     padCurrentColors[i] = kColorOff;
-    padLedRetryUntilMs[i] = 0;
   }
+  padRepaintCursor = kPadCount;
+  padHealCursor = 0;
   setPadRgbBatch(padUpdates);
 
   // Turn off physical bottom buttons (RED-only LEDs, notes 100-107)
@@ -965,10 +964,9 @@ void ApcMiniController::setPadRgbBatch(const std::vector<std::pair<int, RgbColor
     if (!data.empty()) {
       sendSysex(kSysexRgbMessageType, data);
 
-      // Give the device/driver a moment to consume SysEx bursts.
-      // Without this, large multi-chunk updates (like the config grid repaint)
-      // can be partially dropped, leaving stale/off LEDs.
-      if (i < pads.size()) {
+      // Pace only OVERSIZED batches (the connect-time clear): routine traffic
+      // is budgeted by servicePadLeds and never needs a blocking sleep.
+      if (pads.size() > 16 && i < pads.size()) {
         ofSleepMillis(2);
       }
     }
