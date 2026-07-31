@@ -131,6 +131,12 @@ public:
   // hue IS the "not ready" cue.
   static constexpr int kMemoryReadyThreshold = MemoryReadyPolicy::kReadyThreshold;
   static constexpr float kMemoryDimFactor = MemoryReadyPolicy::kDimFactor;
+  // At-rest set cells render dimmed (owner 2026-07-31: "white isn't really
+  // showing very well because all our colours are quite bright. maybe we
+  // should dim our grid palette a little?") — pad-side only, so the set file
+  // keeps full semantic colours for the GUI. The active cell stays full white;
+  // memory-waiting cells (0.25) remain the dimmest tier.
+  static constexpr float kSetCellRestDimFactor = 0.55f;
   // Set pager (2026-07-31, owner: "the pager should use the AKAI left and right
   // buttons to page forward and back. use the up button to go back to the first
   // page. that releases the bottom row of the grid so we can just fill it with

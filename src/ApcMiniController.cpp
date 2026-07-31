@@ -754,7 +754,9 @@ ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote
   if (cell->memoryDependent && !isMemoryReady()) {
     return scaleRgb(base, kMemoryDimFactor);
   }
-  return base;
+  // At-rest cells sit at ~55% so the active cell's full white actually pops
+  // against the (bright, semantic) grid palette.
+  return scaleRgb(base, kSetCellRestDimFactor);
 }
 
 ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) const {
