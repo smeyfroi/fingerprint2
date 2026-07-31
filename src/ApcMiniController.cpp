@@ -145,8 +145,9 @@ void ApcMiniController::update() {
 
   uint64_t nowMs = ofGetElapsedTimeMillis();
 
-  // A loaded set turns the grid into page-aware set cells + a meta row; with no
-  // set the pads keep their buttonGrid behaviour unchanged.
+  // A loaded set turns the grid into page-aware set cells (all 8 rows) with
+  // paging on the track buttons; with no set the pads keep their buttonGrid
+  // behaviour unchanged.
   const bool setMode = synthPtr->getSetController().hasSet();
 
   // Apply any LED updates requested by the drained pad handlers early.
@@ -166,23 +167,22 @@ void ApcMiniController::update() {
     lastHoldAmberSendMs = 0;
   }
 
-  // === Set mode: apply meta-row intents, follow page changes, track memory
+  // === Set mode: apply pager intents, follow page changes, track memory
   // readiness. Navigator/hibernation LED tracking below is skipped — set cells
   // show their set colour, not a current-config highlight. ===
   if (setMode) {
     auto& set = synthPtr->getSetController();
 
-    // Meta-row page switch (recorded by the pad-event drain). setCurrentPage
-    // fires pageChanged only on an actual change, raising pendingSetFullRepaint.
+    // Pager buttons (recorded by the MIDI drain): ▲ requested an absolute page,
+    // ◄/► accumulated a delta. setCurrentPage clamps internally and fires
+    // pageChanged only on an actual change, raising pendingSetFullRepaint.
     int requestedPage = pendingSetPageRequest.exchange(-1);
     if (requestedPage >= 0) {
       set.setCurrentPage(requestedPage);
     }
-
-    // Meta-row HOME: load the set's safe config. The grid layout is unchanged by
-    // a config load (cell colours come from the set file), so no full repaint.
-    if (pendingSetHomeRequest.exchange(false)) {
-      synthPtr->loadSetCellConfig(set.homeConfig());
+    int pageDelta = pendingSetPageDelta.exchange(0);
+    if (pageDelta != 0) {
+      set.setCurrentPage(set.currentPage() + pageDelta);
     }
 
     // Defensive page-change poll: a backstop alongside the pageChanged event —
@@ -407,7 +407,7 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
     auto& set = synthPtr->getSetController();
     pageChangedListener = set.pageChanged.newListener([this]() { pendingSetFullRepaint = true; });
     pendingSetPageRequest = -1;
-    pendingSetHomeRequest = false;
+    pendingSetPageDelta = 0;
     pendingSetFullRepaint = false;
     lastKnownSetPage = set.hasSet() ? set.currentPage() : -1;
     lastKnownMemoryReady = set.hasSet() ? isMemoryReady() : false;
@@ -437,7 +437,7 @@ void ApcMiniController::onSynthWillUnload() {
   // and the callback only flips an app-lifetime atomic, so it can never dangle.
   // onSynthDidLoad re-registers it and re-baselines the tracking below.
   pendingSetPageRequest = -1;
-  pendingSetHomeRequest = false;
+  pendingSetPageDelta = 0;
   pendingSetFullRepaint = false;
   lastKnownSetPage = -1;
   lastKnownMemoryReady = false;
@@ -536,14 +536,22 @@ void ApcMiniController::drainMidiEvents() {
 }
 
 void ApcMiniController::handleNoteOn(int note, int velocity) {
-  // Config pads (rows 0-7, notes 0-63) — the only interactive input now.
+  // Config pads (rows 0-7, notes 0-63).
   if (note >= kConfigPadNoteFirst && note <= kConfigPadNoteLast) {
     onPadPressed(note);
     return;
   }
 
-  // Physical Track buttons (100-107), side buttons, and Shift are all
-  // unused — ignore.
+  // Set pager on the printed track buttons (▲=104 ◄=106 ►=107): instant taps,
+  // applied at the fixed point in update(). Set mode only — with no set these
+  // notes stay ignored, like every other track/side/shift button.
+  if (synthPtr && synthPtr->getSetController().hasSet()) {
+    if (note == kPagerUpNote)    { pendingSetPageRequest = 0; return; }
+    if (note == kPagerLeftNote)  { pendingSetPageDelta.fetch_add(-1); return; }
+    if (note == kPagerRightNote) { pendingSetPageDelta.fetch_add(1); return; }
+  }
+
+  // Remaining track buttons, side buttons, and Shift are unused — ignore.
 }
 
 void ApcMiniController::handleNoteOff(int note) {
@@ -727,26 +735,13 @@ bool ApcMiniController::isMemoryReady() const {
 
 ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote) const {
   // Same orientation as the buttonGrid: xyToPadNote maps y=0 to the top physical
-  // row, so set y=7 lands on the bottom row — the meta row.
+  // row. All 8 rows are set cells (the y=7 meta row was released 2026-07-31 —
+  // paging lives on the track buttons now). Unassigned pads stay dark.
   int x, y;
   padNoteToXY(padNote, x, y);
 
   const auto& set = synthPtr->getSetController();
 
-  if (y == kMetaRowY) {
-    // Meta row: pages (x=0..3) amber — current bright, other valid pages dim;
-    // HOME (x=7) amber-bright. Everything else dark. The APC can't ring, so
-    // brightness alone carries the cue.
-    if (x >= kMetaPageXFirst && x <= kMetaPageXLast) {
-      if (x >= set.pageCount()) return kColorOff;      // page not present
-      if (x == set.currentPage()) return kColorAmber;   // current page: bright
-      return scaleRgb(kColorAmber, kConfigDimFactor);   // other valid page: dim
-    }
-    if (x == kMetaHomeX) return kColorAmber;            // HOME: bright
-    return kColorOff;
-  }
-
-  // Cell rows (y=0..6). Unassigned pads stay dark.
   const auto* cell = set.cellAt(x, y);
   if (cell == nullptr) return kColorOff;
 
@@ -768,7 +763,7 @@ ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) c
     return kColorAmber;
   }
 
-  // Set mode: page-aware set cells + meta row replace the buttonGrid display.
+  // Set mode: page-aware set cells replace the buttonGrid display.
   if (synthPtr && synthPtr->getSetController().hasSet()) {
     return getSetPadDisplayColor(padNote);
   }
@@ -838,25 +833,13 @@ void ApcMiniController::onPadPressed(int padNote) {
 }
 
 void ApcMiniController::onSetPadPressed(int padNote) {
-  // Only records intent / arms a hold. Config loads and page switches are
-  // applied at a fixed point in update(), after this drain.
+  // Only arms a hold. Config loads are applied at a fixed point in update(),
+  // after this drain. All 8 rows are set cells (paging is the track buttons);
+  // unassigned pads do nothing.
   int x, y;
   padNoteToXY(padNote, x, y);
   auto& set = synthPtr->getSetController();
 
-  if (y == kMetaRowY) {
-    // Meta row = instant taps (no hold, no press-time LED change).
-    if (x >= kMetaPageXFirst && x <= kMetaPageXLast) {
-      if (x < set.pageCount()) {
-        pendingSetPageRequest = x;  // 0-based page; only pages that exist are active
-      }
-    } else if (x == kMetaHomeX) {
-      pendingSetHomeRequest = true;
-    }
-    return;
-  }
-
-  // Cell rows (y=0..6): unassigned pads do nothing.
   if (set.cellAt(x, y) == nullptr) return;
 
   // Hold-to-confirm the config load — the same live-performance guard the

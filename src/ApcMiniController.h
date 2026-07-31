@@ -131,11 +131,15 @@ public:
   // hue IS the "not ready" cue.
   static constexpr int kMemoryReadyThreshold = MemoryReadyPolicy::kReadyThreshold;
   static constexpr float kMemoryDimFactor = MemoryReadyPolicy::kDimFactor;
-  // Meta row (hardware row mapping to y=7): pads x=0..3 = pages, pad x=7 = HOME.
-  static constexpr int kMetaRowY = 7;
-  static constexpr int kMetaPageXFirst = 0;
-  static constexpr int kMetaPageXLast = 3;
-  static constexpr int kMetaHomeX = 7;
+  // Set pager (2026-07-31, owner: "the pager should use the AKAI left and right
+  // buttons to page forward and back. use the up button to go back to the first
+  // page. that releases the bottom row of the grid so we can just fill it with
+  // configs"). The old y=7 meta row is gone — all 8 pad rows are set cells —
+  // and paging lives on the mk2's printed track buttons: ▲=104 ◄=106 ►=107.
+  // Set mode only; in buttonGrid mode these notes stay ignored.
+  static constexpr int kPagerUpNote = 104;
+  static constexpr int kPagerLeftNote = 106;
+  static constexpr int kPagerRightNote = 107;
 
   // === Config Grid Entry ===
   struct ConfigPadInfo {
@@ -191,7 +195,7 @@ private:
   // discipline the hold-to-commit config load uses. Kept atomic because the
   // pageChanged listener below may fire from outside our drain.
   std::atomic<int> pendingSetPageRequest { -1 };   // 0-based page to switch to, or -1
-  std::atomic<bool> pendingSetHomeRequest { false };
+  std::atomic<int> pendingSetPageDelta { 0 };      // ◄/► accumulated between drains
   // A page change is the one permitted full-grid rewrite. onPageChanged (or the
   // defensive poll) raises this; update() consumes it for a single repaint pass.
   std::atomic<bool> pendingSetFullRepaint { false };

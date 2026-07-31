@@ -67,11 +67,12 @@ public:
   static constexpr uint64_t kFullSyncIntervalMs  = 2000;  // re-push all control state every ~2 s
   static constexpr uint64_t kIdleGuardMs         = 1500;  // ...but only while the surface is quiet
 
-  // Set-pages grid (tab 2). Usable rows are y=0..6 (y=7 is the reserved meta row,
-  // expressed on this surface as explicit page/home buttons, not a cell row).
+  // Set-pages grid (tab 2). All 8 rows are cell rows (y=7 released 2026-07-31 —
+  // paging moved to hardware/GUI pager buttons; this surface already had its own
+  // explicit page/home buttons, which stay).
   static constexpr int kGridCols = 8;
-  static constexpr int kGridRows = 7;
-  static constexpr int kGridCellCount = kGridCols * kGridRows;  // 56
+  static constexpr int kGridRows = 8;
+  static constexpr int kGridCellCount = kGridCols * kGridRows;  // 64
   // A memoryDependent cell is READY once the MemoryBank has collected this many
   // textures; until then its colour is dimmed (mirrors ApcMiniController's policy
   // so the iPad and the pads agree). No pulsing — the dim IS the "not ready" cue.
