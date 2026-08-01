@@ -296,9 +296,10 @@ void ApcMiniController::update() {
   // Check for hold timeout
   if (currentHold.active) {
     uint64_t elapsed = nowMs - currentHold.startTimeMs;
-    // Publish hold-to-commit progress (0..1) so the GUI can show how close the
-    // hold is to committing. Set mode has no navigator preview.
-    if (!setMode) {
+    // Publish hold-to-commit progress (0..1) so the GUI can show how close the hold is to
+    // committing. Both modes now publish a preview (set mode gained one 2026-08-01), so the
+    // progress ring is no longer gated on buttonGrid mode.
+    {
       float p = static_cast<float>(elapsed) / static_cast<float>(kHoldThresholdMs);
       synthPtr->getPerformanceNavigator().setPreviewProgress(p > 1.0f ? 1.0f : p);
     }
@@ -317,6 +318,9 @@ void ApcMiniController::update() {
         currentHold.padNote = -1;
 
         if (cell != nullptr) {
+          // Drop the held-cell preview at the commit, exactly as the buttonGrid path does —
+          // otherwise it would linger over the config it just finished loading.
+          synthPtr->getPerformanceNavigator().clearPreviewConfig();
           synthPtr->loadSetCellConfig(cell->config);
           ofLogNotice("ApcMiniController") << "Set cell config load: " << cell->config;
         }
@@ -849,15 +853,29 @@ void ApcMiniController::onSetPadPressed(int padNote) {
   currentHold.padNote = padNote;
   currentHold.startTimeMs = ofGetElapsedTimeMillis();
 
+  // ★ PUBLISH THE HELD-CELL PREVIEW (owner 2026-08-01: check the momentary touch still previews).
+  // It did not — set mode shipped without this. The buttonGrid path publishes a preview from
+  // padConfigMap's configIndex, but a set cell only knows its config STEM, so the index had to be
+  // resolved. That is what findConfigIndex is for. Without it the GUI overlay had nothing to show
+  // for a held set pad, which is the whole point of a momentary touch: see it before committing.
+  if (const auto* cell = set.cellAt(x, y); cell != nullptr) {
+    auto& nav = synthPtr->getPerformanceNavigator();
+    const int previewIdx = nav.findConfigIndex(cell->config);
+    if (previewIdx >= 0) {
+      nav.setPreviewProgress(0.0f);
+      nav.setPreviewConfig(previewIdx);
+    }
+  }
+
   // Force an amber send even if our cached colour is stale.
   padCurrentColors[padNote] = kColorOff;
   queuePadLedUpdate(padNote);
 }
 
 void ApcMiniController::onPadReleased(int padNote) {
-  // Clear the held-cell preview on any pad release (navigator only — set mode
-  // has no navigator preview).
-  if (synthPtr && !synthPtr->getSetController().hasSet()) {
+  // Clear the held-cell preview on any pad release. Both modes now publish one
+  // (set mode gained it 2026-08-01), so this is unconditional.
+  if (synthPtr) {
     synthPtr->getPerformanceNavigator().clearPreviewConfig();
   }
   if (currentHold.active && currentHold.padNote == padNote) {
