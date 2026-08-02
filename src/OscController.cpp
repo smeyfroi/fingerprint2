@@ -386,7 +386,7 @@ void OscController::sendGridState() {
 
   if (set.hasSet()) {
     const bool memReady = isMemoryReady();
-    // ONE message, 56 int32 in row-major order (y=0..6, x=0..7): 0xRRGGBB per
+    // ONE message, 64 int32 in row-major order (y=0..7, x=0..7): 0xRRGGBB per
     // assigned cell, 0 for an unassigned pad. memoryDependent cells are dimmed
     // to kMemoryDimFactor until the bank fills (same policy as the APC pads).
     for (int y = 0; y < kGridRows; ++y) {
