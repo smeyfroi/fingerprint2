@@ -130,12 +130,15 @@ int main() {
   } else {
     // Single-screen windowed layout for tuning: GUI on the left 0.7 of the
     // screen, main visuals on the right 0.3 flush to the screen's right edge.
+    // MAIN keeps a normal 16:9 aspect (the gig projector / recording shape)
+    // rather than stretching to the full screen height.
     const glm::vec2 screenPos = count > 0 ? monitorPositions[0] : glm::vec2 { 0.0f, 0.0f };
     const glm::vec2 screenSize = count > 0 ? monitorSizes[0] : glm::vec2 { 1440.0f, 900.0f };
     const float mainWidth = screenSize.x * MAIN_WINDOW_WIDTH_FRACTION;
+    const float mainHeight = mainWidth * 9.0f / 16.0f;
     const float guiWidth = screenSize.x - mainWidth;
     mainSettings = createWindowSettings({ screenPos.x + guiWidth, screenPos.y },
-                                        { mainWidth, screenSize.y },
+                                        { mainWidth, mainHeight },
                                         false);
     guiSettings = createWindowSettings({ screenPos.x, screenPos.y },
                                        { guiWidth, screenSize.y },
