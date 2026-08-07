@@ -4,15 +4,15 @@
 #include <GLFW/glfw3.h>
 #include <ApplicationServices/ApplicationServices.h>
 
-// Window sizes when not fullscreen
-const int MAIN_WINDOW_X = 512;
-const int MAIN_WINDOW_Y = 256;
-const int MAIN_WINDOW_WIDTH = 980;
-const int MAIN_WINDOW_HEIGHT = 600;
-const int GUI_WINDOW_X = 0;
-const int GUI_WINDOW_Y = 0;
-const int GUI_WINDOW_WIDTH = 1200;
-const int GUI_WINDOW_HEIGHT = 1600;
+// Single-screen (windowed) layout: the main visuals take the right edge of the
+// screen at this fraction of its width; the GUI gets the remainder on the left.
+const float MAIN_WINDOW_WIDTH_FRACTION = 0.3f;
+
+// Set to 1 to compile in the single-screen windowed layout unconditionally —
+// the build-time equivalent of holding Option at launch, for tuning stretches
+// with frequent relaunches where MarkSynth shares one screen with the editor.
+// Leave 0 for gigs; the Option key still works as a per-launch override.
+#define FORCE_SINGLE_SCREEN 1
 
 namespace {
 
@@ -89,9 +89,12 @@ int main() {
   
   // Hold Option/Alt at launch to force the single-screen windowed layout even
   // when a second monitor is connected (parallels Shift-to-rechoose-config).
-  const bool forceSingleScreen = isOptionKeyHeldAtLaunch();
+  // FORCE_SINGLE_SCREEN short-circuits the key check at build time.
+  const bool forceSingleScreen = FORCE_SINGLE_SCREEN || isOptionKeyHeldAtLaunch();
   if (forceSingleScreen) {
-    ofLogNotice() << "Option held at launch: forcing single-screen mode";
+    ofLogNotice() << (FORCE_SINGLE_SCREEN
+                          ? "FORCE_SINGLE_SCREEN compiled in: single-screen mode"
+                          : "Option held at launch: forcing single-screen mode");
   }
 
   // Hold Control at launch to swap which display gets the main visuals vs the
@@ -125,12 +128,18 @@ int main() {
                                        monitorSizes[guiMonitorId],
                                        true);
   } else {
-    mainSettings = createWindowSettings({ static_cast<float>(MAIN_WINDOW_X), static_cast<float>(MAIN_WINDOW_Y) },
-                                        { static_cast<float>(MAIN_WINDOW_WIDTH), static_cast<float>(MAIN_WINDOW_HEIGHT) },
+    // Single-screen windowed layout for tuning: GUI on the left 0.7 of the
+    // screen, main visuals on the right 0.3 flush to the screen's right edge.
+    const glm::vec2 screenPos = count > 0 ? monitorPositions[0] : glm::vec2 { 0.0f, 0.0f };
+    const glm::vec2 screenSize = count > 0 ? monitorSizes[0] : glm::vec2 { 1440.0f, 900.0f };
+    const float mainWidth = screenSize.x * MAIN_WINDOW_WIDTH_FRACTION;
+    const float guiWidth = screenSize.x - mainWidth;
+    mainSettings = createWindowSettings({ screenPos.x + guiWidth, screenPos.y },
+                                        { mainWidth, screenSize.y },
                                         false);
-    guiSettings = createWindowSettings({ static_cast<float>(GUI_WINDOW_X), static_cast<float>(GUI_WINDOW_Y) },
-                                        { static_cast<float>(GUI_WINDOW_WIDTH), static_cast<float>(GUI_WINDOW_HEIGHT) },
-                                        false);
+    guiSettings = createWindowSettings({ screenPos.x, screenPos.y },
+                                       { guiWidth, screenSize.y },
+                                       false);
   }
   
   auto mainWindow = ofCreateWindow(mainSettings);
