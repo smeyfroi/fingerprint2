@@ -2,13 +2,18 @@
 
 ## Overview
 
-This document describes the Akai APC Mini MK2 MIDI controller integration with fingerprint2. The APC Mini is used for **visual performance config navigation** (top 7 rows of the 8x8 RGB pad grid) and for **the three top-of-sidebar synth controls** on the first three faders (Agency / AudioGain / MotionGain).
+This document describes the Akai APC Mini MK2 MIDI controller integration with fingerprint2. The APC Mini is used for **visual performance config navigation** (the full 8x8 RGB pad grid) and for **the three top-of-sidebar synth controls** on the first three faders (LiveAgency / AudioGain / MotionGain).
+
+The pad grid runs in one of two modes, chosen at synth load:
+
+- **Set mode** — active when the session config names a set via its `setName` key. The name resolves to `<performanceConfigRootPath>/sets/<name>.json` and loads into `ofxMarkSynth::SetController`; `SetController::hasSet()` is the runtime test. All 64 pads become page-aware set cells, with paging on the track buttons. See [Set Mode](#set-mode) below.
+- **buttonGrid mode (fallback)** — when no set is named (or the set file fails to load), the pads keep the original `buttonGrid` config-selection behaviour. See [Config Grid — buttonGrid Mode](#config-grid--buttongrid-mode-no-set-fallback) below.
 
 Status: implemented in `src/ApcMiniController.h` and `src/ApcMiniController.cpp`.
 
 **Relationship with the other controllers:**
 - **Launch Control XL 3:** Detailed parameter control (encoders for audio analysis, faders for intents/layers, OLED display) — see `MIDI-Controller.md`.
-- **APC Mini MK2:** Config grid (56 RGB pads, hold-to-confirm jump) + synth-level fader trio (Agency / AudioGain / MotionGain).
+- **APC Mini MK2:** Config grid (64 RGB pads, set mode or buttonGrid fallback, hold-to-confirm) + synth-level fader trio (LiveAgency / AudioGain / MotionGain).
 - **Korg nanoKONTROL2:** Layer alpha + mute control + ergonomic transport — see `NanoKontrol2-Controller.md`.
 
 All three controllers can operate simultaneously, each serving a distinct purpose.
@@ -22,7 +27,7 @@ All three controllers can operate simultaneously, each serving a distinct purpos
 **Newly here (previously on the LC XL3):**
 - Agency / AudioGain / MotionGain — were encoders 1, 9, 17 on the LC XL3 (column 1 of the encoder grid); now faders 1-3 on the APC Mini. The LC XL3 encoders 1/9/17 are now unused and held dark.
 
-The APC Mini's bottom pad row, side buttons, Track buttons, and faders 4-9 are ignored and held dark.
+The APC Mini's side buttons, Shift button, and faders 4-9 are ignored and held dark. Track buttons ▲/◄/► (notes 104/106/107) act as the set pager in set mode; the remaining track buttons — and all track buttons in buttonGrid mode — are ignored.
 
 **Reference implementation:** JavaScript library at `/Users/steve/Development/opensource/akai-apc-mini-mk2`
 
@@ -39,7 +44,7 @@ The APC Mini's bottom pad row, side buttons, Track buttons, and faders 4-9 are i
 | Shift | 122 (0x7A) | None | N/A |
 | Pad Grid | 0-63 | **Full RGB** | 128 colors or custom RGB via SysEx |
 
-Historically, this limitation was the reason layer toggle buttons lived on the bottom row of the RGB pad grid (notes 0-7) rather than on the physical Track Buttons. That feature has since moved to the nanoKONTROL2, so the limitation no longer affects anything fingerprint2 does on the APC Mini — the physical Track Buttons and the bottom pad row are simply unused.
+Historically, this limitation was the reason layer toggle buttons lived on the bottom row of the RGB pad grid (notes 0-7) rather than on the physical Track Buttons. That feature has since moved to the nanoKONTROL2. Today the only track-button use is as **set-mode pager inputs** (▲/◄/► = notes 104/106/107) — their red LEDs are left dark, so the limitation still costs nothing. In buttonGrid mode the track buttons are unused entirely, and the bottom pad row is a normal config row in both modes.
 
 ---
 
@@ -160,14 +165,14 @@ In `fingerprint2`, faders 1-3 (CC 48-50) drive the three top-of-sidebar synth-le
 
 | Fader | CC | Parameter (code name) | Sidebar label | Drives |
 |-------|-----|----------------------|----------------|--------|
-| 1 | 48 | `agency` | Agency | Manual-vs-autonomous mix (`Synth::agencyParameter`, 0..1) |
+| 1 | 48 | `LiveAgency` | LiveAgency | Manual-vs-autonomous mix (`Synth::agencyParameter`, 0..1; renamed from `Agency` → `MachineAgency` → `LiveAgency`) |
 | 2 | 49 | `AudioResp` | AudioGain | How strongly audio drives agency (0..2) |
 | 3 | 50 | `VideoResp` | MotionGain | How strongly video/motion drives agency (0..2) |
 | 4-9 | 51-56 | — | — | Unused |
 
-Bindings live in a static `kFaderBindings` table in `ApcMiniController.h` and are resolved on each fader move via `Synth::findParameterByNamePrefix`. Adding or re-targeting a fader is a one-line edit to that table.
+Bindings live in a static `kFaderBindings` table in `ApcMiniController.h` and are resolved on each fader move via `Synth::findParameterByNamePrefix`. Adding or re-targeting a fader is a one-line edit to that table. A bound parameter absent from the current config is a silent no-op.
 
-**Pickup / soft-takeover:** the three bound faders use 5% pickup (`kPickupThreshold`) — when the physical fader position is more than 5% away from its target parameter's current normalized value, moving it has no effect until you sweep through the pickup window. Pickup state resets on every `onSynthDidLoad` so reloading a config requires re-engaging each fader.
+**Takeover / value scaling:** the three bound faders use Ableton-style value scaling (`applyPickup` in `src/FaderPickup.h`, wrapping `FaderTakeover::valueScale`) rather than hard pickup. Fader movement is scaled against the runway remaining on the side it moves toward: pulling the fader down immediately ducks the parameter (reaching 0 at the bottom — the safe live "swipe to 0" gesture), and at either endpoint fader and parameter align exactly, then track 1:1. Takeover state resets on every `onSynthDidLoad` (`resetFaderPickupStates`), so after a config reload the first CC from each fader just baselines without moving the parameter.
 
 ---
 
@@ -224,10 +229,11 @@ uint8_t lsb = value % 128;
 **Reliability note (important):** In practice, large RGB SysEx payloads and/or rapid back-to-back SysEx bursts can be dropped or only partially applied by the APC Mini MK2 (or the OS MIDI stack). This shows up as stale LEDs surviving a clear, or config pads failing to repaint.
 
 To keep LED updates reliable in fingerprint2:
-- Split RGB updates into small chunks (currently `8` pads per SysEx).
-- Pace chunks slightly (currently `ofSleepMillis(1)` between chunks).
+- Split RGB updates into small chunks (currently `4` pads per SysEx message — `kMaxPadsPerMessage` in `setPadRgbBatch`).
+- Never burst: a full-grid rewrite is paced by `servicePadLeds()` through a repaint cursor with a per-frame budget of `12` pads (`kPadRepaintBudgetPerFrame`), so 64 pads complete in ~6 frames (~100 ms) with no blocking sleeps. Only oversized one-shot batches (> 16 pads, i.e. the connect-time clear) still pace with `ofSleepMillis(2)` between chunks.
+- A permanent heal sweep resends `2` pads per frame (`kPadHealPerFrame`) round-robin, **unconditionally** — the device is write-only, so the colour cache can never prove a message landed. Any dropped SysEx self-heals within ~0.6 s.
 - When loading a new performance/config layout, clear all pads first, then repaint.
-- If an individual pad gets "stuck" off, the safest recovery is to reload the performance/config (or restart the app). If the device appears to stop responding to RGB updates entirely, power-cycle the APC Mini MK2.
+- A "stuck" pad therefore heals itself within the sweep period — no reload needed. If the device appears to stop responding to RGB updates entirely, power-cycle the APC Mini MK2.
 
 **Read fader positions (messageType = 0x60):**
 ```cpp
@@ -371,52 +377,67 @@ const uint32_t kApcColorPalette[128] = {
 };
 ```
 
-**Useful color indices for our application:**
-| Purpose | Index | Color | Hex |
-|---------|-------|-------|-----|
-| Off/Empty | 0 | Black | `#000000` |
-| Available config (dim) | 1 | Dark gray | `#1E1E1E` |
-| Available config | 2 | Gray | `#7F7F7F` |
-| Current config | 21 | Green | `#00FF00` |
-| Hold progress | 13 | Yellow | `#FFFF00` |
-| Current + playing | 87 | Green | `#00FF00` |
-| Paused/Hibernated | 9 | Orange | `#FF5400` |
-| Error | 5 | Red | `#FF0000` |
+**Note:** fingerprint2 paints the pads via RGB SysEx, not the indexed palette — the palette above is hardware reference only. The RGB colours actually used are constants in `ApcMiniController.h`:
+
+| Purpose | Constant / derivation | RGB |
+|---------|-----------------------|-----|
+| Off / unassigned pad | `kColorOff` | (0, 0, 0) |
+| Hold-to-confirm in progress (both modes) | `kColorAmber` | (255, 140, 0) |
+| Set mode: active cell | `kColorBrightWhite` | (255, 255, 255) |
+| Set mode: at-rest assigned cell | authored colour × `kSetCellRestDimFactor` | × 0.55 |
+| Set mode: memory-waiting cell | authored colour × `kMemoryDimFactor` | × 0.25 |
+| buttonGrid: current config | full config colour | — |
+| buttonGrid: available config | config colour × `kConfigDimFactor` | × 0.20 |
 
 ---
 
 ## Feature Mapping
 
-### Pad Grid Layout
+### Pad Grid Modes
 
-Only the top 7 rows of the pad grid are active; the bottom row is held dark.
+All 64 pads (notes 0-63, the full 8x8 grid) are active in both modes. The mode is chosen at synth load:
 
-```
-┌────┬────┬────┬────┬────┬────┬────┬────┐
-│ 56 │ 57 │ 58 │ 59 │ 60 │ 61 │ 62 │ 63 │ Config Row 7
-├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 48 │ 49 │ 50 │ 51 │ 52 │ 53 │ 54 │ 55 │ Config Row 6
-├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 40 │ 41 │ 42 │ 43 │ 44 │ 45 │ 46 │ 47 │ Config Row 5
-├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 32 │ 33 │ 34 │ 35 │ 36 │ 37 │ 38 │ 39 │ Config Row 4
-├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 24 │ 25 │ 26 │ 27 │ 28 │ 29 │ 30 │ 31 │ Config Row 3
-├────┼────┼────┼────┼────┼────┼────┼────┤
-│ 16 │ 17 │ 18 │ 19 │ 20 │ 21 │ 22 │ 23 │ Config Row 2
-├────┼────┼────┼────┼────┼────┼────┼────┤
-│  8 │  9 │ 10 │ 11 │ 12 │ 13 │ 14 │ 15 │ Config Row 1
-├────┼────┼────┼────┼────┼────┼────┼────┤
-│ ·· │ ·· │ ·· │ ·· │ ·· │ ·· │ ·· │ ·· │ UNUSED (notes 0-7)
-└────┴────┴────┴────┴────┴────┴────┴────┘
-```
+- **Set mode** — `synth.getSetController().hasSet()` is true (the session config named a `setName` whose set file loaded).
+- **buttonGrid mode** — the fallback whenever no set is loaded. This is the original behaviour and remains unchanged.
 
-- **Rows 1-7 (notes 8-63)**: Config selection grid (56 slots for configs)
-- **Bottom row (notes 0-7)**: Unused. Presses on these pads are silently dropped; LEDs are held off by `clearAllLeds()`.
+**Common hold-to-confirm mechanics (both modes):**
+1. Press an assigned pad: the hold timer starts and a transient preview of the held config is published to the GUI (`PerformanceNavigator::setPreviewConfig` / `setPreviewProgress`) so the performer can see what's behind the pad before committing.
+2. While held, the pad shows amber, re-sent every 120 ms (resilient to occasional dropped SysEx), and hold progress (0..1) feeds the GUI's progress ring.
+3. Release before the 400 ms threshold (`kHoldThresholdMs` in `ApcMiniController.h`; same value as `PerformanceNavigator::HOLD_THRESHOLD_MS`): cancel — preview cleared, pad LED restored.
+4. Hold reaches 400 ms: commit (mode-specific, below).
+5. Fail-safe: if the MIDI event ring overflows (a dropped event might have been the pad release), any armed hold is cancelled rather than allowed to mature into an unintended config switch.
 
-### Config Grid (Rows 1-7, Notes 8-63)
+### Set Mode
 
-Each pad in rows 1-7 represents one performance config (up to 56 configs).
+Active while `SetController::hasSet()`. A set is a per-gig collection of pad **pages**, loaded from `corpus/config/sets/<name>.json` (schema v1; parser in `addons/ofxMarkSynth/src/controller/SetParse.h`, state in `SetController.hpp/.cpp`). Up to 16 pages (`kSetMaxPages`), each a sparse map of assigned cells over the full 8x8 pad area. Each cell carries its config stem, world, authored `#RRGGBB` colour, a `home` flag, and a builder-precomputed `memoryDependent` flag (true iff the config wires from a `.Memory` source).
+
+**Interaction:** every pad is a page-aware set cell. Pressing an assigned cell on the current page arms the common hold; at 400 ms the commit calls `Synth::loadSetCellConfig(cell->config)`. Unassigned pads do nothing. Set-cell colours don't change on load — the committed pad is simply restored from amber, and the active-cell highlight follows separately (below).
+
+**Set LED language** (`getSetPadDisplayColor`):
+
+| State | Colour |
+|-------|--------|
+| Held (hold-to-confirm in progress) | Amber — overrides everything |
+| Active cell (its config is the currently loaded one) | Bright white (255, 255, 255) — a colour no at-rest pad wears |
+| Assigned cell at rest | Authored colour × 0.55 (`kSetCellRestDimFactor`) |
+| `memoryDependent` cell while the memory bank holds < 3 textures | Authored colour × 0.25 (`kMemoryDimFactor`) |
+| Unassigned pad | Off |
+
+No blink/pulse, by policy — AKAI LED timing is fragile, so the dim hue *is* the "not ready" cue. Memory readiness is `MemoryReadyPolicy::isReady` (`src/MemoryReadyPolicy.h`): the MemoryBank has collected at least 3 textures (`kReadyThreshold`), a threshold shared with the iPad/OSC surface. The readiness transition repaints only the `memoryDependent` cells (delta writes, never per-frame), and the active-cell highlight repaints the old + new active pads whenever the loaded config changes — however it was switched (pad, GUI, keyboard).
+
+**Pager (track buttons, set mode only):**
+
+| Note | Button | Action |
+|------|--------|--------|
+| 104 | ▲ | Jump to page 0 (absolute) |
+| 106 | ◄ | Previous page (delta −1) |
+| 107 | ► | Next page (delta +1) |
+
+Pager taps are instant (no hold): the MIDI drain records them and `update()` applies them at a fixed point. `SetController::setCurrentPage` clamps to `[0, pageCount()-1]` and fires `pageChanged` only on an actual change — a page change is **the one permitted full-grid LED rewrite** (drained through the paced repaint cursor). In buttonGrid mode these notes stay ignored like every other track button. The pager buttons' red-only LEDs are left dark.
+
+### Config Grid — buttonGrid Mode (no-set fallback)
+
+When no set is loaded, each pad represents one performance config (up to 64 configs on the full 8x8 grid).
 
 **Grid mapping source of truth:** the resolved config grid lives in `ofxMarkSynth::PerformanceNavigator`.
 - `PerformanceNavigator::loadFromFolder()` parses each config JSON once (on load) and extracts `buttonGrid` metadata.
@@ -424,9 +445,8 @@ Each pad in rows 1-7 represents one performance config (up to 56 configs).
 
 **Config JSON schema:**
 - `buttonGrid.x`: `0..7`
-- `buttonGrid.y`: `0..6` (7 config rows; `y=0` is top row)
+- `buttonGrid.y`: `0..7` (full 8 rows; `y=0` is top row)
 - `buttonGrid.color`: `"#RRGGBB"`
-- `buttonGrid.y=7` is the physical bottom row (notes 0-7), which is unused; it will be treated as invalid and auto-assigned to a valid row instead.
 
 **Auto-assignment:** missing/out-of-range/conflicting `buttonGrid` entries are auto-assigned in row-major order, **top-left → bottom-right**.
 
@@ -438,26 +458,21 @@ Each pad in rows 1-7 represents one performance config (up to 56 configs).
 | Current config | Full config color | Current config is full-strength (even when hibernated) |
 | Hold-to-confirm in progress | Amber | Overrides everything while held |
 
-**Interaction:**
-1. Press and hold a pad to initiate jump to that config
-2. Hold for 400ms (same as `PerformanceNavigator::HOLD_THRESHOLD_MS`)
-3. LED turns amber while held
-4. On release before threshold: cancel
-5. On threshold reached: trigger `PerformanceNavigator::jumpTo(index)`
+**Interaction:** the common hold mechanics above; on commit the controller calls `PerformanceNavigator::jumpTo(index)`, then schedules a debounced full-grid repaint to recover from any SysEx dropped during the transition.
 
 ### Faders (CC 48-56)
 
-Faders 1-3 (CC 48-50) drive the three top-of-sidebar synth-level parameters with soft-takeover pickup. Faders 4-9 (CC 51-56) are unbound. See the [MIDI Note/CC Mapping → Faders](#faders-cc-48-56) section above for the full table.
+Faders 1-3 (CC 48-50) drive the three top-of-sidebar synth-level parameters with value-scaling takeover. Faders 4-9 (CC 51-56) are unbound. See the [MIDI Note/CC Mapping → Faders](#faders-cc-48-56) section above for the full table.
 
 Layer alpha control moved to the nanoKONTROL2 (see `NanoKontrol2-Controller.md`).
 
 ### Side Buttons (Notes 112-119)
 
-Unused. Cleared/dimmed as part of `ApcMiniController::clearAllLeds()` / `dimInactiveControls()`.
+Unused — presses are ignored. Cleared/dimmed as part of `ApcMiniController::clearAllLeds()` / `dimInactiveControls()`.
 
 ### Track Buttons (Notes 100-107)
 
-The physical Track Buttons have **RED-only** LEDs (no RGB). **All unused.** Previously, notes 106/107 (◄/►) acted as prev/next config inputs — that role moved to the nanoKONTROL2's Rewind / Fast-Fwd buttons. The Track button LEDs are turned off on connect by `clearAllLeds()`.
+The physical Track Buttons have **RED-only** LEDs (no RGB). In **set mode**, notes 104/106/107 (▲/◄/►) are the set pager (see [Set Mode](#set-mode)); the other track buttons are ignored. In **buttonGrid mode** all track buttons are ignored. Previously, notes 106/107 (◄/►) acted as prev/next config inputs — that role moved to the nanoKONTROL2's Rewind / Fast-Fwd buttons. The Track button LEDs are turned off on connect by `clearAllLeds()` and stay dark (pager included).
 
 ---
 
@@ -473,10 +488,10 @@ The physical Track Buttons have **RED-only** LEDs (no RGB). **All unused.** Prev
 ### Phase 2: LED Control
 - [x] Implement indexed LED control (Note On velocity) for non-RGB buttons
 - [x] Implement RGB pad LED control via SysEx (`setPadRgb`/`setPadRgbBatch`)
-- [x] Add reliability measures (chunked SysEx sends, retry window, held-pad amber refresh)
+- [x] Add reliability measures (chunked SysEx sends, paced repaint budget + permanent heal sweep, held-pad amber refresh)
 - [x] Track and batch LED state updates (per-pad caching + queued updates)
 
-### Phase 3: Config Grid Navigation
+### Phase 3: Config Grid Navigation (buttonGrid mode)
 - [x] Map pad notes (0-63) to performance grid coordinates
 - [x] Implement hold-to-confirm for pad presses
 - [x] Connect to `PerformanceNavigator::jumpTo()`
@@ -506,6 +521,13 @@ The physical Track Buttons have **RED-only** LEDs (no RGB). **All unused.** Prev
 - [x] Add graceful degradation if controller not present
 - [x] Coordinate with Launch Control XL and nanoKONTROL2 (avoid conflicts)
 
+### Phase 9: Set Mode
+- [x] Page-aware set cells across all 64 pads (`SetController`-driven; buttonGrid stays as the no-set fallback)
+- [x] Hold-to-commit `Synth::loadSetCellConfig` with GUI preview of the held cell
+- [x] Set LED language (active = bright white, at rest = colour × 0.55, memory-waiting = colour × 0.25, unassigned = off, held = amber; no blink/pulse)
+- [x] Pager on track buttons ▲/◄/► (104/106/107) — page change is the one permitted full-grid rewrite
+- [x] MIDI ring overflow fail-safe cancels any armed hold
+
 ### Phase 8: Layer Toggle Row — REMOVED
 - [removed] Bottom-row pads (notes 0-7) toggle layer pause → moved to nanoKONTROL2 M buttons (CC 48-55)
 - [removed] Layer-exists indicator on bottom row → moved to nanoKONTROL2 S buttons (CC 32-39)
@@ -516,12 +538,13 @@ The physical Track Buttons have **RED-only** LEDs (no RGB). **All unused.** Prev
 ## Implementation Notes
 
 - Implementation: `src/ApcMiniController.h`, `src/ApcMiniController.cpp`
-- Config grid mapping: `ofxMarkSynth::PerformanceNavigator` is the source of truth (shared with the `ofxMarkSynth` ImGui pad-grid UI)
-- Pads (notes 8-63): RGB via SysEx, hold-to-confirm (amber while held)
-- Pads (notes 0-7): unused, held off
-- Faders 1-3 (CC 48-50): bound to `agency` / `AudioResp` / `VideoResp` via `kFaderBindings` (soft-takeover pickup)
+- Two pad modes: set mode when `SetController::hasSet()` (session config's `setName`), else buttonGrid fallback
+- Set mode mapping: `ofxMarkSynth::SetController` (pages/cells from `corpus/config/sets/<name>.json`)
+- buttonGrid mapping: `ofxMarkSynth::PerformanceNavigator` is the source of truth (shared with the `ofxMarkSynth` ImGui pad-grid UI)
+- Pads (notes 0-63, all 64): RGB via SysEx, hold-to-confirm (amber while held, GUI preview during hold)
+- Faders 1-3 (CC 48-50): bound to `LiveAgency` / `AudioResp` / `VideoResp` via `kFaderBindings` (value-scaling takeover)
 - Faders 4-9 (CC 51-56): unused
-- Track buttons (notes 100-107): unused
+- Track buttons (notes 100-107): set pager on 104/106/107 in set mode; otherwise unused, LEDs dark
 - Side buttons (notes 112-119) and Shift (122): unused/dimmed
 
 ## References
@@ -529,6 +552,9 @@ The physical Track Buttons have **RED-only** LEDs (no RGB). **All unused.** Prev
 - JavaScript reference implementation: `/Users/steve/Development/opensource/akai-apc-mini-mk2`
 - Existing Launch Control XL implementation: `src/MidiController.cpp`
 - PerformanceNavigator API: `addons/ofxMarkSynth/src/config/PerformanceNavigator.hpp`
+- SetController API: `addons/ofxMarkSynth/src/controller/SetController.hpp`
+- Set file parser (schema v1): `addons/ofxMarkSynth/src/controller/SetParse.h`
+- Memory readiness policy (shared with the OSC/iPad surface): `src/MemoryReadyPolicy.h`
 - LayerController API: `addons/ofxMarkSynth/src/controller/LayerController.hpp`
 - ofxMidi documentation: https://github.com/danomatika/ofxMidi
 

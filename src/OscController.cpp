@@ -50,8 +50,9 @@ void OscController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& s
   pageChangedListener_ = synthPtr->getSetController().pageChanged.newListener(
       [this]() { if (senderReady) sendGridState(); });
   if (!listening) startReceiver();
-  // Push the new config's values so an already-connected surface snaps to them
-  // (master alpha in particular is not serialised and resets to 1.0 each load).
+  // Push the new config's values so an already-connected surface snaps to them.
+  // (Master alpha is a Synth-lifetime member that PERSISTS across config loads —
+  // nothing resets it — so the push keeps the surface honest about it too.)
   if (senderReady) sendCurrentState();
 }
 

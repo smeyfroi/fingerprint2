@@ -2,16 +2,18 @@
 
 ## Overview
 
-This document describes the Korg nanoKONTROL2 USB-MIDI controller integration with fingerprint2. The nanoKONTROL2 is a small, portable surface providing 8 sliders, 8 knobs, 24 channel buttons (S/M/R), and a transport strip. fingerprint2 uses a subset of these to mirror the most useful per-layer and transport functions from the larger surfaces, freeing the APC Mini and LC XL3 for other roles.
+This document describes the Korg nanoKONTROL2 USB-MIDI controller integration with fingerprint2. The nanoKONTROL2 is a small, portable surface providing 8 sliders, 8 knobs, 24 channel buttons (S/M/R), and a transport strip. fingerprint2 uses a subset of these to mirror the most useful per-strip and transport functions from the larger surfaces, freeing the APC Mini and LC XL3 for other roles.
 
 Status: implemented in `src/NanoKontrol2Controller.h` and `src/NanoKontrol2Controller.cpp`.
 
 **Relationship with the other controllers:**
 - **Launch Control XL 3** — Detailed parameter control (encoders for audio analysis, faders for intents/layers, OLED display).
 - **APC Mini MK2** — Visual config grid navigation only (56 RGB pads, hold-to-confirm jump). Faders, bottom pad row, and Track buttons are intentionally unused.
-- **Korg nanoKONTROL2** — Layer alpha + mute control + ergonomic transport row. Owns the layer alpha / pause / prev-next-config / save / hibernate roles that previously lived on the APC Mini.
+- **Korg nanoKONTROL2** — Strip alpha + pause control + ergonomic transport row. Owns the strip alpha / pause / prev-next-config / save / hibernate roles that previously lived on the APC Mini.
 
-All three controllers can operate simultaneously without conflict — each owns its own input range and writes the same shared `ofParameter` targets through the standard pickup/soft-takeover pattern.
+Throughout, a "strip" is whatever the loaded config binds the channel strips to: **chain groups** when the config authors a chains manifest (room / voice1 / ... — the same strips the iPad shows), **layers** otherwise. The branch is taken per message via `RenderSubsystem::hasChainManifest()`.
+
+All three controllers can operate simultaneously without conflict — each owns its own input range and writes the same shared `ofParameter` targets through the shared value-scaling takeover pattern (`FaderTakeover.h`).
 
 ---
 
@@ -63,11 +65,13 @@ All controls send Control Change messages on channel 1. Buttons send value 127 o
 
 | Control | CC | Function in fingerprint2 |
 |---------|-----|--------------------------|
-| Slider 1-8 | 0-7 | Layer alpha (with pickup) |
-| Knob 1-8 | 16-23 | **Unused** |
-| S button 1-8 | 32-39 | **LED only** — lit when layer N exists |
-| M button 1-8 | 48-55 | Toggle layer pause (mute); LED reflects pause state |
-| R button 1-8 | 64-71 | **Unused** |
+| Slider 1-7 | 0-6 | Strip alpha — chain alphas when the config has a chains manifest, layer alphas otherwise (value-scaling takeover) |
+| Slider 8 | 7 | Master composite alpha (value-scaling takeover) |
+| Knob 1-7 | 16-22 | **Unused** |
+| Knob 8 | 23 | Texture-preview gain (value-scaling takeover) |
+| S button 1-8 | 32-39 | **Unused** — held dark |
+| M button 1-8 | 48-55 | Toggle strip pause; LED reflects pause state |
+| R button 1-8 | 64-71 | **LED only** — lit when strip N exists; R8 always lit (master-alpha cue) |
 | Track ◀ / ▶ | 58 / 59 | **Unused** |
 | Cycle | 46 | **Unused** |
 | Marker ◀ / ■ / ▶ | 61 / 60 / 62 | **Unused** |
@@ -110,48 +114,49 @@ fingerprint2 caches the last-sent state per CC and only re-sends when the desire
 
 ## Feature Mapping
 
-### Sliders 1-8 — Layer Alpha
+### Sliders 1-7 — Strip Alpha; Slider 8 — Master Alpha
 
-Sliders are bound to `Synth::getRenderSubsystem().getLayerAlphaParameters()` — the same parameter group the LC XL3 (in Shift mode) writes to.
+Sliders 1-7 drive strip alphas. The binding branches per message on `RenderSubsystem::hasChainManifest()`: when the loaded config authors a chains manifest they write `getChainAlphaParameters()` (the chain-group strips the iPad shows), otherwise `getLayerAlphaParameters()` by index. Slider 8 is reserved: it always drives the master composite alpha via `getMasterAlphaParameter()` (`kMasterAlphaFaderIndex`).
 
 | Slider | CC | Function |
 |--------|-----|----------|
-| 1 | 0 | Layer 1 alpha |
-| 2 | 1 | Layer 2 alpha |
-| 3 | 2 | Layer 3 alpha |
-| 4 | 3 | Layer 4 alpha |
-| 5 | 4 | Layer 5 alpha |
-| 6 | 5 | Layer 6 alpha |
-| 7 | 6 | Layer 7 alpha |
-| 8 | 7 | Layer 8 alpha |
+| 1-7 | 0-6 | Strip 1-7 alpha (chain or layer) |
+| 8 | 7 | Master composite alpha |
 
-**Pickup / soft-takeover:** sliders use 5% pickup (`kPickupThreshold`) — when the physical slider position is more than 5% away from the parameter's current normalized value, moving it has no effect until you sweep through the pickup window. Pickup state resets per slider on every `onSynthDidLoad`, so reloading a config requires re-engaging each slider.
+**Value-scaling takeover (Ableton-style):** there is no pickup window. The first CC after a takeover reset only baselines the fader position — the parameter does not move. From then on, fader movement is scaled against the runway remaining on the side it moves toward (`FaderTakeover::valueScale` in `FaderTakeover.h`, applied through `applyPickup` in `FaderPickup.h`): pushing up spreads the remaining upward travel over the parameter's remaining headroom, and pulling down scales the parameter proportionally, so **pulling the fader to the bottom always brings the parameter to 0**. At either endpoint fader and parameter align exactly and then track 1:1. Takeover state resets per control on every config load and unload (`onSynthDidLoad` / `onSynthWillUnload`), so the first touch after a reload baselines instead of jumping the parameter.
 
-If layer N does not exist in the current config (i.e. `getLayerPauseParamPtrs()[N] == nullptr`), slider N is a silent no-op on move.
+**Recovery gesture:** if a fader has drifted far from its parameter, swipe it to the bottom (the parameter reaches 0 there) and ride it back up — from the aligned endpoint the two track together.
 
-### S Buttons (top row) — Layer Existence Indicator
+If strip N does not exist in the current config (index beyond the bound alpha group's size), slider N is a silent no-op on move.
 
-The S buttons are **LED-only** — pressing them does nothing. Their LEDs reflect whether the corresponding layer exists in the current config.
+### Knob 8 — Texture-Preview Gain
 
-| S Button | CC | LED |
-|----------|-----|-----|
-| 1-8 | 32-39 | Lit when `getLayerPauseParamPtrs()[N] != nullptr` |
+Only the rightmost knob (CC 23, sitting above the master-alpha fader) is mapped: it drives the GUI's texture-preview gain (`Synth::getPreviewGainParameter()` — thumbnails and hover/probe popups) through the same value-scaling takeover as the faders, so it picks the parameter up smoothly rather than jumping it on first touch. Knobs 1-7 (CC 16-22) are ignored.
 
-This makes the row a live readout of how many layers the current performance config exposes (and therefore how many sliders are actually doing anything).
+### S Buttons (top row) — Unused
 
-### M Buttons (middle row) — Layer Mute Toggle
+CCs 32-39 have no press action, and the per-frame LED poll holds the row dark. (The layer-existence indicator that used to live here moved to the R buttons, putting the light on the bottom button of each channel strip, next to the fader.)
 
-Pressing an M button toggles the corresponding layer's pause state via `RenderSubsystem::toggleLayerPause(int)` — same call previously triggered by the APC Mini bottom-row pads, and still reachable via the keyboard `1`-`8` shortcuts.
+### M Buttons (middle row) — Strip Pause Toggle
+
+Pressing an M button toggles pause for the corresponding strip — `RenderSubsystem::toggleChainPause(int)` when the config authors a chains manifest, else `toggleLayerPause(int)`. The keyboard `1`-`8` shortcuts follow the same chain-vs-layer binding, so key N and M button N always point at the same strip.
 
 | M Button | CC | Function | LED |
 |----------|-----|----------|-----|
-| 1-8 | 48-55 | Toggle layer N pause | Lit when layer N is paused |
+| 1-8 | 48-55 | Toggle strip N pause (chain or layer) | Lit when strip N is paused |
 
-LED state is polled each frame from the pause parameter, so changes from other controllers or the keyboard reflect here within one update cycle.
+Presses on a strip that doesn't exist in the current config are ignored. LED state is polled each frame from the pause parameter, so changes from other controllers or the keyboard reflect here within one update cycle.
 
-### R Buttons (bottom row) — Unused
+### R Buttons (bottom row) — Strip Existence Indicator
 
-CCs 64-71 are intentionally unused. Their LEDs are explicitly cleared on connect and never written to again, so the row stays visibly dark.
+The R buttons are **LED-only** — pressing them does nothing. R1-R7 are lit when the corresponding strip exists in the current config (its pause parameter pointer is non-null). R8 is **always lit**: it belongs to the master-alpha fader, which is always live, and gets the same "active strip" cue the other faders do.
+
+| R Button | CC | LED |
+|----------|-----|-----|
+| 1-7 | 64-70 | Lit when strip N exists (chain or layer) |
+| 8 | 71 | Always lit — master-alpha cue |
+
+This makes the row a live readout of how many strips the current performance config exposes (and therefore how many sliders are actually doing anything).
 
 ### Transport Strip
 
@@ -179,6 +184,8 @@ LED state is recomputed every frame in `pollAndUpdateLeds()`, called from `updat
 
 The Rewind/FFwd LEDs use an `until-ms` timestamp to force them dark for ~120ms on press, then snap back to their default-on state on the next poll.
 
+**Resync on config load:** every `onSynthDidLoad` clears all managed LEDs to a known dark state (`clearAllManagedLeds()`, which also empties the send cache), then the next `pollAndUpdateLeds()` repaints them from the new config's parameters — so the strip-existence and pause LEDs always reflect the freshly loaded config, never the previous one.
+
 ---
 
 ## Connection Lifecycle
@@ -189,8 +196,8 @@ The Rewind/FFwd LEDs use an `until-ms` timestamp to force them dark for ~120ms o
 |--------|-------------------|----------|
 | `update()` | `ofApp::update()` | Drain MIDI ring buffer, poll + send LED updates |
 | `exit()` | `ofApp::exit()` | Clear all managed LEDs, close MIDI ports |
-| `onSynthDidLoad()` | After synth config loads | (Re)connect if needed; reset slider pickup state |
-| `onSynthWillUnload()` | Before synth config unloads | Clear the synth reference |
+| `onSynthDidLoad()` | After synth config loads | (Re)connect if needed; reset fader/knob takeover state; clear all managed LEDs so the next poll repaints from the new config |
+| `onSynthWillUnload()` | Before synth config unloads | Clear managed LEDs; reset takeover state; drop the synth reference |
 | `newMidiMessage()` | ofxMidi listener (MIDI thread) | Push event into ring buffer |
 
 On `tryConnect()`, the controller sends `value=0` to every CC it ever touches (controlled and unused alike), so unused buttons go visibly dark regardless of prior state from the device itself or another host.
@@ -203,7 +210,7 @@ The connect attempt is retried on each `onSynthDidLoad`, so the device can be ho
 
 `newMidiMessage()` runs on the MIDI listener thread; all `ofParameter` mutation, `keyPressed` dispatch, and `ofxMidiOut` sends happen on the main thread.
 
-The handoff uses a lock-free ring buffer (`ButtonEvent` struct, same pattern as `MidiController::buttonEventBuffer`). Events are drained in `update()` before LEDs are polled.
+The handoff uses a lock-free, drop-on-full SPSC ring buffer (`CCEvent` struct in a `MidiEventRing<CCEvent, 64>`, the same ring shared by the other MIDI surfaces). Events are drained in `update()` before LEDs are polled.
 
 ---
 
@@ -216,16 +223,17 @@ The handoff uses a lock-free ring buffer (`ButtonEvent` struct, same pattern as 
 - [x] Ring-buffer threading for MIDI events
 - [x] Add to `ofApp` lifecycle (setup, update, exit)
 
-### Phase 2: Sliders
-- [x] Map CC 0-7 to layer alpha parameters
-- [x] Soft-takeover pickup (5% threshold)
-- [x] Pickup reset on synth reload
-- [x] Silent no-op for missing layers
+### Phase 2: Sliders + Knob
+- [x] Map CC 0-6 to strip alphas (chain or layer, branching on chains manifest) and CC 7 to master composite alpha
+- [x] Map CC 23 (rightmost knob) to texture-preview gain
+- [x] Value-scaling takeover (Ableton-style, `FaderTakeover.h` / `FaderPickup.h`)
+- [x] Takeover reset on synth load/unload
+- [x] Silent no-op for missing strips
 
 ### Phase 3: Channel Buttons
-- [x] S buttons (CC 32-39): LED-only, lit when layer exists
-- [x] M buttons (CC 48-55): toggle layer pause; LED reflects pause state
-- [x] R buttons (CC 64-71): unused, cleared
+- [x] S buttons (CC 32-39): unused, held dark
+- [x] M buttons (CC 48-55): toggle strip pause; LED reflects pause state
+- [x] R buttons (CC 64-71): LED-only, lit when strip exists; R8 always-on master cue
 
 ### Phase 4: Transport
 - [x] Play → `OF_KEY_SPACE` (wake); LED reflects hibernation state
@@ -237,11 +245,12 @@ The handoff uses a lock-free ring buffer (`ButtonEvent` struct, same pattern as 
 ### Phase 5: LED Output
 - [x] Per-CC cached state, only emit on change
 - [x] Clear all managed CCs on connect (including unused ones)
-- [x] Per-frame poll for layer-pause, hibernation, save-count state
+- [x] Clear + repaint all managed LEDs on every config load
+- [x] Per-frame poll for strip-existence, strip-pause, hibernation, save-count state
 
 ### Open / future
-- [ ] Knob input (CC 16-23) — currently unused; could be mapped to additional named params
-- [ ] Track arrow buttons (CC 58/59) — currently unused; could become bank-shift for sliders beyond layer 8
+- [ ] Knob input (CC 16-22) — currently unused; could be mapped to additional named params
+- [ ] Track arrow buttons (CC 58/59) — currently unused; could become bank-shift for sliders beyond the first seven strips
 
 ---
 

@@ -8,26 +8,9 @@ This document describes the MIDI controller mapping for the Novation Launch Cont
 
 ---
 
-## Shift Mode
+## Scope
 
-The controller has two modes controlled by the **Shift** button:
-
-| Mode | Top Row Buttons | Bottom Row Buttons | Faders | Play Button | Record Button |
-|------|-----------------|--------------------|--------|-------------|---------------|
-| **Off** | Intent Indicators | Load Snapshot 1-8 | Intent Parameters | Pause/Play | Save Image |
-| **On** | Intent Indicators | Load Snapshot 1-8 | Layer Alpha 1-8 | Hibernate | Save Image |
-
----
-
-## Transport Buttons
-
-| Button | Shift Off | Shift On |
-|--------|-----------|----------|
-| **Shift** | Toggle to Shift On | Toggle to Shift Off |
-| **Play** | Pause/Play | Hibernate |
-| **Record** | Save Image | Save Image |
-| **Track Left** | Previous Config | Previous Config |
-| **Track Right** | Next Config | Next Config |
+There is no shift mode and no transport handling on this controller any more. Play/Pause, Hibernate, Save Image, and Previous/Next config all live on the Korg nanoKONTROL2, and layer control lives on the APC Mini. The Novation is: faders → Intent, encoders → audio-analysis nudge, top-row intent indicator LEDs, bottom-row snapshot recall.
 
 ---
 
@@ -37,13 +20,15 @@ These buttons are **LED indicators only** (button presses do nothing):
 
 | Button | Indicator |
 |--------|-----------|
-| 1-7 | Intent activation 1-7 |
+| 1-7 | Intent pole 1-7 |
 | 8 | Master intent strength |
 
 LED behavior:
-- **Bright yellow** = value > 0.0 and master strength > 0.0
-- **Dim yellow** = parameter exists but value == 0.0 (or master strength == 0.0)
-- **Off** = no matching intent parameter exists
+- Buttons 1-7 light in their **axis-pair hue** — the same hues as the GUI's Intents panel (presence coral, motion cyan, order violet, memory green), one hue per bipolar pair
+- **Bright** = pole value > 0.0 and master strength > 0.0
+- **Dim** = pole armed but value == 0.0, or master strength == 0.0
+- Button 8 is the master itself: **amber** when master strength > 0.0, dim amber at zero
+- **Off** = no intent parameters loaded
 
 ---
 
@@ -53,9 +38,14 @@ LED behavior:
 |--------|----------|
 | 9-16 | Load Snapshot 1-8 |
 
+Pressing a button loads that snapshot slot immediately — these buttons are **load only**; there is no save gesture on this controller.
+
 LED behavior:
-- **Red** = always on (snapshot buttons always active)
-- **White** = flashes while pressed
+- **Dim white** = slot holds a saved snapshot
+- **Off** = slot is empty
+- **Bright white** = while the button is physically held (reverts to the slot's occupancy colour on release)
+
+Occupancy is polled every frame via `Synth::isModSnapshotSlotOccupied`, which lazy-loads the config's snapshot file from disk — so the LEDs are correct even when the GUI's snapshot panel has never been opened (headless), and they follow snapshots being saved or cleared live in the GUI.
 
 ---
 
@@ -103,12 +93,12 @@ LED behavior:
 
 ## Faders
 
-Faders control different parameters depending on shift mode:
+Faders always map to the Intent system:
 
-| Fader | Shift Off | Shift On |
-|-------|-----------|----------|
-| 1-7 | Intent Activation 1-7 | Layer Alpha 1-7 |
-| 8 | Master Intent Strength | Layer Alpha 8 |
+| Fader | Function |
+|-------|----------|
+| 1-7 | Intent poles 1-7 (in intent-group order) |
+| 8 | Master Intent Strength |
 
 Faders use **pickup mode** (soft takeover) - you must move the fader past the current parameter value before it takes effect.
 
@@ -118,21 +108,17 @@ Faders use **pickup mode** (soft takeover) - you must move the fader past the cu
 
 ### Stationary Display (Permanent)
 - **Line 1**: Current config filename
-- **Line 2**: Status indicators
+- **Line 2**: Timer — countdown (time remaining, `-` prefix once overrun) when the config has a duration, otherwise config running time
+- **Line 3**: Status indicators
   - `REC` - Recording in progress
-  - `SAV` - Image save in progress
-  - `REC SAV` - Both active
+  - `<n> SAV` - Image saves in progress (count)
+  - `REC <n> SAV` - Both active
 
 ### Temporary Display (Overlay)
 Shows briefly when controls are used:
-- **Shift**: "Shift" / "On" or "Off"
-- **Snapshot**: "Snapshot" / "1-8"
-- **Intent Faders (Shift Off)**: "<Intent Name> Activation" / "0.123" (shows `[PICKUP]` until engaged)
-- **Layer Faders (Shift On)**: "<Layer Name>" / "0.123" (shows `[PICKUP]` until engaged; includes APC Mini layer faders mirrored to the Novation OLED)
-- **Transport**: "Transport" / "Pause/Play" or "Hibernate"
-
-- **Save**: "Action" / "Save Image"
-- **Config**: "Config" / "Previous" or "Next"
+- **Snapshot**: "Snapshot" / "1-8" on press (shown whether or not the slot is occupied)
+- **Intent Faders**: "<parameter name>" / "0.123" (shows `[PICKUP]` until engaged; rate-limited)
+- **Encoders (audio nudge)**: parameter name and value while turning — `ARM <value>` on first touch or after a pause, `[CLUTCH LO]`/`[CLUTCH HI]` with the exit threshold at the ends of travel, and `<value>  x<mult>` (with a `[MIN]`/`[MAX]` tag at range limits) while nudging
 
 ---
 
@@ -141,11 +127,13 @@ Shows briefly when controls are used:
 ### Button LEDs
 | State | Color |
 |-------|-------|
-| Snapshot Buttons (bottom row) | Red |
-| Intent > 0.0 | Bright yellow |
-| Intent == 0.0 (exists) | Dim yellow |
+| Snapshot slot occupied (bottom row) | Dim white |
+| Snapshot slot empty (bottom row) | Off |
+| Intent pole > 0.0 (master > 0.0) | Bright axis hue (coral / cyan / violet / green) |
+| Intent pole == 0.0, or master == 0.0 | Dim axis hue |
+| Master strength (button 8) | Amber (dim at zero) |
 | Button Pressed | White |
-| No intent parameter | Off |
+| No intent parameters | Off |
 
 ### Encoder LEDs
 | Encoder | Color |
@@ -162,8 +150,8 @@ Shows briefly when controls are used:
 
 - Controller runs in **DAW mode** for LED and display control
 - Auto-temp-display is disabled for all faders, encoders, and buttons (only our custom temporary overlays are shown)
-- All button CCs are on MIDI channel 1, except Shift (channel 7)
-- Transport button CCs: Shift=63, Play=116, Record=118, Track Left=103, Track Right=102
+- All handled CCs are on MIDI channel 1
+- Fader CCs: 5-12; encoder CCs: 13-36 (DAW mode)
 - Top row button CCs: 37-44 (intent indicators)
 - Bottom row button CCs: 45-52 (mod snapshots)
 
