@@ -180,10 +180,18 @@ void OscController::handleMessage(const ofxOscMessage& m) {
     const int x = m.getArgAsInt32(0);
     const int y = m.getArgAsInt32(1);
     // A touchscreen tap is deliberate — no hold-to-confirm on this surface.
+    // Dispatch by kind (2026-08-28): config cells keep the guarded load path
+    // (the same guards live inside applySetCellAction); snapshot cells recall
+    // their mod-snapshot slot instantly.
     if (const auto* cell = synthPtr->getSetController().cellAt(x, y)) {
-      synthPtr->loadSetCellConfig(cell->config);
-      ofLogNotice("OscController") << "Grid cell load (" << x << "," << y
-                                   << "): " << cell->config;
+      synthPtr->applySetCellAction(*cell);
+      if (cell->kind == ofxMarkSynth::SetController::CellKind::Snapshot) {
+        ofLogNotice("OscController") << "Grid cell snapshot recall (" << x << "," << y
+                                     << "): slot " << cell->snapshotSlot;
+      } else {
+        ofLogNotice("OscController") << "Grid cell load (" << x << "," << y
+                                     << "): " << cell->config;
+      }
     }
     return;
   }
@@ -388,14 +396,17 @@ void OscController::sendGridState() {
   if (set.hasSet()) {
     const bool memReady = isMemoryReady();
     // ONE message, 64 int32 in row-major order (y=0..7, x=0..7): 0xRRGGBB per
-    // assigned cell, 0 for an unassigned pad. memoryDependent cells are dimmed
-    // to kMemoryDimFactor until the bank fills (same policy as the APC pads).
+    // assigned cell, 0 for an unassigned pad. memoryDependent CONFIG cells are
+    // dimmed to kMemoryDimFactor until the bank fills (same policy as the APC
+    // pads); snapshot cells never memory-dim — their authored colour flows
+    // through untouched.
     for (int y = 0; y < kGridRows; ++y) {
       for (int x = 0; x < kGridCols; ++x) {
         int32_t packed = 0;
         if (const auto* cell = set.cellAt(x, y)) {
           ofColor c = cell->color;
-          if (cell->memoryDependent && !memReady) {
+          if (cell->kind == ofxMarkSynth::SetController::CellKind::Config &&
+              cell->memoryDependent && !memReady) {
             c.r = static_cast<unsigned char>(c.r * kMemoryDimFactor);
             c.g = static_cast<unsigned char>(c.g * kMemoryDimFactor);
             c.b = static_cast<unsigned char>(c.b * kMemoryDimFactor);
