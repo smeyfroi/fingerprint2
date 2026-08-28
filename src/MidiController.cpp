@@ -109,8 +109,13 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
       snapshotSlotHeld[static_cast<size_t>(index)] = true;
       setButtonLedByCC(cc, kButtonPressedColor);
       if (synthPtr) {
-        synthPtr->loadModSnapshotSlot(index);
-        showTempDisplay("Snapshot", std::to_string(index + 1));
+        // Gate the OLED on the actual load: an empty slot used to flash
+        // "Snapshot N" while applying nothing, which read as a dead surface.
+        if (synthPtr->loadModSnapshotSlot(index)) {
+          showTempDisplay("Snapshot", std::to_string(index + 1));
+        } else {
+          showTempDisplay("Snapshot", std::to_string(index + 1) + " empty");
+        }
       }
     } else {
       snapshotSlotHeld[static_cast<size_t>(index)] = false;
