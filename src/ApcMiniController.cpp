@@ -198,13 +198,15 @@ void ApcMiniController::update() {
       lastKnownMemoryReady = isMemoryReady();  // resync so the block below is a no-op
     }
 
-    // Memory readiness crossing: repaint only the memoryDependent cells, and only
-    // on the transition (delta writes, never per-frame).
+    // Memory readiness crossing: repaint only the memoryDependent CONFIG cells,
+    // and only on the transition (delta writes, never per-frame). Snapshot
+    // cells never memory-dim, so they are skipped by kind (engine-side their
+    // memoryDependent is always false, but don't rely on it).
     const bool ready = isMemoryReady();
     if (ready != lastKnownMemoryReady) {
       lastKnownMemoryReady = ready;
       for (const auto& cell : set.cellsForCurrentPage()) {
-        if (cell.memoryDependent) {
+        if (cell.kind == ofxMarkSynth::SetController::CellKind::Config && cell.memoryDependent) {
           updatePadLed(xyToPadNote(cell.x, cell.y));
         }
       }
@@ -212,9 +214,12 @@ void ApcMiniController::update() {
 
     // Active-cell highlight: repaint the old and new active pads when the
     // loaded config changes (however it was switched — pad, GUI, keyboard).
+    // Config cells only: a snapshot cell never wears the active white (its
+    // config stem, if any, is forward state, not a load target).
     const std::string stem = currentConfigStem();
     if (stem != lastKnownSetConfigStem) {
       for (const auto& cell : set.cellsForCurrentPage()) {
+        if (cell.kind != ofxMarkSynth::SetController::CellKind::Config) continue;
         if (cell.config == stem || cell.config == lastKnownSetConfigStem) {
           updatePadLed(xyToPadNote(cell.x, cell.y));
         }
@@ -386,6 +391,7 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
   }
   currentHold.active = false;
   currentHold.padNote = -1;
+  snapshotFeedbackPadNote = -1;
 
   auto& nav = synthPtr->getPerformanceNavigator();
 
@@ -509,6 +515,14 @@ void ApcMiniController::drainMidiEvents() {
         padCurrentColors[heldPad] = kColorOff;
         queuePadLedUpdate(heldPad);
       }
+    }
+    // Same fail-safe for the snapshot press feedback: a dropped release must
+    // not leave the pad amber forever (the heal sweep would sustain it).
+    if (snapshotFeedbackPadNote >= 0 && snapshotFeedbackPadNote < kPadCount) {
+      int feedbackPad = snapshotFeedbackPadNote;
+      snapshotFeedbackPadNote = -1;
+      padCurrentColors[feedbackPad] = kColorOff;
+      queuePadLedUpdate(feedbackPad);
     }
     if (synthPtr && !synthPtr->getSetController().hasSet()) {
       synthPtr->getPerformanceNavigator().clearPreviewConfig();
@@ -742,11 +756,17 @@ ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote
   const auto* cell = set.cellAt(x, y);
   if (cell == nullptr) return kColorOff;
 
+  // Active-white and memory-dim are CONFIG-cell states. A snapshot cell is
+  // never "loaded" (its `config`, if any, is forward state, not a load
+  // target) and never waits on the MemoryBank — it rests at the standard
+  // authored-colour × rest-dim tier like any other assigned cell.
+  const bool isConfigCell = (cell->kind == ofxMarkSynth::SetController::CellKind::Config);
+
   // The ACTIVE cell — the currently-loaded config — renders bright white, a
   // colour no at-rest pad wears (owner 2026-07-31), overriding both its hue
   // and the memory dim.
   const std::string stem = currentConfigStem();
-  if (!stem.empty() && cell->config == stem) {
+  if (isConfigCell && !stem.empty() && cell->config == stem) {
     return kColorBrightWhite;
   }
 
@@ -755,7 +775,7 @@ ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote
   // memoryDependent cells render dimmed until the MemoryBank has collected
   // enough textures. Home cells are already the brightest of their world (the
   // builder guarantees it), so at rest they just show their colour.
-  if (cell->memoryDependent && !isMemoryReady()) {
+  if (isConfigCell && cell->memoryDependent && !isMemoryReady()) {
     return scaleRgb(base, kMemoryDimFactor);
   }
   // At-rest cells sit at ~55% so the active cell's full white actually pops
@@ -767,6 +787,12 @@ ApcMiniController::RgbColor ApcMiniController::getPadDisplayColor(int padNote) c
   // Currently holding this pad — amber (both modes; holds only start on
   // assigned/actionable pads).
   if (currentHold.active && currentHold.padNote == padNote) {
+    return kColorAmber;
+  }
+
+  // A pressed snapshot cell (instant commit, no hold armed) wears the same
+  // amber until release; the heal sweep sustains it like the hold amber.
+  if (padNote == snapshotFeedbackPadNote) {
     return kColorAmber;
   }
 
@@ -838,14 +864,33 @@ void ApcMiniController::onPadPressed(int padNote) {
 }
 
 void ApcMiniController::onSetPadPressed(int padNote) {
-  // Only arms a hold. Config loads are applied at a fixed point in update(),
-  // after this drain. All 8 rows are set cells (paging is the track buttons);
-  // unassigned pads do nothing.
+  // Config cells only arm a hold here — the load is applied at a fixed point in
+  // update(), after this drain. Snapshot cells commit inside this handler (see
+  // below). All 8 rows are set cells (paging is the track buttons); unassigned
+  // pads do nothing.
   int x, y;
   padNoteToXY(padNote, x, y);
   auto& set = synthPtr->getSetController();
 
-  if (set.cellAt(x, y) == nullptr) return;
+  const auto* cell = set.cellAt(x, y);
+  if (cell == nullptr) return;
+
+  // Snapshot cells commit INSTANTLY on press (owner 2026-08-28): recalling a
+  // mod-snapshot slot is param-only and reversible, so it gets the Launch
+  // Control XL's tap semantics rather than the config pads' 400 ms guard. No
+  // hold is armed and no GUI preview is published (there is no config behind
+  // the pad to preview). Feedback is the same amber the hold path wears —
+  // getPadDisplayColor sustains it via snapshotFeedbackPadNote until the
+  // release repaint restores the rest colour. No blink/pulse (surface policy).
+  if (cell->kind == ofxMarkSynth::SetController::CellKind::Snapshot) {
+    synthPtr->applySetCellAction(*cell);
+    ofLogNotice("ApcMiniController") << "Set cell snapshot recall: slot " << cell->snapshotSlot;
+    snapshotFeedbackPadNote = padNote;
+    // Force the amber send even if our cached colour is stale.
+    padCurrentColors[padNote] = kColorOff;
+    queuePadLedUpdate(padNote);
+    return;
+  }
 
   // Hold-to-confirm the config load — the same live-performance guard the
   // buttonGrid path uses (an accidental brush must not swap the whole config).
@@ -858,7 +903,7 @@ void ApcMiniController::onSetPadPressed(int padNote) {
   // padConfigMap's configIndex, but a set cell only knows its config STEM, so the index had to be
   // resolved. That is what findConfigIndex is for. Without it the GUI overlay had nothing to show
   // for a held set pad, which is the whole point of a momentary touch: see it before committing.
-  if (const auto* cell = set.cellAt(x, y); cell != nullptr) {
+  {
     auto& nav = synthPtr->getPerformanceNavigator();
     const int previewIdx = nav.findConfigIndex(cell->config);
     if (previewIdx >= 0) {
@@ -873,6 +918,17 @@ void ApcMiniController::onSetPadPressed(int padNote) {
 }
 
 void ApcMiniController::onPadReleased(int padNote) {
+  // Snapshot pads never arm a hold and never publish a preview — the release
+  // just restores the rest colour from the one-shot amber press feedback, and
+  // must not clear a preview some other (config) pad may be holding.
+  if (padNote == snapshotFeedbackPadNote) {
+    snapshotFeedbackPadNote = -1;
+    // Force a send even if our cached color is stale.
+    padCurrentColors[padNote] = kColorOff;
+    queuePadLedUpdate(padNote);
+    return;
+  }
+
   // Clear the held-cell preview on any pad release. Both modes now publish one
   // (set mode gained it 2026-08-01), so this is unconditional.
   if (synthPtr) {
