@@ -180,14 +180,19 @@ void OscController::handleMessage(const ofxOscMessage& m) {
     const int x = m.getArgAsInt32(0);
     const int y = m.getArgAsInt32(1);
     // A touchscreen tap is deliberate — no hold-to-confirm on this surface.
-    // Dispatch by kind (2026-08-28): config cells keep the guarded load path
-    // (the same guards live inside applySetCellAction); snapshot cells recall
-    // their mod-snapshot slot instantly.
+    // Dispatch by kind (2026-08-28/29): config cells keep the guarded load
+    // path (the same guards live inside applySetCellAction); snapshot cells
+    // recall their mod-snapshot slot instantly; scene cells apply their batch
+    // (slots + chain states) instantly.
     if (const auto* cell = synthPtr->getSetController().cellAt(x, y)) {
       synthPtr->applySetCellAction(*cell);
       if (cell->kind == ofxMarkSynth::SetController::CellKind::Snapshot) {
         ofLogNotice("OscController") << "Grid cell snapshot recall (" << x << "," << y
                                      << "): slot " << cell->snapshotSlot;
+      } else if (cell->kind == ofxMarkSynth::SetController::CellKind::Scene) {
+        ofLogNotice("OscController") << "Grid cell scene apply (" << x << "," << y
+                                     << "): "
+                                     << (cell->sceneName.empty() ? "(unnamed)" : cell->sceneName);
       } else {
         ofLogNotice("OscController") << "Grid cell load (" << x << "," << y
                                      << "): " << cell->config;
@@ -398,8 +403,8 @@ void OscController::sendGridState() {
     // ONE message, 64 int32 in row-major order (y=0..7, x=0..7): 0xRRGGBB per
     // assigned cell, 0 for an unassigned pad. memoryDependent CONFIG cells are
     // dimmed to kMemoryDimFactor until the bank fills (same policy as the APC
-    // pads); snapshot cells never memory-dim — their authored colour flows
-    // through untouched.
+    // pads); snapshot and scene cells never memory-dim — their authored
+    // colour flows through untouched.
     for (int y = 0; y < kGridRows; ++y) {
       for (int x = 0; x < kGridCols; ++x) {
         int32_t packed = 0;

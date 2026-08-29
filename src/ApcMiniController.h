@@ -225,12 +225,12 @@ private:
   };
   HoldState currentHold;
   uint64_t lastHoldAmberSendMs = 0;
-  // Snapshot set cells (SetController::CellKind::Snapshot) never arm a hold —
-  // the press commits instantly (2026-08-28). This tracks the pad wearing the
-  // one-shot amber press feedback so getPadDisplayColor sustains it (heal
-  // sweep included) until the release repaint restores the rest colour.
-  // -1 = no snapshot pad is down.
-  int snapshotFeedbackPadNote = -1;
+  // Instant set cells (SetController::CellKind::Snapshot and ::Scene) never
+  // arm a hold — the press commits instantly (2026-08-28/29). This tracks the
+  // pad wearing the one-shot amber press feedback so getPadDisplayColor
+  // sustains it (heal sweep included) until the release repaint restores the
+  // rest colour. -1 = no instant pad is down.
+  int instantFeedbackPadNote = -1;
 
   // === LED Update Queue ===
   // Pad repaints requested by the drained pad handlers, applied at a single
