@@ -69,7 +69,7 @@ All controls send Control Change messages on channel 1. Buttons send value 127 o
 | Slider 8 | 7 | Master composite alpha (value-scaling takeover) |
 | Knob 1-7 | 16-22 | **Unused** |
 | Knob 8 | 23 | Texture-preview gain (value-scaling takeover) |
-| S button 1-8 | 32-39 | **Unused** — held dark |
+| S button 1-8 | 32-39 | **LED only** — lit when strip N is audible (alpha > 0); S8 tracks master alpha |
 | M button 1-8 | 48-55 | Toggle strip pause; LED reflects pause state |
 | R button 1-8 | 64-71 | **LED only** — lit when strip N exists; R8 always lit (master-alpha cue) |
 | Track ◀ / ▶ | 58 / 59 | **Unused** |
@@ -133,9 +133,16 @@ If strip N does not exist in the current config (index beyond the bound alpha gr
 
 Only the rightmost knob (CC 23, sitting above the master-alpha fader) is mapped: it drives the GUI's texture-preview gain (`Synth::getPreviewGainParameter()` — thumbnails and hover/probe popups) through the same value-scaling takeover as the faders, so it picks the parameter up smoothly rather than jumping it on first touch. Knobs 1-7 (CC 16-22) are ignored.
 
-### S Buttons (top row) — Unused
+### S Buttons (top row) — Strip Audible Indicator
 
-CCs 32-39 have no press action, and the per-frame LED poll holds the row dark. (The layer-existence indicator that used to live here moved to the R buttons, putting the light on the bottom button of each channel strip, next to the fader.)
+The S buttons are **LED-only** — pressing them does nothing. S1-S7 are lit while the corresponding strip is **audible**: its alpha (chain or layer, the same per-message binding as the sliders) is above zero. S8 tracks the master composite alpha, mirroring the master fader's role on slider 8. A small epsilon (0.001, `kAudibleAlphaEpsilon`) guards the zero test so float dust from other writers can't flicker the LED; pulling a fader to the bottom always lands the parameter at exactly 0, so the LED reads dark.
+
+| S Button | CC | LED |
+|----------|-----|-----|
+| 1-7 | 32-38 | Lit when strip N's alpha > 0 (chain or layer) |
+| 8 | 39 | Lit when the master composite alpha > 0 |
+
+Together the three rows complete the per-strip cue grammar: **R lit = the strip exists, M lit = it is parked (paused), S lit = it is audible.** A strip that is armed and waiting — present in the config but faded out — reads as R lit with M and S dark.
 
 ### M Buttons (middle row) — Strip Pause Toggle
 
@@ -231,7 +238,7 @@ The handoff uses a lock-free, drop-on-full SPSC ring buffer (`CCEvent` struct in
 - [x] Silent no-op for missing strips
 
 ### Phase 3: Channel Buttons
-- [x] S buttons (CC 32-39): unused, held dark
+- [x] S buttons (CC 32-39): LED-only, lit while strip audible (alpha > 0); S8 tracks master alpha
 - [x] M buttons (CC 48-55): toggle strip pause; LED reflects pause state
 - [x] R buttons (CC 64-71): LED-only, lit when strip exists; R8 always-on master cue
 
@@ -246,7 +253,7 @@ The handoff uses a lock-free, drop-on-full SPSC ring buffer (`CCEvent` struct in
 - [x] Per-CC cached state, only emit on change
 - [x] Clear all managed CCs on connect (including unused ones)
 - [x] Clear + repaint all managed LEDs on every config load
-- [x] Per-frame poll for strip-existence, strip-pause, hibernation, save-count state
+- [x] Per-frame poll for strip-existence, strip-audible, strip-pause, hibernation, save-count state
 
 ### Open / future
 - [ ] Knob input (CC 16-22) — currently unused; could be mapped to additional named params

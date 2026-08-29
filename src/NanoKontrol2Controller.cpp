@@ -182,7 +182,7 @@ void NanoKontrol2Controller::handleKnobCC(int cc, int value) {
 void NanoKontrol2Controller::handleButtonCC(int cc, int value) {
   if (!synthPtr) return;
 
-  // S buttons (CC 32..39): unused — no press action.
+  // S buttons (CC 32..39): LED-only "strip audible" indicator, no press action.
   if (cc >= kSButtonCCFirst && cc <= kSButtonCCLast) {
     return;
   }
@@ -256,9 +256,24 @@ void NanoKontrol2Controller::pollAndUpdateLeds() {
     setLed(kRButtonCCFirst + i, lit);
   }
 
-  // S buttons (CC 32..39): now unused — keep them dark.
+  // S buttons (CC 32..39): lit iff the strip is AUDIBLE — its alpha above zero.
+  // Same chain-vs-layer binding as the sliders; the rightmost button belongs to
+  // the master alpha fader and tracks the master composite alpha, mirroring the
+  // fader's role. The epsilon guards the zero test (a fader pulled to the
+  // bottom always lands the parameter at exactly 0, but don't let float dust
+  // from other writers flicker the LED).
+  ofParameterGroup& alphas = render.hasChainManifest()
+      ? render.getChainAlphaParameters()
+      : render.getLayerAlphaParameters();
   for (int i = 0; i < kSButtonCount; ++i) {
-    setLed(kSButtonCCFirst + i, false);
+    bool audible;
+    if (i == kMasterAlphaFaderIndex) {
+      audible = render.getMasterAlphaParameter().get() > kAudibleAlphaEpsilon;
+    } else {
+      audible = i < static_cast<int>(alphas.size())
+                && alphas.getFloat(i).get() > kAudibleAlphaEpsilon;
+    }
+    setLed(kSButtonCCFirst + i, audible);
   }
 
   // M buttons (CC 48..55): lit iff layer paused.
