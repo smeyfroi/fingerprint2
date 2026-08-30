@@ -17,7 +17,11 @@ const std::array<std::string, 7> OscController::kIntentNames = {
   "Dense", "Sparse", "Still", "Agitated", "Persistent", "Ephemeral", "Chaotic"
 };
 
-OscController::OscController() = default;
+OscController::OscController() {
+  // -1 is the "nothing sent yet" sentinel: 0 is a real strip state ("no strip
+  // here"), so a zero-initialised tracker would swallow the first push.
+  lastStripState_.fill(-1);
+}
 
 OscController::~OscController() {
   exit();
@@ -28,6 +32,7 @@ void OscController::update() {
   pollIncoming();
   streamIndicators();
   maybeActiveCellResync();
+  maybeStripStateResync();
   maybePeriodicSync();
 }
 
@@ -316,6 +321,49 @@ void OscController::sendString(const std::string& addr, const std::string& value
   sender.sendMessage(m, false);
 }
 
+void OscController::sendInt(const std::string& addr, int value) {
+  ofxOscMessage m;
+  m.setAddress(addr);
+  m.addInt32Arg(value);
+  sender.sendMessage(m, false);
+}
+
+void OscController::maybeStripStateResync(bool force) {
+  if (!synthPtr || !senderReady) return;
+
+  // Same chain-vs-layer binding as everything else on this surface, and the same
+  // three facts NanoKontrol2Controller::pollAndUpdateLeds lights: the strip
+  // EXISTS, it is PARKED, it is AUDIBLE. Reading them from the same parameters,
+  // through the same epsilon, is what stops the iPad and the Korg disagreeing
+  // about a strip.
+  auto& render = synthPtr->getRenderSubsystem();
+  const bool groups = render.hasChainManifest();
+  auto& alphas = groups ? render.getChainAlphaParameters()
+                        : render.getLayerAlphaParameters();
+  const auto& pausePtrs = groups ? render.getChainPauseParamPtrs()
+                                 : render.getLayerPauseParamPtrs();
+  const int nStrips = static_cast<int>(alphas.size());
+
+  for (int i = 0; i < kSurfaceLayers; ++i) {
+    int state = 0;
+    if (i < nStrips) {
+      // Existence is the same test /layer/<i>/active already answers, so the two
+      // addresses can never contradict each other on the same surface.
+      state |= kStripExists;
+      if (i < static_cast<int>(pausePtrs.size()) && pausePtrs[i] && pausePtrs[i]->get()) {
+        state |= kStripParked;
+      }
+      if (alphas.getFloat(i).get() > kAudibleAlphaEpsilon) {
+        state |= kStripAudible;
+      }
+    }
+    // Only what moved. A lamp that never changes costs one comparison a frame.
+    if (!force && state == lastStripState_[i]) continue;
+    lastStripState_[i] = state;
+    sendInt("/layer/" + ofToString(i) + "/state", state);
+  }
+}
+
 void OscController::sendCurrentState() {
   if (!synthPtr || !senderReady) return;
 
@@ -346,6 +394,10 @@ void OscController::sendCurrentState() {
       sendFloat("/layer/" + ofToString(i) + "/pause", pausePtrs[i]->get() ? 1.0f : 0.0f);
     }
   }
+
+  // The R/M/S lamps for every strip, forced: a fresh config or a just-connected
+  // surface must start from a known state rather than waiting for one to change.
+  maybeStripStateResync(true);
 
   sendFloat("/master/alpha", normOf(render.getMasterAlphaParameter()));
 

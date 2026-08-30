@@ -144,6 +144,11 @@ The S buttons are **LED-only** — pressing them does nothing. S1-S7 are lit whi
 
 Together the three rows complete the per-strip cue grammar: **R lit = the strip exists, M lit = it is parked (paused), S lit = it is audible.** A strip that is armed and waiting — present in the config but faded out — reads as R lit with M and S dark.
 
+This grammar is the shared vocabulary of all three surfaces, not just this one:
+
+- **The GUI** draws the same three lamps as a row of pips under every fader in the mixer's Groups (and Layers) section, reading them from the same parameters through this file's `kAudibleAlphaEpsilon`. On the group strips the chain name below the pips is tinted to match — amber parked, green playing, dim when armed and waiting.
+- **The iPad** receives them bit-packed on `/layer/<i>/state` (1 = R, 2 = M, 4 = S), delta-tracked so a park or a fade reaches the surface at once rather than on the ~2 s state push. See [`../touchosc/README.md`](../touchosc/README.md).
+
 ### M Buttons (middle row) — Strip Pause Toggle
 
 Pressing an M button toggles pause for the corresponding strip — `RenderSubsystem::toggleChainPause(int)` when the config authors a chains manifest, else `toggleLayerPause(int)`. The keyboard `1`-`8` shortcuts follow the same chain-vs-layer binding, so key N and M button N always point at the same strip.

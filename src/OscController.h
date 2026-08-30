@@ -12,6 +12,8 @@
 #include "gui/panels/IntentSurfaceInfo.h"
 
 #include "MemoryReadyPolicy.h"
+// For kAudibleAlphaEpsilon: the iPad's "audible" boundary IS the Korg's.
+#include "NanoKontrol2Controller.h"
 
 namespace ofxMarkSynth {
   class Synth;
@@ -27,6 +29,14 @@ namespace ofxMarkSynth {
 ///   /layer/<i>/alpha    fader   -> layer i composite alpha
 ///   /layer/<i>/pause    toggle  -> layer i pause
 ///   /layer/<i>/name     (out)   -> layer i name (relabels the surface strip)
+///   /layer/<i>/state    (out)   -> int 0..7, the strip's R/M/S lamps packed as
+///                                   kStripExists|kStripParked|kStripAudible —
+///                                   the same three facts the nanoKONTROL2 lights
+///                                   (see the constants below). Delta-tracked and
+///                                   pushed the instant it changes, unlike alpha
+///                                   and pause; safe to push promptly because no
+///                                   interactive widget binds it, so it can never
+///                                   fight the performer's finger.
 ///   /master/alpha       fader   -> master composite alpha
 ///   /intent/<i>         fader   -> intent pole i (0..6: Dense Sparse Still Agitated
 ///                                   Persistent Ephemeral Chaotic)
@@ -69,6 +79,28 @@ public:
   static constexpr uint64_t kIndicatorIntervalMs = 200;   // 5 Hz read-only indicator stream
   static constexpr uint64_t kFullSyncIntervalMs  = 2000;  // re-push all control state every ~2 s
   static constexpr uint64_t kIdleGuardMs         = 1500;  // ...but only while the surface is quiet
+
+  // === Per-strip R/M/S state (/layer/<i>/state) ===
+  // The nanoKONTROL2's per-strip cue grammar, packed into one int so the iPad can
+  // read all three lamps from a single message: R lit = the strip EXISTS, M lit =
+  // the chain is PARKED, S lit = the chain is AUDIBLE. The values a surface
+  // actually sees: 0 = no strip here, 1 = armed and waiting (running but silent —
+  // the state the crossover gesture is aiming at), 5 = playing, 3 = parked,
+  // 7 = parked with its picture still held on screen.
+  //
+  // Alpha and pause already travel separately, but only on the three
+  // sendCurrentState() occasions — up to ~2 s stale, and suppressed entirely
+  // while the performer is touching the surface — and the iPad would have to
+  // derive the three states from two interactive widgets' values to read them.
+  // This address carries the resolved answer instead, so the surface renders it
+  // directly.
+  static constexpr int kStripExists  = 1 << 0;   // R
+  static constexpr int kStripParked  = 1 << 1;   // M
+  static constexpr int kStripAudible = 1 << 2;   // S
+  // Deliberately the Korg's own threshold, not a copy: the two surfaces must
+  // agree on where audible begins, or the same strip would read differently on
+  // the iPad and on the hardware.
+  static constexpr float kAudibleAlphaEpsilon = NanoKontrol2Controller::kAudibleAlphaEpsilon;
 
   // Set-pages grid (tab 2). All 8 rows are cell rows (y=7 released 2026-07-31 —
   // paging moved to hardware/GUI pager buttons; this surface already had its own
@@ -141,7 +173,18 @@ private:
   void maybePeriodicSync();
   void sendFloat(const std::string& addr, float value);
   void sendString(const std::string& addr, const std::string& value);
+  void sendInt(const std::string& addr, int value);
   static float normOf(ofParameter<float>& p);
+
+  // Per-strip R/M/S state tracker. Like maybeActiveCellResync, this polls each
+  // update() and pushes only what changed — the ~2 s periodic re-push is far too
+  // slow for a lamp, and pause/alpha changes made on the Korg or in the GUI reach
+  // the iPad no other way while the performer is working the surface. `force`
+  // re-sends every strip regardless (used by sendCurrentState, so a fresh config
+  // or a newly-connected surface starts from a known state). -1 is the "nothing
+  // sent yet" sentinel, which no real state can equal.
+  void maybeStripStateResync(bool force = false);
+  std::array<int, kSurfaceLayers> lastStripState_;   // filled with -1 by the ctor
 
   // Set-pages grid surface. sendGridState() pushes the two /grid outbound
   // messages (cells + current page); it is folded into sendCurrentState so the
