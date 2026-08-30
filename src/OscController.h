@@ -41,13 +41,16 @@ namespace ofxMarkSynth {
 ///   /agency/<i>/force   button  -> force-trigger agency controller i
 ///
 /// Set-pages grid surface (tab 2; only live while the Synth has a set loaded):
-///   /grid/press  i i    button  -> load the cell at (x, y=0..6) if assigned
+///   /grid/press  i i    button  -> press the cell at (x, y=0..7) if assigned
 ///   /grid/page   i      button  -> switch to 1-based page i (clamped)
 ///   /grid/home   trig   button  -> load the set's designated home config
-///   /grid/cells  (out)          -> ONE msg, 56 int32 (row-major y=0..6, x=0..7):
-///                                   0xRRGGBB per assigned cell (memory-dependent
-///                                   cells dimmed to 25% until the bank fills), 0
-///                                   for unassigned / no set (clears the surface)
+///   /grid/cells  (out)          -> ONE msg, 64 int32 (row-major y=0..7, x=0..7):
+///                                   0xRRGGBB per assigned cell — full brightness
+///                                   for the ACTIVE pad (last-landed press) while
+///                                   its pose is intact, x0.55 rest tier otherwise
+///                                   (x0.25 for memory-waiting config cells until
+///                                   the bank fills) — 0 for unassigned / no set
+///                                   (clears the surface)
 ///   /grid/page   (out)          -> 1-based current page (highlights the page btn)
 ///
 /// The receiver is polled on the main thread from update(). ofxOscReceiver does
@@ -78,6 +81,12 @@ public:
   // so the iPad and the pads agree). No pulsing — the dim IS the "not ready" cue.
   static constexpr int kMemoryReadyThreshold = MemoryReadyPolicy::kReadyThreshold;
   static constexpr float kMemoryDimFactor = MemoryReadyPolicy::kDimFactor;
+  // At-rest cells dim to the same tier as the APC pads (mirrors
+  // ApcMiniController::kSetCellRestDimFactor, 2026-08-30) so the ACTIVE pad —
+  // the last-landed press — reads as LIT at its full authored colour. This
+  // surface receives colour only (no border/white layer; it never had a
+  // loaded-config indicator), so full-vs-dim IS the whole played-pad affordance.
+  static constexpr float kSetCellRestDimFactor = 0.55f;
 
   OscController();
   ~OscController();
@@ -130,10 +139,21 @@ private:
 
   // Set-pages grid surface. sendGridState() pushes the two /grid outbound
   // messages (cells + current page); it is folded into sendCurrentState so the
-  // grid stays in sync on every full-state push, and re-fired on page change via
-  // the RAII listener below. isMemoryReady() gates the memory-dependent dimming.
+  // grid stays in sync on every full-state push, re-fired on page change via
+  // the RAII listener below, and re-fired promptly when the active pad moves
+  // (maybeActiveCellResync). isMemoryReady() gates the memory-dependent dimming.
   void sendGridState();
   bool isMemoryReady() const;
+  // Active-pad tracker: SetController has no activeCellChanged event, so
+  // update() polls Synth::getActiveSetCell() / isActiveSetCellPoseIntact() and
+  // re-pushes the grid the moment the last-landed cell moves or its scene pose
+  // breaks — the ~2 s periodic resync would leave the played pad dim too long
+  // for a live surface. page = -1 means nothing was active.
+  void maybeActiveCellResync();
+  int lastActiveCellPage_ = -1;
+  int lastActiveCellX_ = -1;
+  int lastActiveCellY_ = -1;
+  bool lastActiveCellIntact_ = true;
   // RAII subscription to SetController::pageChanged (a MULTI-listener ofEvent):
   // re-registered on each config load, which replaces only our own slot. The
   // lambda re-sends the grid state; it checks synthPtr/senderReady so a fire

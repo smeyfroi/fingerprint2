@@ -27,6 +27,7 @@ void OscController::update() {
   if (!synthPtr) return;
   pollIncoming();
   streamIndicators();
+  maybeActiveCellResync();
   maybePeriodicSync();
 }
 
@@ -400,22 +401,37 @@ void OscController::sendGridState() {
 
   if (set.hasSet()) {
     const bool memReady = isMemoryReady();
+    const auto& active = synthPtr->getActiveSetCell();
+    const bool activeIntact = synthPtr->isActiveSetCellPoseIntact();
+    const int curPage = set.currentPage();
     // ONE message, 64 int32 in row-major order (y=0..7, x=0..7): 0xRRGGBB per
-    // assigned cell, 0 for an unassigned pad. memoryDependent CONFIG cells are
-    // dimmed to kMemoryDimFactor until the bank fills (same policy as the APC
-    // pads); snapshot and scene cells never memory-dim — their authored
-    // colour flows through untouched.
+    // assigned cell, 0 for an unassigned pad. Brightness tiers mirror the APC
+    // pads (2026-08-30 audition feedback: "how do i know which pad i am
+    // playing?"): the ACTIVE pad — the last-landed press, any kind, on the
+    // current page — carries its authored colour at FULL brightness while the
+    // pose it set is intact, dropping to the rest tier once a scene
+    // chain-pause is hand-flipped; every other assigned cell rests at
+    // kSetCellRestDimFactor; memoryDependent CONFIG cells sit at
+    // kMemoryDimFactor until the bank fills (snapshot and scene cells never
+    // memory-dim). The surface receives colour only, so full-vs-dim is the
+    // whole played-pad affordance there.
     for (int y = 0; y < kGridRows; ++y) {
       for (int x = 0; x < kGridCols; ++x) {
         int32_t packed = 0;
         if (const auto* cell = set.cellAt(x, y)) {
           ofColor c = cell->color;
-          if (cell->kind == ofxMarkSynth::SetController::CellKind::Config &&
-              cell->memoryDependent && !memReady) {
-            c.r = static_cast<unsigned char>(c.r * kMemoryDimFactor);
-            c.g = static_cast<unsigned char>(c.g * kMemoryDimFactor);
-            c.b = static_cast<unsigned char>(c.b * kMemoryDimFactor);
+          const bool isActivePad = active && active->page == curPage &&
+                                   active->x == x && active->y == y;
+          float dim = kSetCellRestDimFactor;
+          if (isActivePad && activeIntact) {
+            dim = 1.0f;
+          } else if (cell->kind == ofxMarkSynth::SetController::CellKind::Config &&
+                     cell->memoryDependent && !memReady) {
+            dim = kMemoryDimFactor;
           }
+          c.r = static_cast<unsigned char>(c.r * dim);
+          c.g = static_cast<unsigned char>(c.g * dim);
+          c.b = static_cast<unsigned char>(c.b * dim);
           packed = (static_cast<int32_t>(c.r) << 16)
                  | (static_cast<int32_t>(c.g) << 8)
                  |  static_cast<int32_t>(c.b);
@@ -435,6 +451,29 @@ void OscController::sendGridState() {
     for (int i = 0; i < kGridCellCount; ++i) cells.addInt32Arg(0);
     sender.sendMessage(cells, false);
   }
+}
+
+void OscController::maybeActiveCellResync() {
+  if (!synthPtr || !senderReady) return;
+  // Compare the tracked {page,x,y,intact} tuple instead of repacking 64
+  // colours per frame; on a change, re-push the grid the same way the
+  // pageChanged listener does. A /grid/press from the surface itself lands
+  // here too — the prompt brightening IS the press confirmation. No idle
+  // guard: grid colours never fight a fader drag.
+  const auto& active = synthPtr->getActiveSetCell();
+  const int page = active ? active->page : -1;
+  const int x = active ? active->x : -1;
+  const int y = active ? active->y : -1;
+  const bool intact = synthPtr->isActiveSetCellPoseIntact();
+  if (page == lastActiveCellPage_ && x == lastActiveCellX_ &&
+      y == lastActiveCellY_ && intact == lastActiveCellIntact_) {
+    return;
+  }
+  lastActiveCellPage_ = page;
+  lastActiveCellX_ = x;
+  lastActiveCellY_ = y;
+  lastActiveCellIntact_ = intact;
+  sendGridState();
 }
 
 void OscController::cacheAgencyMods() {
