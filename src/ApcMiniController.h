@@ -137,6 +137,16 @@ public:
   // keeps full semantic colours for the GUI. The active cell stays full white;
   // memory-waiting cells (0.25) remain the dimmest tier.
   static constexpr float kSetCellRestDimFactor = 0.55f;
+  // FOREIGN tier (2026-08-30): a snapshot/scene cell whose carried family stem
+  // (Cell::config) is not the loaded config is refused by the engine at press
+  // time — this factor makes the refusal predictable from the LED. 0.30 sits
+  // just above memory-dim (0.25) and well under rest (0.55): the ~1.8x gap to
+  // rest is what reads on the hardware ("the half you're in glows, the other
+  // half waits"), while the near-coincidence with memory-dim is deliberate and
+  // harmless — both tiers mean "pressing this does nothing right now", and
+  // they can never meet on one pad (memory-dim is config-cell-only, foreign is
+  // snapshot/scene-only).
+  static constexpr float kForeignDimFactor = 0.30f;
   // Set pager (2026-07-31, owner: "the pager should use the AKAI left and right
   // buttons to page forward and back. use the up button to go back to the first
   // page. that releases the bottom row of the grid so we can just fill it with

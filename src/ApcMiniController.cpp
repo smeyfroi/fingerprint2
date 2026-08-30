@@ -226,15 +226,16 @@ void ApcMiniController::update() {
       }
     }
 
-    // Active-cell highlight: repaint the old and new active pads when the
-    // loaded config changes (however it was switched — pad, GUI, keyboard).
-    // Config cells only: a snapshot or scene cell never wears the active white
-    // (a snapshot cell's config stem, if any, is forward state, not a load
-    // target, and a scene cell has no load target at all).
+    // Stem crossing: repaint the pads whose colour depends on the loaded stem
+    // when it changes (however it was switched — pad, GUI, keyboard). That is
+    // every cell carrying the old or new stem, ALL kinds: config cells flip
+    // the loaded-white highlight, snapshot/scene cells flip the foreign tier
+    // (own <-> foreign; cells scoped to a third family or unscoped don't
+    // change). Backstop only — a config load also lands as a full-grid
+    // repaint via onSynthDidLoad -> updateAllPadLeds().
     const std::string stem = currentConfigStem();
     if (stem != lastKnownSetConfigStem) {
       for (const auto& cell : set.cellsForCurrentPage()) {
-        if (cell.kind != ofxMarkSynth::SetController::CellKind::Config) continue;
         if (cell.config == stem || cell.config == lastKnownSetConfigStem) {
           updatePadLed(xyToPadNote(cell.x, cell.y));
         }
@@ -810,10 +811,11 @@ ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote
   if (cell == nullptr) return kColorOff;
 
   // Active-white and memory-dim are CONFIG-cell states. A snapshot or scene
-  // cell is never "loaded" (a snapshot cell's `config`, if any, is forward
-  // state, not a load target; a scene cell has none) and never waits on the
-  // MemoryBank — both rest at the standard authored-colour × rest-dim tier
-  // like any other assigned cell.
+  // cell is never "loaded" (its `config`, if any, is the FAMILY SCOPE the
+  // engine refuses foreign presses against, not a load target) and never waits
+  // on the MemoryBank — own-family and unscoped cells rest at the standard
+  // authored-colour × rest-dim tier; foreign-family cells drop to the foreign
+  // tier below.
   const bool isConfigCell = (cell->kind == ofxMarkSynth::SetController::CellKind::Config);
 
   // The ACTIVE cell — the currently-loaded config — renders bright white, a
@@ -832,14 +834,28 @@ ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote
   // back to the rest tier once a scene chain-pause has been hand-flipped.
   // Binary lit<->rest — no blink, per this surface's no-animation policy.
   // Precedence: held-amber (getPadDisplayColor) > loaded-config-white >
-  // active-pad-full > memory-dim > rest. The loaded config cell and the
-  // active pad are often the SAME pad after a home press — white wins, and
-  // correctly so: white already means "this world is loaded".
+  // active-pad-full > foreign-dim > memory-dim > rest. The loaded config cell
+  // and the active pad are often the SAME pad after a home press — white wins,
+  // and correctly so: white already means "this world is loaded". CONFIG cells
+  // are exempt from the foreign tier: the ENTER corners are the doors between
+  // families, so they stay at rest brightness from either side.
   const auto& active = synthPtr->getActiveSetCell();
   if (active && active->page == set.currentPage() &&
       active->x == x && active->y == y &&
       synthPtr->isActiveSetCellPoseIntact()) {
     return base;
+  }
+
+  // FOREIGN tier (2026-08-30, compass page: both families sit side by side, so
+  // half the snapshot/scene pads always belong to the not-loaded family): a
+  // cell whose carried stem differs from the loaded config's would be REFUSED
+  // by the engine (Synth::applySetCellAction — slot numbers and chain names
+  // resolve against the loaded family), so its LED says so in advance. An
+  // empty carried stem means unscoped — applies anywhere, rests normally.
+  // With no config loaded at all (empty `stem`) every scoped cell is foreign,
+  // which matches the engine's refusal exactly.
+  if (!isConfigCell && !cell->config.empty() && cell->config != stem) {
+    return scaleRgb(base, kForeignDimFactor);
   }
 
   // memoryDependent cells render dimmed until the MemoryBank has collected
