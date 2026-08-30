@@ -87,6 +87,12 @@ public:
   // surface receives colour only (no border/white layer; it never had a
   // loaded-config indicator), so full-vs-dim IS the whole played-pad affordance.
   static constexpr float kSetCellRestDimFactor = 0.55f;
+  // Snapshot/scene cells scoped to a NOT-loaded family (Cell::config carries
+  // the stem; the engine refuses the press) dim to the same foreign tier as
+  // the APC pads (mirrors ApcMiniController::kForeignDimFactor, 2026-08-30) —
+  // colour is this surface's only channel, so the dim IS the "enter that
+  // family first" affordance. Config cells are exempt: they are the doors.
+  static constexpr float kForeignDimFactor = 0.30f;
 
   OscController();
   ~OscController();

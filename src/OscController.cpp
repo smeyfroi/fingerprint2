@@ -411,10 +411,18 @@ void OscController::sendGridState() {
     // current page — carries its authored colour at FULL brightness while the
     // pose it set is intact, dropping to the rest tier once a scene
     // chain-pause is hand-flipped; every other assigned cell rests at
-    // kSetCellRestDimFactor; memoryDependent CONFIG cells sit at
-    // kMemoryDimFactor until the bank fills (snapshot and scene cells never
-    // memory-dim). The surface receives colour only, so full-vs-dim is the
-    // whole played-pad affordance there.
+    // kSetCellRestDimFactor; snapshot/scene cells scoped to a NOT-loaded
+    // family (carried stem != loaded stem; the engine refuses the press) sit
+    // at kForeignDimFactor — config cells are exempt, they are the doors
+    // between families; memoryDependent CONFIG cells sit at kMemoryDimFactor
+    // until the bank fills (snapshot and scene cells never memory-dim). The
+    // surface receives colour only, so these tiers ARE the whole affordance
+    // there — played-pad and foreign-half alike. The foreign/own flip on a
+    // family switch needs no plumbing here: a config load re-runs this via
+    // onSynthDidLoad -> sendCurrentState with the new stem.
+    const auto& cfgPath = synthPtr->getConfigSubsystem().getCurrentConfigPath();
+    const std::string stem = cfgPath.empty() ? std::string{}
+                                             : ofFilePath::getBaseName(cfgPath);
     for (int y = 0; y < kGridRows; ++y) {
       for (int x = 0; x < kGridCols; ++x) {
         int32_t packed = 0;
@@ -422,11 +430,14 @@ void OscController::sendGridState() {
           ofColor c = cell->color;
           const bool isActivePad = active && active->page == curPage &&
                                    active->x == x && active->y == y;
+          const bool isConfigCell =
+              (cell->kind == ofxMarkSynth::SetController::CellKind::Config);
           float dim = kSetCellRestDimFactor;
           if (isActivePad && activeIntact) {
             dim = 1.0f;
-          } else if (cell->kind == ofxMarkSynth::SetController::CellKind::Config &&
-                     cell->memoryDependent && !memReady) {
+          } else if (!isConfigCell && !cell->config.empty() && cell->config != stem) {
+            dim = kForeignDimFactor;
+          } else if (isConfigCell && cell->memoryDependent && !memReady) {
             dim = kMemoryDimFactor;
           }
           c.r = static_cast<unsigned char>(c.r * dim);
