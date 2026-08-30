@@ -216,6 +216,15 @@ private:
   ofEventListener pageChangedListener;  // RAII subscription to SetController::pageChanged
   int lastKnownSetPage = -1;         // Polled fallback if the callback slot is taken
   bool lastKnownMemoryReady = false; // Transition-gates the memory-dim repaint
+  // Active-pad tracker (2026-08-30 audition feedback: "how do i know which pad
+  // i am playing?"). Sibling of the active-config stem tracker: polls
+  // Synth::getActiveSetCell() + isActiveSetCellPoseIntact() and repaints only
+  // the old and new pads when the last-landed cell moves or its scene pose
+  // breaks. page = -1 means nothing was active.
+  int lastKnownActiveCellPage = -1;
+  int lastKnownActiveCellX = -1;
+  int lastKnownActiveCellY = -1;
+  bool lastKnownActiveCellIntact = true;
 
   // === Hold State ===
   struct HoldState {

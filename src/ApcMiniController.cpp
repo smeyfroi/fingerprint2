@@ -241,6 +241,32 @@ void ApcMiniController::update() {
       }
       lastKnownSetConfigStem = stem;
     }
+
+    // Active-pad crossing (2026-08-30 audition feedback): repaint the old and
+    // new pads when the engine's last-landed cell moves, or when its scene
+    // pose breaks/heals (both are colour changes — full authored colour while
+    // intact, rest tier otherwise; see getSetPadDisplayColor). Delta writes
+    // only, like the stem tracker above: an off-page coordinate simply fails
+    // the page test here, and cross-page moves are covered by the page-change
+    // full repaint anyway.
+    const auto& active = synthPtr->getActiveSetCell();
+    const int activePage = active ? active->page : -1;
+    const int activeX = active ? active->x : -1;
+    const int activeY = active ? active->y : -1;
+    const bool activeIntact = synthPtr->isActiveSetCellPoseIntact();
+    if (activePage != lastKnownActiveCellPage || activeX != lastKnownActiveCellX ||
+        activeY != lastKnownActiveCellY || activeIntact != lastKnownActiveCellIntact) {
+      if (lastKnownActiveCellPage == page) {
+        updatePadLed(xyToPadNote(lastKnownActiveCellX, lastKnownActiveCellY));
+      }
+      if (activePage == page) {
+        updatePadLed(xyToPadNote(activeX, activeY));
+      }
+      lastKnownActiveCellPage = activePage;
+      lastKnownActiveCellX = activeX;
+      lastKnownActiveCellY = activeY;
+      lastKnownActiveCellIntact = activeIntact;
+    }
   }
 
   // Track external config changes (e.g. keyboard / other controller)
@@ -442,6 +468,14 @@ void ApcMiniController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth
     pendingSetFullRepaint = false;
     lastKnownSetPage = set.hasSet() ? set.currentPage() : -1;
     lastKnownMemoryReady = set.hasSet() ? isMemoryReady() : false;
+    // Baseline the active-pad tracker against the engine (a pad-press config
+    // load lands here with its cell already registered); the full repaint
+    // below paints it, so the update() delta block starts as a no-op.
+    const auto& active = synthPtr->getActiveSetCell();
+    lastKnownActiveCellPage = active ? active->page : -1;
+    lastKnownActiveCellX = active ? active->x : -1;
+    lastKnownActiveCellY = active ? active->y : -1;
+    lastKnownActiveCellIntact = synthPtr->isActiveSetCellPoseIntact();
   }
 
   // Update all LEDs
@@ -472,6 +506,10 @@ void ApcMiniController::onSynthWillUnload() {
   pendingSetFullRepaint = false;
   lastKnownSetPage = -1;
   lastKnownMemoryReady = false;
+  lastKnownActiveCellPage = -1;
+  lastKnownActiveCellX = -1;
+  lastKnownActiveCellY = -1;
+  lastKnownActiveCellIntact = true;
 
   synthPtr.reset();
   currentConfigPadNote = -1;
@@ -787,6 +825,22 @@ ApcMiniController::RgbColor ApcMiniController::getSetPadDisplayColor(int padNote
   }
 
   const RgbColor base { cell->color.r, cell->color.g, cell->color.b };
+
+  // The ACTIVE PAD — the last pad whose press LANDED, any kind (config,
+  // snapshot, scene; Synth::getActiveSetCell) — wears its authored colour at
+  // FULL brightness while the pose that press set is still intact, and drops
+  // back to the rest tier once a scene chain-pause has been hand-flipped.
+  // Binary lit<->rest — no blink, per this surface's no-animation policy.
+  // Precedence: held-amber (getPadDisplayColor) > loaded-config-white >
+  // active-pad-full > memory-dim > rest. The loaded config cell and the
+  // active pad are often the SAME pad after a home press — white wins, and
+  // correctly so: white already means "this world is loaded".
+  const auto& active = synthPtr->getActiveSetCell();
+  if (active && active->page == set.currentPage() &&
+      active->x == x && active->y == y &&
+      synthPtr->isActiveSetCellPoseIntact()) {
+    return base;
+  }
 
   // memoryDependent cells render dimmed until the MemoryBank has collected
   // enough textures. Home cells are already the brightest of their world (the
