@@ -383,7 +383,8 @@ const uint32_t kApcColorPalette[128] = {
 |---------|-----------------------|-----|
 | Off / unassigned pad | `kColorOff` | (0, 0, 0) |
 | Hold-to-confirm in progress (both modes) | `kColorAmber` | (255, 140, 0) |
-| Set mode: active cell | `kColorBrightWhite` | (255, 255, 255) |
+| Set mode: loaded config cell | `kColorBrightWhite` | (255, 255, 255) |
+| Set mode: active pad (last-landed press, pose intact) | full authored colour | — |
 | Set mode: at-rest assigned cell | authored colour × `kSetCellRestDimFactor` | × 0.55 |
 | Set mode: memory-waiting cell | authored colour × `kMemoryDimFactor` | × 0.25 |
 | buttonGrid: current config | full config colour | — |
@@ -418,14 +419,16 @@ Active while `SetController::hasSet()`. A set is a per-gig collection of pad **p
 | State | Colour |
 |-------|--------|
 | Held (hold-to-confirm in progress) | Amber — overrides everything |
-| Active cell (its config is the currently loaded one) | Bright white (255, 255, 255) — a colour no at-rest pad wears |
+| Loaded config cell (its config is the currently loaded one) | Bright white (255, 255, 255) — a colour no at-rest pad wears |
+| Active pad (the last pad whose press landed — any kind — on its page) | Authored colour at **full** brightness — the pose you are playing |
+| Active pad, pose modified (a scene chain-pause hand-flipped since the press) | Back to authored colour × 0.55 — you've left the pose |
 | Assigned cell at rest | Authored colour × 0.55 (`kSetCellRestDimFactor`) |
 | `memoryDependent` cell while the memory bank holds < 3 textures | Authored colour × 0.25 (`kMemoryDimFactor`) |
 | Unassigned pad | Off |
 
-No blink/pulse, by policy — AKAI LED timing is fragile, so the dim hue *is* the "not ready" cue. Memory readiness is `MemoryReadyPolicy::isReady` (`src/MemoryReadyPolicy.h`): the MemoryBank has collected at least 3 textures (`kReadyThreshold`), a threshold shared with the iPad/OSC surface. The readiness transition repaints only the `memoryDependent` cells (delta writes, never per-frame), and the active-cell highlight repaints the old + new active pads whenever the loaded config changes — however it was switched (pad, GUI, keyboard).
+Precedence: held amber > loaded-config white > active-pad full colour > memory dim > rest. After a home press the loaded config cell and the active pad are usually the *same* pad — white wins, correctly: white already means "this world is loaded". Active state and pose intactness come from `Synth::getActiveSetCell()` / `isActiveSetCellPoseIntact()` (scene chain-pauses only — riding faders is the performance and never un-lights the pad), polled per frame; binary lit ↔ rest, no blink/pulse, by policy — AKAI LED timing is fragile, so the dim hue *is* the cue (same for "not ready"). Memory readiness is `MemoryReadyPolicy::isReady` (`src/MemoryReadyPolicy.h`): the MemoryBank has collected at least 3 textures (`kReadyThreshold`), a threshold shared with the iPad/OSC surface. All three highlights are delta-tracked, never per-frame writes: the readiness transition repaints only the `memoryDependent` cells, the loaded-config highlight repaints the old + new config pads whenever the loaded config changes — however it was switched (pad, GUI, keyboard) — and the active-pad highlight repaints the old + new pads when the last-landed cell moves or its pose breaks.
 
-**Snapshot and scene cells:** a set cell may carry `SetController::CellKind::Snapshot` or `::Scene` instead of the default `Config`. A snapshot cell applies mod-snapshot slot N (`cell->snapshotSlot`, 0-7) of the **current** config over the running graph; a scene cell is the batch form — every listed snapshot slot plus each named chain's paused/alpha state, landed in one press. Both are param-only: no config switch, no pager/cursor movement (dispatched via `Synth::applySetCellAction`). The press commits **instantly**: no 400 ms hold, no GUI preview. The pad shows amber while pressed and restores its rest colour on release. Both kinds rest at the same authored colour × 0.55 tier as config cells, never memory-dim, and never wear the active white — that colour means "this config is loaded", which these cells never are. Both are deliberately unguarded by hibernation, so these pads work while the synth is hibernated.
+**Snapshot and scene cells:** a set cell may carry `SetController::CellKind::Snapshot` or `::Scene` instead of the default `Config`. A snapshot cell applies mod-snapshot slot N (`cell->snapshotSlot`, 0-7) of the **current** config over the running graph; a scene cell is the batch form — every listed snapshot slot plus each named chain's paused/alpha state, landed in one press. Both are param-only: no config switch, no pager/cursor movement (dispatched via `Synth::applySetCellAction`). The press commits **instantly**: no 400 ms hold, no GUI preview. The pad shows amber while pressed and restores its rest colour on release. Both kinds rest at the same authored colour × 0.55 tier as config cells, never memory-dim, and never wear the loaded-config white — that colour means "this config is loaded", which these cells never are. A landed press does light them as the **active pad** (full authored colour) until another press replaces it — or, for a scene cell, until its pause pose is hand-modified. Both are deliberately unguarded by hibernation, so these pads work while the synth is hibernated.
 
 **Pager (track buttons, set mode only):**
 
