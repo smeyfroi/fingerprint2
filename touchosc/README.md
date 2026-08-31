@@ -21,6 +21,7 @@ so the next pass does not start from scratch.
 ./build_layout.py apply         # apply every mutation (idempotent)
 ./build_layout.py apply --dry-run   # ...and show the diff without writing
 ./build_layout.py inventory     # every widget: type / path / frame / OSC binding
+./build_layout.py test          # run the layout's own Lua against a stub TouchOSC
 ```
 
 Then re-send the layout to the iPad from the TouchOSC editor (see **Picking up a
@@ -85,6 +86,10 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 > buttons, so the page row, its labels and `HOME` moved down one row pitch (56 px)
 > and the canvas grew 1370 → 1426; no existing cell moved. See
 > [`SCHEMA.md`](SCHEMA.md) § "Grid geometry, and why the canvas grew".
+>
+> That last 4 % is what prompted the page split (see **Layout** below), which
+> took the canvas back down to 924. The row and the reflow are unchanged; only
+> `gridTab`'s position in the document moved.
 
 The `/grid/*` addresses drive the **SET** band (see Layout). They are live only
 while the Synth has a set loaded (`session-config.json` `setName`); with no set
@@ -218,19 +223,63 @@ touchosc/sharksynth.tosc`), so no backup copies are kept alongside it.
   crosses the audibility threshold, however that change was made (iPad, GUI,
   nanoKONTROL2, a scene press). See **Strip state** above.
 
-## Layout
+## Layout — two pages
 
-Portrait canvas (640 × 1426), four bands top-to-bottom: **LAYERS** (7 alpha
-faders + pause toggles + name labels, master-α at right) · **INTENT** (7
-activation faders + strength) · **SYNTH** (agency / audio gain / motion gain) ·
-**SET** (8×8 grid of `cell_<x>_<y>` buttons + a page row `page_1..4` + `HOME`).
+Portrait canvas (640 × 924), **two pages** sharing the rect at the top and a tab
+row underneath:
+
+| Tab | Holds |
+|---|---|
+| **CONTROL** (`ctlTab`) | **LAYERS** — 7 alpha faders + pause toggles + name labels, master-α at right · **INTENT** — 7 activation faders + strength · **SYNTH** — agency / audio gain / motion gain, and the four agency slots |
+| **SET** (`gridTab`) | the 8×8 grid of `cell_<x>_<y>` buttons, the set-page row `page_1..4`, and `HOME` |
 
 The `pause` button and `name` label in each LAYERS strip double as that strip's
 R/M/S lamp — see **Strip state** above.
 
-The SET band sits **below** the control bands on one enlarged canvas (the
-documented fallback for the set-pages tab): the existing surface is untouched, so
-its proven layer/agency hide-show and intent-impact colouring keep working. The
-`gridTab` group is a self-contained unit — a ready-made pager page — so it can be
-promoted to a native TouchOSC **Pager** tab in the editor later (a pager's pages
-are just groups) without touching the OSC wiring.
+**Why pages.** Everything used to be one 640 × 1426 column — three control bands
+with the SET band bolted underneath, growing 4 % taller again when the eighth row
+of pads landed. The iPad scales the whole canvas to fit, so the taller it got the
+smaller everything drew. Splitting it puts the two halves in the same rect
+instead of end to end: **1426 → 924**, and every widget renders about **1.54×
+larger**. Nothing moved within a page — all 82 re-parented nodes kept their exact
+frames, so the surface reads the same, just bigger.
+
+924 is nearly all of the available gain. A 640-wide canvas stops being
+height-limited at around 853 on a 4:3 iPad, so a third page — LAYERS on its own,
+the "maybe the group faders" half of the idea — would buy roughly 8 % more and
+cost you seeing the layer faders and the intent poles at the same time. Say if
+you want it anyway; it is another mutation, not a redesign.
+
+**How the switch works.** There is no native `PAGER` control here. The format has
+one, but this document contains no example of it to clone from, and an invented
+one could only be tested on the iPad — so the pages are two ordinary groups with
+exactly one `visible`, switched by the root script, which is the same mechanism
+`/layer/<i>/active` has used all along. `tab_1` / `tab_2` are clones of the
+set-page buttons with their OSC message disabled; the root script polls them in
+`update()`, because a child button cannot call back into the root's Lua.
+[`SCHEMA.md` § Pages](SCHEMA.md) has the format evidence and the geometry.
+
+### What to check on the iPad after sending this
+
+Nothing here could be tested on the Mac — there is no editor or device in the
+loop — so look at these first, in this order:
+
+1. **The tab row works.** `CONTROL` and `SET` at the bottom; the lit one is pale
+   grey, the other near-black. It should switch on a single tap.
+2. **The page underneath is deaf.** On `SET`, press where a layer fader or the
+   `INTENT` band would be. Nothing should move and nothing should be sent. This
+   is the one assumption the whole design rests on — Hexler documents that a
+   control needs `visible` *and* `interactive` true to take a pointer, but that
+   it holds for a hidden group's *children* is inferred, not proven.
+3. **Strip lamps and hide/show still work.** Load a config with fewer than seven
+   layers: the unused strips should disappear, and the used ones should colour
+   amber / green / dim as before. Those two lookups were rebased through the new
+   page group and are the only script paths the split touched.
+4. **The set grid is unchanged** — colours arrive, pads press the right cells,
+   the page row highlights. It moved as one group, so if anything is off there it
+   will be off by exactly 860 px.
+5. **Everything fits.** The canvas is shorter than the screen now; nothing should
+   be clipped at the bottom.
+
+If (2) fails, the fix is in `build_layout.py` — the page put away would also need
+its `interactive` cleared — not in the editor.
