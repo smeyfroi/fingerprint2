@@ -6,8 +6,25 @@ alongside the MIDI controllers and the GUI. It pairs with
 [`.cpp`](../src/OscController.cpp).
 
 Open it in **TouchOSC** (Hexler, the modern `.tosc` app) on the iPad. The file is
-a single zlib-compressed XML document — to edit it, open it in the TouchOSC
-editor, change it there, and re-export over the top.
+a single zlib-compressed XML document.
+
+**To change it, run the generator — do not hand-edit.**
+[`build_layout.py`](build_layout.py) decompresses the layout, edits the XML in
+place and re-emits a valid `.tosc`, so every hand-tuned position, colour and hue
+survives byte-for-byte. [`SCHEMA.md`](SCHEMA.md) documents the format it works
+on. The editor is still the right place for genuinely visual work, but anything
+mechanical — a new row of pads, a script branch — belongs in the tool, committed,
+so the next pass does not start from scratch.
+
+```sh
+./build_layout.py roundtrip     # prove decompress -> recompress is byte-identical
+./build_layout.py apply         # apply every mutation (idempotent)
+./build_layout.py apply --dry-run   # ...and show the diff without writing
+./build_layout.py inventory     # every widget: type / path / frame / OSC binding
+```
+
+Then re-send the layout to the iPad from the TouchOSC editor (see **Picking up a
+new build** below).
 
 ## Connection (set in TouchOSC → Connections → OSC, slot 1)
 
@@ -59,12 +76,15 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/grid/cells` | ← | ONE msg, 64 `0xRRGGBB` int32 (row-major `y`=0..7, `x`=0..7); 0 = dark |
 | `/sync` | → | heartbeat / discovery (see below) |
 
-> **Known layout gap:** the host sends all **64** grid cells (`y`=0..7 — the meta
-> row was retired and row 7 became a cell row), but `sharksynth.tosc` still only
-> has 56 `cell_<x>_<y>` buttons (`y`=0..6) and its root script clamps to 56. The
-> **eighth row of set cells is neither shown nor pressable on the iPad.** Adding
-> row 7 in the TouchOSC editor (eight more `cell_<x>_7` buttons, cloned from row
-> 6) and raising the clamp to 64 closes it. Nothing host-side needs changing.
+> **Eighth row — fixed.** The host has always sent all **64** grid cells (`y`=0..7,
+> since the meta row was retired and row 7 became a cell row), but the layout
+> carried only 56 `cell_<x>_<y>` buttons (`y`=0..6) and clamped its script to 56,
+> so the bottom row of set pads was neither shown nor pressable. `build_layout.py`
+> now adds `cell_0_7..cell_7_7` — cloned from row 6, so identical in size, colour
+> and styling — and lifts the clamp to 64. Row 7 did not fit under the page
+> buttons, so the page row, its labels and `HOME` moved down one row pitch (56 px)
+> and the canvas grew 1370 → 1426; no existing cell moved. See
+> [`SCHEMA.md`](SCHEMA.md) § "Grid geometry, and why the canvas grew".
 
 The `/grid/*` addresses drive the **SET** band (see Layout). They are live only
 while the Synth has a set loaded (`session-config.json` `setName`); with no set
@@ -109,23 +129,16 @@ binds it: it can never fight a finger on a fader. It uses the Korg's own
 audibility threshold (`NanoKontrol2Controller::kAudibleAlphaEpsilon`), so the
 iPad and the hardware cannot disagree about where audible begins.
 
-### What the layout does with it — one editor change, no new widgets
+### What the layout does with it — shipped
 
-The host side ships today; **the surface does not render it yet.** No new widget
-is needed: `sharksynth.tosc` already carries a `pause` button and a `name` label
-inside every `layer<i>` group, and its root script already proves that Lua can
-set `.color` on a button and `.textColor` on a label. Only the root script needs
-the branch.
-
-In the TouchOSC editor, open the **root `group`**'s script and paste this into
-`onReceiveOSC`, anywhere before the final `return false`:
+**This is live in `sharksynth.tosc`; there is nothing to paste.** No new widget
+was needed: every `layer<i>` group already carries a `pause` button and a `name`
+label, and the root script already proved Lua can set `.color` on a button and
+`.textColor` on a label. `build_layout.py`'s `state-lamps` mutation splices this
+branch into the root group's `onReceiveOSC`, immediately after the existing
+`/agency/<n>/active` branch:
 
 ```lua
-  -- /layer/<n>/state: the strip's R/M/S lamps packed into one int, exactly as
-  -- the nanoKONTROL2 lights them -- 1 = exists (R), 2 = parked (M), 4 = audible
-  -- (S). Colour the pause button and the name label so the strip says the same
-  -- thing as the Korg and the desktop GUI's pips. Bits are pulled arithmetically,
-  -- matching the /grid/cells unpacking above.
   local s = path:match('^/layer/(%d+)/state$')
   if s then
     local args = message[2]
@@ -149,25 +162,37 @@ In the TouchOSC editor, open the **root `group`**'s script and paste this into
 
 `return true` is correct here — nothing else receives this address, so consuming
 it cannot starve a widget. (The `/layer/<i>/alpha` and `/layer/<i>/pause`
-branches would need `return false`; this one has no widget behind it.)
+messages have no script branch at all; they reach their fader and button through
+the script's final `return false`, which is why that must stay last.)
 
-Two things to keep in mind when editing:
+Two things to keep in mind if you ever touch it:
 
 - **Reach the widgets through the strip group, never `findByName`.** `fader`,
   `pause` and `name` each occur seven times (and `name` again in the four
   `agency<i>` groups), so `self:findByName('pause', true)` is ambiguous.
-  `self.children['layer'..s].children.pause` is not.
+  `self.children['layer'..s].children.pause` is not. `build_layout.py check`
+  fails on any *new* duplicate name for this reason.
 - The `layer<i>` **group itself is not usable as a lamp**: it is authored with
   `background = 0` and `color.a = 0`, so setting its `.color` paints nothing.
   Strip existence stays where it already is — `/layer/<i>/active` drives the
   group's `.visible`.
 
-If you would rather keep the `pause` button its neutral grey, the alternative is
-one small non-interactive **BUTTON** per strip, added inside each `layer<i>`
-group (name it `state`, `interactive = 0`, `background = 1`; there is free space
-at roughly `y = 284..288`, below the pause button). Attach **no OSC message** to
-it — Lua drives it — and change the two assignment lines above to
-`strip.children.state.color = c`.
+State `0` (no strip here) deliberately leaves the colours alone: the same config
+load that reports `0` also sends `/layer/<i>/active 0`, which hides the strip
+outright.
+
+## Picking up a new build
+
+`build_layout.py` writes the `.tosc` in this repo; it cannot reach the iPad. To
+pick up a change:
+
+1. Open `touchosc/sharksynth.tosc` in the **TouchOSC editor** on the Mac.
+2. **Send** it to the iPad over the network (or AirDrop / re-import the file).
+3. On the iPad, leave edit mode and reconnect — the surface pings `/sync` on
+   load, so the Mac pushes full state within a second or two.
+
+The previous file is always recoverable from git (`git checkout
+touchosc/sharksynth.tosc`), so no backup copies are kept alongside it.
 
 ## Sync behaviour (surface Lua + `OscController`)
 
@@ -195,10 +220,13 @@ it — Lua drives it — and change the two assignment lines above to
 
 ## Layout
 
-Portrait canvas, four bands top-to-bottom: **LAYERS** (7 alpha faders + pause
-toggles + name labels, master-α at right) · **INTENT** (7 activation faders +
-strength) · **SYNTH** (agency / audio gain / motion gain) · **SET** (8×7 grid of
-`cell_<x>_<y>` buttons + a page row `page_1..4` + `HOME`).
+Portrait canvas (640 × 1426), four bands top-to-bottom: **LAYERS** (7 alpha
+faders + pause toggles + name labels, master-α at right) · **INTENT** (7
+activation faders + strength) · **SYNTH** (agency / audio gain / motion gain) ·
+**SET** (8×8 grid of `cell_<x>_<y>` buttons + a page row `page_1..4` + `HOME`).
+
+The `pause` button and `name` label in each LAYERS strip double as that strip's
+R/M/S lamp — see **Strip state** above.
 
 The SET band sits **below** the control bands on one enlarged canvas (the
 documented fallback for the set-pages tab): the existing surface is untouched, so
