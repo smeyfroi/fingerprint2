@@ -19,10 +19,6 @@ class MidiController : public ofxMidiListener {
   using LedColor = ofxLaunchControlXL3Leds::Color;
 
   // === LED Color Constants ===
-  // Snapshot slot resting colour — bottom row buttons (9-16) light this when
-  // their snapshot slot is occupied, off when empty.
-  static constexpr LedColor kSnapshotPresentColor = {32, 32, 32}; // Dim white
-
   // Feedback and utility colors
   static constexpr LedColor kButtonPressedColor = {127, 127, 127}; // White (momentary press)
   static constexpr LedColor kOffColor = {0, 0, 0};
@@ -55,9 +51,10 @@ class MidiController : public ofxMidiListener {
   static constexpr int kFunctionButtonCCFirst = 37;
   static constexpr int kFunctionButtonCCLast = 44;
 
-  // Bottom row buttons (CC 45-52 on channel 1) - Mod Snapshot buttons 1-8
-  static constexpr int kBottomRowButtonCCFirst = 45;
-  static constexpr int kBottomRowButtonCCLast = 52;
+  // ⛑ CC 45-52 (bottom row, buttons 9-16) WAS Mod Snapshot recall 1-8, retired 2026-09-03.
+  // It was the only surface that addressed a snapshot slot by its position, and the engine's
+  // 8-slot cap existed to match it. Snapshots are driven from the performance grid now.
+  // The CCs are unassigned and free for a future job.
 
   // Transport/Shift buttons intentionally NOT handled by the Novation any more.
   // Play/Pause, Hibernate, Save Image and Prev/Next config all live on the
@@ -101,7 +98,6 @@ class MidiController : public ofxMidiListener {
   void applyFaderBank();
   void setupInitialLeds();
   void updateIntentIndicatorLeds();
-  void updateSnapshotSlotLeds();
   void handleButtonCC(int channel, int cc, int value);
 
   void setButtonLedByCC(int cc, const LedColor& color);
@@ -122,15 +118,6 @@ class MidiController : public ofxMidiListener {
   std::array<LedColor, 8> lastIntentIndicatorColors {
     kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor
   };
-
-  // Bottom row (buttons 9-16 / snapshot slots 0-7) LED state cache + held
-  // flags. Slots are lit only when their snapshot exists; while a button is
-  // physically held we suppress the per-frame existence refresh so the white
-  // press-feedback persists until release.
-  std::array<LedColor, 8> lastSnapshotSlotColors {
-    kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor, kOffColor
-  };
-  std::array<bool, 8> snapshotSlotHeld { false, false, false, false, false, false, false, false };
 
   enum class EncoderClutchMode {
     Active,

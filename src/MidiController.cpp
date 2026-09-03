@@ -49,7 +49,6 @@ void MidiController::update() {
   }
 
   updateIntentIndicatorLeds();
-  updateSnapshotSlotLeds();
 }
 
 void MidiController::newMidiMessage(ofxMidiMessage& message) {
@@ -99,33 +98,11 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
     return;
   }
 
-  // === Bottom row buttons (CC 45-52) — Mod Snapshot load 1-8 ===
-  // While held: white press-feedback (the per-frame existence refresh is
-  // suppressed for held slots). On release: revert to the slot's existence
-  // colour (lit if occupied, off if empty).
-  if (cc >= kBottomRowButtonCCFirst && cc <= kBottomRowButtonCCLast) {
-    int index = cc - kBottomRowButtonCCFirst;  // slot 0-7
-    if (pressed) {
-      snapshotSlotHeld[static_cast<size_t>(index)] = true;
-      setButtonLedByCC(cc, kButtonPressedColor);
-      if (synthPtr) {
-        // Gate the OLED on the actual load: an empty slot used to flash
-        // "Snapshot N" while applying nothing, which read as a dead surface.
-        if (synthPtr->loadModSnapshotSlot(index)) {
-          showTempDisplay("Snapshot", std::to_string(index + 1));
-        } else {
-          showTempDisplay("Snapshot", std::to_string(index + 1) + " empty");
-        }
-      }
-    } else {
-      snapshotSlotHeld[static_cast<size_t>(index)] = false;
-      const bool occupied = synthPtr && synthPtr->isModSnapshotSlotOccupied(index);
-      const LedColor rest = occupied ? kSnapshotPresentColor : kOffColor;
-      setButtonLedByCC(cc, rest);
-      lastSnapshotSlotColors[static_cast<size_t>(index)] = rest;
-    }
-    return;
-  }
+  // ⛑ THE BOTTOM ROW (CC 45-52) IS RETIRED, 2026-09-03. It recalled mod-snapshot slots 0-7
+  // by position, and it was the ONLY surface that ever addressed a slot by its number — which
+  // is why ModSnapshotManager carried an 8-slot cap that had nothing to do with snapshots.
+  // Snapshots are driven from the performance grid now, as groups, so these CCs fall through
+  // to the unhandled tail below and light nothing.
 
   // === Fader movement (CC 5-12) ===
   // Faders are bound via the addon (pickup/soft-takeover); we only drive OLED
@@ -306,8 +283,8 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
 
   // Transport buttons (Play/Pause, Hibernate, Save Image, Prev/Next config)
   // are intentionally NOT handled here — they live on the KORG NanoKontrol2.
-  // The Novation is faders→Intent, encoders→audio nudge, top-row intent LEDs,
-  // bottom-row snapshot recall.
+  // The Novation is faders→Intent, encoders→audio nudge, and top-row intent LEDs;
+  // the bottom row is retired (see above).
 
   // Unhandled CCs ignored.
 }
@@ -316,40 +293,15 @@ void MidiController::setButtonLedByCC(int cc, const LedColor& color) {
   auto* leds = lc ? lc->getLeds() : nullptr;
   if (!leds) return;
 
-  // Convert CC to button number (1-16)
-  // Top row: CC 37-44 → buttons 1-8
-  // Bottom row: CC 45-52 → buttons 9-16
+  // Convert CC to button number. Only the top row is driven now — the bottom row
+  // (CC 45-52 → buttons 9-16) was snapshot recall and is retired.
   int buttonNum = 0;
   if (cc >= kFunctionButtonCCFirst && cc <= kFunctionButtonCCLast) {
     buttonNum = cc - kFunctionButtonCCFirst + 1;  // 1-8
-  } else if (cc >= kBottomRowButtonCCFirst && cc <= kBottomRowButtonCCLast) {
-    buttonNum = cc - kBottomRowButtonCCFirst + 9;  // 9-16
   }
 
   if (buttonNum >= 1 && buttonNum <= 16) {
     leds->setButtonLED(buttonNum, color);
-  }
-}
-
-void MidiController::updateSnapshotSlotLeds() {
-  auto* leds = lc ? lc->getLeds() : nullptr;
-  if (!leds || !synthPtr) return;
-
-  // Bottom row buttons (9-16) map to snapshot slots 0-7. Each lights when its
-  // slot holds a saved snapshot, off when empty. Change-detected against the
-  // cache so we only emit MIDI on actual transitions (covers snapshots being
-  // saved/cleared live in the GUI). Slots currently held are skipped so the
-  // white press-feedback isn't stomped before release.
-  for (int slot = 0; slot < 8; ++slot) {
-    if (snapshotSlotHeld[static_cast<size_t>(slot)]) continue;
-
-    const bool occupied = synthPtr->isModSnapshotSlotOccupied(slot);
-    const LedColor desired = occupied ? kSnapshotPresentColor : kOffColor;
-    LedColor& current = lastSnapshotSlotColors[static_cast<size_t>(slot)];
-    if (desired.r != current.r || desired.g != current.g || desired.b != current.b) {
-      leds->setButtonLED(slot + 9, desired);
-      current = desired;
-    }
   }
 }
 
@@ -407,15 +359,12 @@ void MidiController::setupInitialLeds() {
   }
   lastIntentIndicatorColors.fill(kOffColor);
 
-  // === Bottom row buttons (9-16): Mod Snapshot 1-8 ===
-  // Start all off; updateSnapshotSlotLeds() (per-frame) lights the slots that
-  // actually hold a snapshot. Reset the cache + held flags so the first
-  // refresh re-sends the occupied slots.
+  // === Bottom row buttons (9-16): dark ===
+  // These were Mod Snapshot recall until 2026-09-03. Nothing writes them now, so they are
+  // cleared once at startup and left alone.
   for (int i = 9; i <= 16; ++i) {
     leds->setButtonLED(i, kOffColor);
   }
-  lastSnapshotSlotColors.fill(kOffColor);
-  snapshotSlotHeld.fill(false);
 
   // === Encoder LEDs (1-based numbering, encoders 1-24) ===
   // Row 1 (encoders 1-8): indices 0-7 in addon terminology

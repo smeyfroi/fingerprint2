@@ -10,7 +10,7 @@ This document describes the MIDI controller mapping for the Novation Launch Cont
 
 ## Scope
 
-There is no shift mode and no transport handling on this controller any more. Play/Pause, Hibernate, Save Image, and Previous/Next config all live on the Korg nanoKONTROL2, and layer control lives on the APC Mini. The Novation is: faders → Intent, encoders → audio-analysis nudge, top-row intent indicator LEDs, bottom-row snapshot recall.
+There is no shift mode and no transport handling on this controller any more. Play/Pause, Hibernate, Save Image, and Previous/Next config all live on the Korg nanoKONTROL2, and layer control lives on the APC Mini. The Novation is: faders → Intent, encoders → audio-analysis nudge, top-row intent indicator LEDs, top-row intent LEDs.
 
 ---
 
@@ -32,20 +32,11 @@ LED behavior:
 
 ---
 
-## Bottom Row Buttons (9-16) - Mod Snapshots
+## Bottom Row Buttons (9-16) - retired
 
-| Button | Function |
-|--------|----------|
-| 9-16 | Load Snapshot 1-8 |
+These recalled Mod Snapshot slots 1-8 (CC 45-52) until **2026-09-03**. They are now unassigned and stay dark.
 
-Pressing a button loads that snapshot slot immediately — these buttons are **load only**; there is no save gesture on this controller.
-
-LED behavior:
-- **Dim white** = slot holds a saved snapshot
-- **Off** = slot is empty
-- **Bright white** = while the button is physically held (reverts to the slot's occupancy colour on release)
-
-Occupancy is polled every frame via `Synth::isModSnapshotSlotOccupied`, which lazy-loads the config's snapshot file from disk — so the LEDs are correct even when the GUI's snapshot panel has never been opened (headless), and they follow snapshots being saved or cleared live in the GUI.
+Why they went: this row was the only surface anywhere that addressed a snapshot slot by its **position**, and the engine's `ModSnapshotManager::NUM_SLOTS = 8` existed to match the eight buttons rather than for any reason of its own. Snapshots are driven from the APC Mini performance grid now — as scene cells that apply a whole group at once — so the cap was pure friction: three of the four performance quadrants need more than eight slots. The cap is now 64 and the row is free for a future job.
 
 ---
 
@@ -116,7 +107,6 @@ Faders use **pickup mode** (soft takeover) - you must move the fader past the cu
 
 ### Temporary Display (Overlay)
 Shows briefly when controls are used:
-- **Snapshot**: "Snapshot" / "1-8" on press (shown whether or not the slot is occupied)
 - **Intent Faders**: "<parameter name>" / "0.123" (shows `[PICKUP]` until engaged; rate-limited)
 - **Encoders (audio nudge)**: parameter name and value while turning — `ARM <value>` on first touch or after a pause, `[CLUTCH LO]`/`[CLUTCH HI]` with the exit threshold at the ends of travel, and `<value>  x<mult>` (with a `[MIN]`/`[MAX]` tag at range limits) while nudging
 
@@ -127,8 +117,7 @@ Shows briefly when controls are used:
 ### Button LEDs
 | State | Color |
 |-------|-------|
-| Snapshot slot occupied (bottom row) | Dim white |
-| Snapshot slot empty (bottom row) | Off |
+| Bottom row (9-16) | Off — retired, see above |
 | Intent pole > 0.0 (master > 0.0) | Bright axis hue (coral / cyan / violet / green) |
 | Intent pole == 0.0, or master == 0.0 | Dim axis hue |
 | Master strength (button 8) | Amber (dim at zero) |
