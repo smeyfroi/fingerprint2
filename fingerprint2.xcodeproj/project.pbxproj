@@ -2021,13 +2021,6 @@
 			"name": "imgui_impl_opengl3.cpp",
 			"sourceTree": "<group>"
 		},
-		"453EEE80-B524-4993-90D5-5BA6F9D0FFA5": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.h",
-			"name": "ofxLaunchControlXL.h",
-			"sourceTree": "<group>"
-		},
 		"45459DD5-7022-4439-9274-1C5307AA1325": {
 			"children": [
 				"BE09C433-892C-472A-B906-415762B2CAD9",
@@ -2117,13 +2110,6 @@
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.h",
 			"name": "BaseTheme.h",
-			"sourceTree": "<group>"
-		},
-		"46753DF3-8F3A-4DBA-ACA0-8EFD82E7D574": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.cpp",
-			"name": "ofxLaunchControlXL.cpp",
 			"sourceTree": "<group>"
 		},
 		"46B0C2A2-6C98-48C4-A6DE-915CE241D851": {
@@ -2340,13 +2326,6 @@
 			"name": "SetController.cpp",
 			"sourceTree": "<group>"
 		},
-		"4CC3978C-80E4-4968-8733-7B454BC5F74A": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.cpp",
-			"name": "ofxLCLeds.cpp",
-			"sourceTree": "<group>"
-		},
 		"4D22D32B-0844-4FFB-BF5D-562501101301": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -2392,25 +2371,6 @@
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.h",
 			"name": "stb_image_write.h",
-			"sourceTree": "<group>"
-		},
-		"4F12BD05-7BF2-4F1C-8CA3-B368BD0A771C": {
-			"children": [
-				"B5E8735D-5C5D-4306-9C49-B5360D56FDB0",
-				"94A9F7C6-6767-40C8-AA0D-E0FEFD83A0C2",
-				"4CC3978C-80E4-4968-8733-7B454BC5F74A",
-				"E32C5CFA-CDE6-453F-B441-CBABE3FA0E92",
-				"46753DF3-8F3A-4DBA-ACA0-8EFD82E7D574",
-				"453EEE80-B524-4993-90D5-5BA6F9D0FFA5",
-				"E3C8750E-6BD4-4166-99AB-E8B301BAA84D",
-				"774ACB5B-CD24-4FFC-ABCC-25B50996818C",
-				"7CF6464A-2BED-4C62-8A58-32705BB2B25B",
-				"1018DE42-2A40-4B91-B0A5-2A232F38698A",
-				"CC07D2FF-9765-4010-A99D-D6B3F8955898"
-			],
-			"isa": "PBXGroup",
-			"name": "launchcontrol",
-			"path": "launchcontrol",
 			"sourceTree": "<group>"
 		},
 		"4F27E62E-5280-4616-8B58-206C4B796358": {
@@ -4290,10 +4250,6 @@
 			"name": "ofxOscParameterSync.cpp",
 			"sourceTree": "<group>"
 		},
-		"8E6890C0-896E-47EA-863D-9E0A20D3A5E5": {
-			"fileRef": "B5E8735D-5C5D-4306-9C49-B5360D56FDB0",
-			"isa": "PBXBuildFile"
-		},
 		"8E8B2A6F-9A8C-4940-9914-ED5477342F2C": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -4431,10 +4387,6 @@
 			"name": "AgencyPanel.cpp",
 			"sourceTree": "<group>"
 		},
-		"92530415-A5BE-4D69-A3CB-F74727FF65B0": {
-			"fileRef": "4CC3978C-80E4-4968-8733-7B454BC5F74A",
-			"isa": "PBXBuildFile"
-		},
 		"9258BD81-02DB-4E3B-97F8-1879701EC256": {
 			"fileRef": "7B152E8F-2F50-474A-BD70-26CFEE566105",
 			"isa": "PBXBuildFile"
@@ -4504,13 +4456,6 @@
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.h",
 			"name": "AudioChainPanel.hpp",
-			"sourceTree": "<group>"
-		},
-		"94A9F7C6-6767-40C8-AA0D-E0FEFD83A0C2": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.h",
-			"name": "ofxControllerBase.h",
 			"sourceTree": "<group>"
 		},
 		"94E749B0-8521-4DF2-A0D3-F5173A946193": {
@@ -5195,10 +5140,6 @@
 			"name": "VideoFlowSourceObservabilityRenderer.cpp",
 			"sourceTree": "<group>"
 		},
-		"AB9C6483-117E-4F53-8CC1-688081595BC0": {
-			"fileRef": "46753DF3-8F3A-4DBA-ACA0-8EFD82E7D574",
-			"isa": "PBXBuildFile"
-		},
 		"AC1C7549-C632-4721-A105-274253DBF12E": {
 			"fileRef": "D41904EB-8C8A-487C-8C78-A47399D93D02",
 			"isa": "PBXBuildFile"
@@ -5528,13 +5469,6 @@
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.cpp",
 			"name": "imgui.cpp",
-			"sourceTree": "<group>"
-		},
-		"B5E8735D-5C5D-4306-9C49-B5360D56FDB0": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.cpp",
-			"name": "ofxControllerBase.cpp",
 			"sourceTree": "<group>"
 		},
 		"B65D56D6-5121-4E6D-80E9-1A14A5B68BCE": {
@@ -6245,13 +6179,6 @@
 			"path": "src",
 			"sourceTree": "<group>"
 		},
-		"CC07D2FF-9765-4010-A99D-D6B3F8955898": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.h",
-			"name": "ofxLaunchControllers.h",
-			"sourceTree": "<group>"
-		},
 		"CC5A8BF8-768A-479B-9AE0-F441F74BCE88": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -6887,13 +6814,6 @@
 			"name": "ApplyBouyancyShader.h",
 			"sourceTree": "<group>"
 		},
-		"E32C5CFA-CDE6-453F-B441-CBABE3FA0E92": {
-			"fileEncoding": "4",
-			"isa": "PBXFileReference",
-			"lastKnownFileType": "sourcecode.cpp.h",
-			"name": "ofxLCLeds.h",
-			"sourceTree": "<group>"
-		},
 		"E3793392-EC9A-4614-A5E2-F19AB689B21D": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -7051,9 +6971,6 @@
 				"67645F09-0CAF-485F-A38A-5942B3D12967",
 				"12F01BC9-0F3A-44A5-8AD2-36A29FA87A76",
 				"4E50A628-9D9B-4D82-96E0-E42FEF250F5D",
-				"8E6890C0-896E-47EA-863D-9E0A20D3A5E5",
-				"92530415-A5BE-4D69-A3CB-F74727FF65B0",
-				"AB9C6483-117E-4F53-8CC1-688081595BC0",
 				"A4FF90CF-09D2-43E6-B8EA-DCEE9FF56B3E",
 				"8BD5FF5B-9773-450A-BAE5-F04BDE1798DA",
 				"287E6417-6275-43A6-AF5A-8859C2C0F0B2",
@@ -7387,7 +7304,6 @@
 					"$(OF_CORE_HEADERS)",
 					"src",
 					"src",
-					"src/launchcontrol",
 					"../../../addons/ofxAudioFile/libs",
 					"../../../addons/ofxAudioFile/src",
 					"../../../addons/ofxConvexHull/src",
@@ -7530,7 +7446,6 @@
 					"$(OF_CORE_HEADERS)",
 					"src",
 					"src",
-					"src/launchcontrol",
 					"../../../addons/ofxAudioFile/libs",
 					"../../../addons/ofxAudioFile/src",
 					"../../../addons/ofxConvexHull/src",
@@ -7676,7 +7591,10 @@
 				"4AF15B17-62E4-4AC2-8C41-17BBB755BA73",
 				"D7931806-BB13-4B0B-A178-FFD282CC58FC",
 				"14E48725-54A6-4931-BD44-2C0EC46F5503",
-				"4F12BD05-7BF2-4F1C-8CA3-B368BD0A771C"
+				"E3C8750E-6BD4-4166-99AB-E8B301BAA84D",
+				"774ACB5B-CD24-4FFC-ABCC-25B50996818C",
+				"7CF6464A-2BED-4C62-8A58-32705BB2B25B",
+				"1018DE42-2A40-4B91-B0A5-2A232F38698A"
 			],
 			"isa": "PBXGroup",
 			"path": "src",

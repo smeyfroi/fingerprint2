@@ -11,6 +11,7 @@
 #include "ofxMarkSynth.h"
 
 #include "MemoryReadyPolicy.h"
+#include "MidiEventRing.h"
 
 // Forward declaration for Synth's config info
 namespace ofxMarkSynth {
@@ -290,14 +291,12 @@ private:
   // Sized generously (vs. the nanoKONTROL2's 64): pad presses plus nine fader
   // streams can pile up behind a main-thread hitch during a config load.
   static constexpr size_t kMidiEventBufferSize = 256;
-  std::array<MidiEvent, kMidiEventBufferSize> midiEventBuffer;
-  std::atomic<int> midiEventWriteIndex { 0 };
-  // Atomic (unlike the CC-only siblings' plain int) so the producer can detect
-  // a full ring instead of silently lapping unread events.
-  std::atomic<int> midiEventReadIndex { 0 };
-  // Raised when the producer drops an event on overflow. The drain fails safe:
-  // one of the dropped events may have been a pad release, so any overflow
-  // cancels the active hold rather than letting it mature into a config switch.
+  MidiEventRing<MidiEvent, kMidiEventBufferSize> midiEventRing;
+  // Raised when push() reports the ring full and drops an event. The drain
+  // fails safe: one of the dropped events may have been a pad release, so any
+  // overflow cancels the active hold rather than letting it mature into a
+  // config switch. The ring itself has no notion of this — only the APC cares,
+  // because only the APC has a gesture that spans two messages.
   std::atomic<bool> midiEventOverflow { false };
 
   // === Main-thread event handling ===

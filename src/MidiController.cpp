@@ -6,14 +6,71 @@
 #include <optional>
 #include <string>
 
+#include "FaderPickup.h"
+#include "MidiPortScan.h"
 #include "ofMain.h"
 
 namespace {
-constexpr int kFaderKnobOffset = 24;
 constexpr float kIntentEpsilon = 0.0001f;
 }
 
 MidiController::MidiController() = default;
+
+MidiController::~MidiController() {
+  disconnect();
+}
+
+bool MidiController::tryConnect() {
+  if (connected) return true;
+
+  midiIn.listInPorts();
+
+  const int inPort = findMidiInPortMatching(midiIn, kDawPortPattern,
+                                            {kDeviceNameShort, kDeviceNameLong});
+  if (inPort < 0) {
+    ofLogNotice("MidiController") << "Launch Control XL 3 DAW input port not found";
+    return false;
+  }
+  ofLogNotice("MidiController") << "Found DAW input port: " << midiIn.getInPortName(inPort);
+
+  if (!midiIn.openPort(inPort)) {
+    ofLogWarning("MidiController") << "Failed to open DAW input port";
+    return false;
+  }
+  midiIn.addListener(this);
+
+  // The LED controller finds and owns the matching DAW *output* port (scanned
+  // against the out-port list, which is a different list from the in-ports
+  // above) and puts the device into DAW mode. The OLED display shares it.
+  leds = std::make_unique<ofxLaunchControlXL3Leds>();
+  if (!leds->setup(true)) {
+    ofLogWarning("MidiController") << "DAW output unavailable; no LED or OLED feedback";
+    leds.reset();
+  } else if (auto* midiOut = leds->getMidiOut()) {
+    display = std::make_unique<ofxLaunchControlXL3Display>();
+    display->setup(midiOut);
+    disableControlAutoDisplays();
+  }
+
+  connected = true;
+  ofLogNotice("MidiController") << "Connected to Launch Control XL 3";
+  return true;
+}
+
+void MidiController::disconnect() {
+  if (!connected) return;
+
+  midiIn.removeListener(this);
+  midiIn.closePort();
+
+  // Order matters: the display borrows the LED controller's ofxMidiOut, so it
+  // must go first. ~ofxLaunchControlXL3Leds leaves DAW mode and closes the port.
+  display.reset();
+  leds.reset();
+
+  connected = false;
+  ofLogNotice("MidiController") << "Disconnected from Launch Control XL 3";
+}
 
 void MidiController::update() {
   // Process queued button events on the main thread
@@ -56,6 +113,43 @@ void MidiController::newMidiMessage(ofxMidiMessage& message) {
   // This avoids threading issues with OpenGL calls (e.g., video recording).
   if (message.status == MIDI_CONTROL_CHANGE) {
     buttonEventRing.push({message.channel, message.control, message.value});
+  }
+}
+
+void MidiController::handleFaderCC(int faderIndex, int value) {
+  if (!synthPtr) return;
+  if (faderIndex < 0 || faderIndex >= kFaderCount) return;
+
+  // Poles in group order on faders 0-6, master IntentStrength on fader 7 (the
+  // group's last index) — master returned to the Novation when Ordered was
+  // dropped. Looked up fresh on every message rather than bound once: the Synth
+  // destroys and rebuilds its parameter tree across config loads, so a stored
+  // reference would dangle.
+  ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
+  if (intentParameters.size() == 0) return;
+  const size_t masterIndex = intentParameters.size() - 1;
+  if (static_cast<size_t>(faderIndex) > masterIndex) return;
+
+  ofParameter<float>& param = intentParameters.getFloat(static_cast<size_t>(faderIndex));
+
+  // A fader with no prior sample only baselines: the takeover records where the
+  // hardware sits and leaves the parameter alone. That is the one message where
+  // moving the fader does nothing, so it is the one worth labelling on the OLED.
+  float& lastMidiValue = faderStates[static_cast<size_t>(faderIndex)].lastMidiValue;
+  const bool baselining = (lastMidiValue < 0.0f);
+
+  applyPickup(param, value, lastMidiValue);
+
+  maybeShowFaderOverlay(faderIndex, param.getName(), param.get(), baselining,
+                        ofGetElapsedTimeMillis());
+}
+
+void MidiController::resetFaderPickupStates() {
+  for (auto& state : faderStates) {
+    state.lastMidiValue = -1.0f;
+  }
+  for (auto& state : faderOverlayStates) {
+    state = {};
   }
 }
 
@@ -105,36 +199,8 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
   // to the unhandled tail below and light nothing.
 
   // === Fader movement (CC 5-12) ===
-  // Faders are bound via the addon (pickup/soft-takeover); we only drive OLED
-  // overlays. Faders always map to the Intent system (activations + master);
-  // the old shift-mode layer-alpha bank was removed — layer alpha now lives on
-  // the APC Mini.
-  if (cc >= 5 && cc <= 12) {
-    if (synthPtr && display) {
-      const uint64_t nowMs = ofGetElapsedTimeMillis();
-      const int faderIndex = cc - 5; // 0-7
-      auto& state = faderOverlayStates[static_cast<size_t>(faderIndex)];
-
-      ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
-      if (intentParameters.size() > 0) {
-        // 7 poles on faders 0-6, master IntentStrength on fader 8 (group's last
-        // index) — master returned to the Novation when Ordered was dropped.
-        const size_t masterIndex = intentParameters.size() - 1;
-        if (static_cast<size_t>(faderIndex) <= masterIndex) {
-          ofParameter<float>& param = intentParameters.getFloat(static_cast<size_t>(faderIndex));
-          const float paramValue = param.get();
-
-          const bool ccChanged = (state.lastCcValue >= 0) && (state.lastCcValue != value);
-          const bool paramChanged = (std::abs(paramValue - state.lastParamValue) > 1e-4f);
-          const bool pickupLikely = ccChanged && !paramChanged;
-
-          maybeShowFaderOverlay(faderIndex, param.getName(), paramValue, pickupLikely, nowMs);
-
-          state.lastCcValue = value;
-          state.lastParamValue = paramValue;
-        }
-      }
-    }
+  if (cc >= kFaderCcFirst && cc <= kFaderCcLast) {
+    handleFaderCC(cc - kFaderCcFirst, value);
     return;
   }
 
@@ -290,7 +356,6 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
 }
 
 void MidiController::setButtonLedByCC(int cc, const LedColor& color) {
-  auto* leds = lc ? lc->getLeds() : nullptr;
   if (!leds) return;
 
   // Convert CC to button number. Only the top row is driven now — the bottom row
@@ -306,7 +371,6 @@ void MidiController::setButtonLedByCC(int cc, const LedColor& color) {
 }
 
 void MidiController::updateIntentIndicatorLeds() {
-  auto* leds = lc ? lc->getLeds() : nullptr;
   if (!leds) return;
 
   std::array<LedColor, 8> desiredColors {
@@ -350,7 +414,6 @@ void MidiController::updateIntentIndicatorLeds() {
 }
 
 void MidiController::setupInitialLeds() {
-  auto* leds = lc ? lc->getLeds() : nullptr;
   if (!leds) return;
 
   // === Top row (buttons 1-8): intent indicator LEDs (set per-frame) ===
@@ -396,111 +459,51 @@ void MidiController::setupInitialLeds() {
   leds->setEncoderLED(22, kMagentaEncoderColor); // Encoder 21 - magenta
 }
 
-void MidiController::applyFaderBank() {
-  if (!lc || !synthPtr) return;
-
-  lc->clearFaders();
-
-  // Faders always bind to the Intent system (activations + master). The old
-  // shift-mode layer-alpha bank was removed — layer alpha lives on the APC Mini.
-  ofParameterGroup& intentParameters = synthPtr->getIntentParameterGroup();
-  if (intentParameters.size() == 0) return;
-
-  // The 7 poles occupy Novation faders 1-7 (2026-07-12: Ordered dropped — DEN SPR
-  // STL AGT PER EPH CHA in group order); master IntentStrength returns to fader 8
-  // (freeing APC Mini fader 4). masterIndex = the group's last index = 7.
-  size_t masterIndex = intentParameters.size() - 1;   // group = 7 poles..., strength last
-
-  for (size_t i = 0; i <= masterIndex; ++i) {
-    ofParameter<float>& intentParameter = intentParameters.getFloat(i);
-    int knobIndex = kFaderKnobOffset + (int)i;
-    lc->knobPickup(knobIndex, intentParameter);
-    ofLogNotice("MidiController") << "Binding MIDI fader " << i << " (knob index " << knobIndex
-                                  << ") to Intent parameter (pickup): " << intentParameter.getName();
-  }
-}
-
 void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr) {
   this->synthPtr = synthPtr;
 
-  if (!lc) {
-    lc = std::make_unique<ofxLaunchControlXL>();
-  } else {
-    // Defensive: ensure we don't accumulate event listeners across config reloads.
-    lc->shutdown();
+  // Connect once and stay connected. The ports and the device's DAW mode have
+  // nothing to do with which config is loaded, and re-opening them per load
+  // cost a 100 ms settle inside the LED controller's setup.
+  if (!connected) {
+    tryConnect();
   }
 
-  ofLogNotice() << "Setting up Launch Control XL MIDI controller";
-
-  lc->listDevices();
-
-  // Use DAW mode for LED control capability.
-  // This uses the DAW MIDI port for both input and output.
-  if (!lc->setupDawMode()) {
-    ofLogWarning("MidiController") << "DAW mode setup failed, falling back to Custom mode (no LED control)";
-    if (!lc->setup()) return;
-  }
-
-  // Register ourselves as an additional MIDI listener to receive button/CC events.
-  // The addon handles faders and any explicitly-bound knobs; we handle buttons and
-  // custom encoder behavior ourselves.
-  lc->addMidiListener(this);
-
-  // Ensure no stale rotary bindings survive across config reloads.
-  for (int i = 0; i < 24; ++i) {
-    lc->clearKnob(i);
-  }
+  // Faders re-acquire against the new config's parameters; encoder nudge state
+  // (speed, clutch) is likewise meaningless across a config change.
+  resetFaderPickupStates();
   for (auto& state : encoderNudgeStates) {
     state = {};
   }
-  for (auto& state : faderOverlayStates) {
-    state = {};
+
+  if (!connected) {
+    ofLogNotice("MidiController") << "Synth loaded but Launch Control XL 3 not connected";
+    return;
   }
 
-  // === Knob bindings ===
-  // agency / AudioResp / VideoResp moved to APC Mini faders 1-3.
-  // Audio analysis encoders are handled as relative/nudge controls in handleButtonCC().
-
-  // NOTE: We do NOT use addon's toggleButton() for any buttons.
-  // All button handling is done manually in handleButtonCC().
-
-  // Apply the active fader bank (intent vs layer alpha).
-  applyFaderBank();
-
-  // Set initial LED colors for all controls.
+  // Nothing is bound here: faders resolve the Intent group and encoders the
+  // audio-analysis parameters per message, so a config swap needs no rebinding.
   setupInitialLeds();
-
-  // Setup OLED display (shares MIDI output with LED controller)
-  if (auto* leds = lc->getLeds()) {
-    if (auto* midiOut = leds->getMidiOut()) {
-      display = std::make_unique<ofxLaunchControlXL3Display>();
-      display->setup(midiOut);
-      disableControlAutoDisplays();
-      updateStationaryDisplay();
-    }
-  }
+  updateStationaryDisplay();
 }
 
 void MidiController::onSynthWillUnload() {
-  // During config switching, Synth-owned parameters are destroyed/recreated.
-  // We must drop all bindings immediately so we don't dereference stale params.
-  //
-  // Keeping the controller object alive (vs deleting it) avoids teardown races
-  // with any in-flight MIDI callbacks.
-  if (lc) {
-    lc->removeMidiListener(this);
-    lc->shutdown();
+  // The Synth destroys and recreates its parameters across a config switch.
+  // Nothing here holds a parameter reference — handleFaderCC and handleButtonCC
+  // resolve them per message and guard on synthPtr — so dropping the Synth
+  // reference IS the teardown. The device connection stays open.
+  resetFaderPickupStates();
+
+  if (display) {
+    display->clearTemporary();
   }
+  tempDisplayDismissTimeMs = 0;
+
   synthPtr.reset();
 }
 
 void MidiController::exit() {
-  if (lc) {
-    lc->removeMidiListener(this);
-    lc->shutdown();
-    lc.reset();
-  }
-  display.reset();
+  disconnect();
   // Release our strong reference to the Synth (Stage 14). The other controllers
   // (Apc/NanoKontrol/Osc) already reset theirs in exit(); this one was missing it,
   // which was harmless while the Synth<->Gui cycle meant ~Synth never ran anyway.
@@ -562,14 +565,14 @@ void MidiController::showTempDisplay(const std::string& name, const std::string&
   tempDisplayDismissTimeMs = ofGetElapsedTimeMillis() + kTempDisplayDurationMs;
 }
 
-void MidiController::maybeShowFaderOverlay(int faderIndex, const std::string& name, float paramValue, bool pickupLikely, uint64_t nowMs) {
+void MidiController::maybeShowFaderOverlay(int faderIndex, const std::string& name, float paramValue, bool baselining, uint64_t nowMs) {
   if (!display || faderIndex < 0 || faderIndex >= static_cast<int>(faderOverlayStates.size())) return;
 
   auto& state = faderOverlayStates[static_cast<size_t>(faderIndex)];
   const std::string valueLine = ofToString(paramValue, 3);
 
   std::string nameLine = name;
-  if (pickupLikely) {
+  if (baselining) {
     nameLine += " [PICKUP]";
   }
 

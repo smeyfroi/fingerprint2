@@ -1,22 +1,43 @@
 #pragma once
 
 #include <array>
-#include <atomic>
 #include <memory>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
 
 #include "MidiEventRing.h"
-#include "ofxLaunchControllers.h"
+#include "ofxLaunchControlXL3Display.h"
+#include "ofxLaunchControlXL3Leds.h"
 #include "ofxMarkSynth.h"
 #include "ofxMidi.h"
 
+namespace ofxMarkSynth {
+  class Synth;
+}
+
+/// Controller for the Novation Launch Control XL 3.
+///
+/// Faders → Intent poles + master strength (value-scaling takeover), encoders →
+/// audio-analysis nudge, top-row LEDs → intent indicators. The bottom row is
+/// dark and unassigned since snapshot recall retired. Transport lives on the
+/// nanoKONTROL2 and layer control on the APC Mini, so nothing here handles them.
+///
+/// Requires DAW mode: the XL3 exposes a separate "DAW" port pair, and only that
+/// pair carries the RGB-LED and OLED SysEx. Input is opened here; the matching
+/// output is owned by ofxLaunchControlXL3Leds and shared with the OLED display.
+///
+/// Works alongside ApcMiniController and NanoKontrol2Controller.
 class MidiController : public ofxMidiListener {
  public:
   // Type alias for LED colors
   using LedColor = ofxLaunchControlXL3Leds::Color;
+
+  // === Device Identification ===
+  // The XL3 enumerates a main MIDI port and a DAW port; we want the DAW one.
+  // The family name is spelled differently across firmware/OS revisions, so
+  // match "daw" plus either spelling (case-insensitive, see MidiPortScan.h).
+  static constexpr const char* kDawPortPattern = "daw";
+  static constexpr const char* kDeviceNameShort = "lcxl3";
+  static constexpr const char* kDeviceNameLong = "launch control xl";
 
   // === LED Color Constants ===
   // Feedback and utility colors
@@ -59,8 +80,7 @@ class MidiController : public ofxMidiListener {
   // Transport/Shift buttons intentionally NOT handled by the Novation any more.
   // Play/Pause, Hibernate, Save Image and Prev/Next config all live on the
   // KORG NanoKontrol2 (and layer control on the APC Mini). The Novation is now
-  // faders→Intent, encoders→audio nudge, top-row intent LEDs, bottom-row
-  // snapshot recall only.
+  // faders→Intent, encoders→audio nudge and top-row intent LEDs only.
 
   // Temporary display duration (milliseconds)
   static constexpr uint64_t kTempDisplayDurationMs = 1000;
@@ -69,6 +89,16 @@ class MidiController : public ofxMidiListener {
 
   // Fader overlays can generate a lot of SysEx; rate-limit updates.
   static constexpr uint64_t kFaderTempDisplayMinIntervalMs = 50;
+
+  // === Faders (CC 5-12 on channel 1 in DAW mode) ===
+  // Faders always bind to the Intent system: the poles in group order on
+  // faders 1-7, master IntentStrength on fader 8 (the group's last index).
+  // The old shift-mode layer-alpha bank was removed — layer alpha lives on the
+  // APC Mini. Each fader picks its parameter up with the same value-scaling
+  // takeover as the sibling surfaces (see FaderPickup.h).
+  static constexpr int kFaderCcFirst = 5;
+  static constexpr int kFaderCcLast = 12;
+  static constexpr int kFaderCount = 8;
 
   // LaunchControl XL encoders (24 knobs) send CC 13-36 in DAW mode.
   static constexpr int kEncoderCcFirst = 13;
@@ -87,15 +117,28 @@ class MidiController : public ofxMidiListener {
   static constexpr int kNudgeMaxDeltaCc = 20;
 
   MidiController();
+  ~MidiController();
+
+  // Lifecycle
   void update();
-  void onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr);
-  void onSynthWillUnload();
   void exit();
 
+  // Synth connection
+  void onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr);
+  void onSynthWillUnload();
+
+  // ofxMidiListener
   void newMidiMessage(ofxMidiMessage& message) override;
 
+  bool isConnected() const { return connected; }
+
  private:
-  void applyFaderBank();
+  // === Connection ===
+  bool tryConnect();
+  void disconnect();
+
+  void handleFaderCC(int faderIndex, int value);
+  void resetFaderPickupStates();
   void setupInitialLeds();
   void updateIntentIndicatorLeds();
   void handleButtonCC(int channel, int cc, int value);
@@ -103,12 +146,20 @@ class MidiController : public ofxMidiListener {
   void setButtonLedByCC(int cc, const LedColor& color);
   void updateStationaryDisplay();
   void showTempDisplay(const std::string& name, const std::string& value);
-  void maybeShowFaderOverlay(int faderIndex, const std::string& name, float paramValue, bool pickupLikely, uint64_t nowMs);
+  void maybeShowFaderOverlay(int faderIndex, const std::string& name, float paramValue, bool baselining, uint64_t nowMs);
   void disableControlAutoDisplays();
 
-  std::unique_ptr<ofxLaunchControlXL> lc;
-  std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
+  // === MIDI I/O ===
+  // Input port opened here; the DAW output port is owned by the LED controller
+  // and shared with the OLED display (display->setup(leds->getMidiOut())).
+  ofxMidiIn midiIn;
+  bool connected = false;
+  std::unique_ptr<ofxLaunchControlXL3Leds> leds;
   std::unique_ptr<ofxLaunchControlXL3Display> display;
+
+  // === Synth Reference ===
+  std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
+
   bool lastRecordingState = false;  // For polling recording state changes
   bool lastSavingState = false;     // For polling save-in-progress state changes
   int lastDisplayedConfigTimeSeconds = -1;  // For polling config timer changes
@@ -134,15 +185,24 @@ class MidiController : public ofxMidiListener {
 
   std::array<EncoderNudgeState, 24> encoderNudgeStates;
 
+  // === Fader takeover state (one per fader) ===
+  // Holds the previous normalized MIDI value for value-scaling. -1 means
+  // "no prior sample" — next message just baselines, no param movement.
+  struct FaderState {
+    float lastMidiValue = -1.0f;
+  };
+  std::array<FaderState, kFaderCount> faderStates;
+
+  // OLED overlay de-duplication, separate from the takeover state above: the
+  // display is the expensive side (SysEx per update), so only re-send when the
+  // rendered content actually changes and the rate limit has elapsed.
   struct FaderOverlayState {
-    int lastCcValue = -1;
-    float lastParamValue = -1.0f;
     uint64_t lastSendTimeMs = 0;
     std::string lastName;
     std::string lastValue;
   };
 
-  std::array<FaderOverlayState, 8> faderOverlayStates;
+  std::array<FaderOverlayState, kFaderCount> faderOverlayStates;
 
   // Thread-safe ring buffer for button/CC events (MIDI thread → main thread).
   // Drop-on-full SPSC ring shared with the other MIDI surfaces (MS-069).

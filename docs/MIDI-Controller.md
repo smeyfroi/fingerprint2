@@ -91,7 +91,7 @@ Faders always map to the Intent system:
 | 1-7 | Intent poles 1-7 (in intent-group order) |
 | 8 | Master Intent Strength |
 
-Faders use **pickup mode** (soft takeover) - you must move the fader past the current parameter value before it takes effect.
+Faders use **value-scaling takeover** (`FaderPickup.h`, shared with the APC Mini and nanoKONTROL2): the movement is scaled against the runway remaining on the side the fader is travelling, so pulling down ducks the parameter immediately and the endpoints (0 / max) self-align. There is no gate to cross — the first message after a config load only records where the fader sits, and every message after that moves the parameter.
 
 ---
 
@@ -107,7 +107,7 @@ Faders use **pickup mode** (soft takeover) - you must move the fader past the cu
 
 ### Temporary Display (Overlay)
 Shows briefly when controls are used:
-- **Intent Faders**: "<parameter name>" / "0.123" (shows `[PICKUP]` until engaged; rate-limited)
+- **Intent Faders**: "<parameter name>" / "0.123" (rate-limited; `[PICKUP]` tags the one baselining message after a config load, where the fader records its position without moving the parameter)
 - **Encoders (audio nudge)**: parameter name and value while turning — `ARM <value>` on first touch or after a pause, `[CLUTCH LO]`/`[CLUTCH HI]` with the exit threshold at the ends of travel, and `<value>  x<mult>` (with a `[MIN]`/`[MAX]` tag at range limits) while nudging
 
 ---
@@ -138,11 +138,12 @@ Shows briefly when controls are used:
 ## Technical Notes
 
 - Controller runs in **DAW mode** for LED and display control
+- The device is opened once and stays connected across config switches: `MidiController` owns the DAW input port, `ofxLaunchControlXL3Leds` owns the matching DAW output port, and the OLED shares it. Nothing is bound to Synth parameters — faders and encoders resolve them per MIDI message — so a config swap needs no rebinding
 - Auto-temp-display is disabled for all faders, encoders, and buttons (only our custom temporary overlays are shown)
 - All handled CCs are on MIDI channel 1
 - Fader CCs: 5-12; encoder CCs: 13-36 (DAW mode)
 - Top row button CCs: 37-44 (intent indicators)
-- Bottom row button CCs: 45-52 (mod snapshots)
+- Bottom row button CCs: 45-52 (unassigned since the snapshot row retired; LEDs stay dark)
 
 ---
 

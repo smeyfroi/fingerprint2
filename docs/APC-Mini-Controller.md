@@ -54,10 +54,19 @@ Historically, this limitation was the reason layer toggle buttons lived on the b
 
 | Property | Value |
 |----------|-------|
-| Port name pattern | `"APC mini mk2 Contr"` or `"APC mini mk2 MIDI 1"` |
+| Input port patterns | `"APC mini mk2 Control"` (`kInputPortPattern`, preferred) → `"APC mini mk2 Notes"` (`kNotesPortPattern`, fallback) |
+| Output port patterns | `"APC mini mk2 Notes"` (`kNotesPortPattern`, required) plus `"APC mini mk2 Control"` (`kControlPortPattern`, opened when present) |
 | Manufacturer ID | `0x47` (Akai) |
 | Device ID | `0x7F` |
 | Model ID | `0x4F` |
+
+`kInputPortPattern` and `kControlPortPattern` hold the same string; they are separate constants because the input and output sides use the Control port for different reasons.
+
+**Port selection** (`ApcMiniController::tryConnect`): the device exposes a Control port and a Notes port. Exactly one **input** port is opened — Control if present, Notes otherwise. On the **output** side the Notes port is required (the connection fails without it) and the Control port is opened alongside it whenever it exists.
+
+Note the asymmetry: the *required* output port is the fallback, and the *preferred* one is optional. Every LED write — pad RGB SysEx and the single-color button Note-Ons alike — goes to Control when that port is open and to Notes only when it isn't, because empirically some setups only apply RGB SysEx on the Control port.
+
+Each pattern resolves to the **first** matching port name (`findMidiInPort` / `findMidiOutPort` in `src/MidiPortScan.h`, shared with the Launch Control XL 3 and nanoKONTROL2 surfaces).
 
 ### Physical Layout
 

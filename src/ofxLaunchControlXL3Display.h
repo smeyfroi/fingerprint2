@@ -11,7 +11,8 @@
  * The XL3 has a 128x64 monochrome OLED display that can be controlled
  * via SysEx messages in DAW mode.
  *
- * Reference: AGENTS-how-to-control-launchcontrolxl3-leds.md
+ * Reference: docs/MIDI-Controller.md for the mapping this drives, and
+ * docs/launch_control_xl_3_user_guide_v1_en.pdf for the device itself.
  */
 class ofxLaunchControlXL3Display {
 public:

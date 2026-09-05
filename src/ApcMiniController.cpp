@@ -5,6 +5,7 @@
 
 #include "FaderPickup.h"
 #include "FaderTakeover.h"
+#include "MidiPortScan.h"
 #include "ofMain.h"
 
 namespace {
@@ -62,36 +63,22 @@ bool ApcMiniController::tryConnect() {
   midiIn.listInPorts();
   midiOut.listOutPorts();
 
-  int inPortControl = -1;
-  int inPortNotes = -1;
-  int outPortNotes = -1;
-  int outPortControl = -1;
+  // First match on each pattern, via the scan the sibling controllers share.
+  // (The output side used to take the LAST match; first-match now matches the
+  // input side and the siblings. Identical with one APC on the bus.)
+  const int inPortControl = findMidiInPort(midiIn, kInputPortPattern);
+  const int inPortNotes = findMidiInPort(midiIn, kNotesPortPattern);
+  const int outPortNotes = findMidiOutPort(midiOut, kNotesPortPattern);
+  const int outPortControl = findMidiOutPort(midiOut, kControlPortPattern);
 
-  // Find input ports (Control + Notes)
-  for (int i = 0; i < midiIn.getNumInPorts(); i++) {
-    std::string name = midiIn.getInPortName(i);
-    if (inPortControl < 0 && name.find(kInputPortPattern) != std::string::npos) {
-      inPortControl = i;
-      ofLogNotice("ApcMiniController") << "Found Control input port: " << name;
-    }
-    if (inPortNotes < 0 && name.find(kNotesPortPattern) != std::string::npos) {
-      inPortNotes = i;
-      ofLogNotice("ApcMiniController") << "Found Notes input port: " << name;
-    }
-  }
-
-  // Find output ports
-  for (int i = 0; i < midiOut.getNumOutPorts(); i++) {
-    std::string name = midiOut.getOutPortName(i);
-    if (name.find(kNotesPortPattern) != std::string::npos) {
-      outPortNotes = i;
-      ofLogNotice("ApcMiniController") << "Found Notes output port: " << name;
-    }
-    if (name.find(kControlPortPattern) != std::string::npos) {
-      outPortControl = i;
-      ofLogNotice("ApcMiniController") << "Found Control output port: " << name;
-    }
-  }
+  if (inPortControl >= 0)
+    ofLogNotice("ApcMiniController") << "Found Control input port: " << midiIn.getInPortName(inPortControl);
+  if (inPortNotes >= 0)
+    ofLogNotice("ApcMiniController") << "Found Notes input port: " << midiIn.getInPortName(inPortNotes);
+  if (outPortNotes >= 0)
+    ofLogNotice("ApcMiniController") << "Found Notes output port: " << midiOut.getOutPortName(outPortNotes);
+  if (outPortControl >= 0)
+    ofLogNotice("ApcMiniController") << "Found Control output port: " << midiOut.getOutPortName(outPortControl);
 
   if ((inPortControl < 0 && inPortNotes < 0) || outPortNotes < 0) {
     ofLogNotice("ApcMiniController") << "APC Mini MK2 not found";
@@ -534,23 +521,19 @@ void ApcMiniController::newMidiMessage(ofxMidiMessage& message) {
       return;  // Statuses we never handle don't occupy ring slots.
   }
 
-  int writeIndex = midiEventWriteIndex.load();
-  int nextIndex = (writeIndex + 1) % kMidiEventBufferSize;
-  if (nextIndex == midiEventReadIndex.load()) {
-    // Ring full (a long main-thread hitch, e.g. mid config load). Drop the
-    // incoming event but raise the overflow flag so the drain fails safe — a
-    // lost pad release must never leave a hold armed to commit.
-    midiEventOverflow.store(true);
-    return;
-  }
-
   const bool isCC = (message.status == MIDI_CONTROL_CHANGE);
-  midiEventBuffer[writeIndex] = {
+  const bool queued = midiEventRing.push({
     message.status,
     isCC ? message.control : message.pitch,
     isCC ? message.value : message.velocity,
-  };
-  midiEventWriteIndex.store(nextIndex);
+  });
+
+  if (!queued) {
+    // Ring full (a long main-thread hitch, e.g. mid config load). The event is
+    // already dropped; raise the overflow flag so the drain fails safe — a lost
+    // pad release must never leave a hold armed to commit.
+    midiEventOverflow.store(true);
+  }
 }
 
 void ApcMiniController::drainMidiEvents() {
@@ -583,11 +566,7 @@ void ApcMiniController::drainMidiEvents() {
     }
   }
 
-  int writeIndex = midiEventWriteIndex.load();
-  int readIndex = midiEventReadIndex.load();
-  while (readIndex != writeIndex) {
-    const auto& event = midiEventBuffer[readIndex];
-
+  midiEventRing.drain([this](const MidiEvent& event) {
     switch (event.status) {
       case MIDI_NOTE_ON:
         if (event.data2 > 0) {
@@ -605,12 +584,7 @@ void ApcMiniController::drainMidiEvents() {
       default:
         break;
     }
-
-    // Publish the new read position only after the slot is consumed — once it
-    // advances, the producer is free to reuse that slot.
-    readIndex = (readIndex + 1) % kMidiEventBufferSize;
-    midiEventReadIndex.store(readIndex);
-  }
+  });
 }
 
 void ApcMiniController::handleNoteOn(int note, int velocity) {
