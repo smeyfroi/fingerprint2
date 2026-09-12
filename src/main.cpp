@@ -65,7 +65,14 @@ bool isShiftKeyHeldAtLaunch() {
 } // namespace
 
 //========================================================================
-int main() {
+int main(int argc, char** argv) {
+  std::filesystem::path initialSession;
+  bool initialStudio = false;
+  for (int i = 1; i < argc; ++i) {
+    const std::string argument = argv[i];
+    if (argument == "--session" && i + 1 < argc) initialSession = argv[++i];
+    else if (argument == "--studio") initialStudio = true;
+  }
   // init GLFW manually (since no OF window yet)
   if(!glfwInit()){
       ofLogError() << "Could not init GLFW";
@@ -145,12 +152,16 @@ int main() {
                                        false);
   }
   
+  mainSettings.title = "MarkSynth — Output";
+  guiSettings.title = "MarkSynth — Controls";
   auto mainWindow = ofCreateWindow(mainSettings);
   guiSettings.shareContextWith = mainWindow;
   auto guiWindow = ofCreateWindow(guiSettings);
 
   auto mainApp = std::make_shared<ofApp>();
   mainApp->setForceChooseConfig(forceChooseConfig);
+  mainApp->setInitialSession(initialSession);
+  mainApp->setInitialStudio(initialStudio);
   mainApp->setGuiWindowPtr(guiWindow);
   mainApp->attachGuiWindowListeners();
 	ofRunApp(mainWindow, mainApp);

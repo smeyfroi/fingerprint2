@@ -1,10 +1,16 @@
 #include "ofApp.h"
 
+#include <exception>
+#include <utility>
+
 #include "ofxTimeMeasurements.h"
 
 // Stage 17: the session loader moved out of the ofxMarkSynth umbrella into
 // config/session/. Include it directly (previously pulled in via ofxMarkSynth.h).
 #include "config/session/SessionResourceLoader.hpp"
+#include "config/session/SessionRuntimeSettings.hpp"
+#include "config/ResourceKeys.hpp"
+#include "subsystem/SynthSubsystems.hpp"
 
 using namespace ofxMarkSynth;
 
@@ -52,18 +58,81 @@ void ofApp::setup(){
   ofSetBackgroundColor(0);
   TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_BOTTOM_LEFT);
 
-  ResourceManager resources = loadSessionResourceManagerOrExit({
+  if (!initialSession.empty()) {
+    const SessionConfig session { std::filesystem::absolute(initialSession), ofLoadJson(initialSession) };
+    applySessionRuntimeSettings(session.json);
+    installSynth(buildResourceManagerFromSessionConfig(session), initialStudio);
+    return;
+  }
+  auto resources = loadSessionResourceManagerOrExit({
     .appNamespace = "fingerprint2",
     .dialogTitle = "Choose fingerprint2 session config (JSON)",
     .forceChoose = forceChooseConfig,
   });
 
+  installSynth(std::move(resources), initialStudio);
+}
+
+void ofApp::installSynth(ResourceManager resources, bool studio) {
   synthPtr = ofxMarkSynth::Synth::create("fingerprint2", ofxMarkSynth::ModConfig {
   }, resources);
-  synthPtr->loadFirstPerformanceConfig();
+  if (synthPtr->getConfigSubsystem().getCurrentConfigPath().empty()) synthPtr->loadFirstPerformanceConfig();
+  if (synthPtr->getConfigSubsystem().getCurrentConfigPath().empty()) {
+    throw std::runtime_error("The session has no loadable performance config");
+  }
+  synthPtr->onStudioSessionRequested = [this](const std::filesystem::path& path) {
+    pendingStudioSession = path;
+  };
   ofAddListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload); // before configureGui
   ofAddListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad); // before configureGui
   synthPtr->configureGui(guiWindowPtr);
+  if (studio) synthPtr->showStudio();
+}
+
+void ofApp::openStudioSession(const std::filesystem::path& path) {
+  if (!synthPtr || synthPtr->getRuntimeSubsystem().isRecording()) return;
+  const auto previousPath = synthPtr->getConfigSubsystem().resources.get<std::filesystem::path>(ResourceKeys::SessionConfigPath);
+  std::optional<SessionConfig> previous;
+  bool replaced = false;
+  try {
+    const SessionConfig next { std::filesystem::absolute(path), ofLoadJson(path) };
+    auto resources = buildResourceManagerFromSessionConfig(next); // Validate before teardown.
+    if (previousPath) previous = SessionConfig { *previousPath, ofLoadJson(*previousPath) };
+    ofRemoveListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload);
+    ofRemoveListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad);
+    midiController.onSynthWillUnload();
+    apcMiniController.onSynthWillUnload();
+    nanoKontrolController.onSynthWillUnload();
+    oscController.onSynthWillUnload();
+    synthPtr->shutdown();
+    synthPtr.reset();
+    replaced = true;
+    applySessionRuntimeSettings(next.json);
+    installSynth(std::move(resources), true);
+    saveLastSessionConfigPath(getSessionConfigPointerFilePath("fingerprint2", "lastSessionConfig.json"), next.path);
+    ofLogNotice("Studio") << "Opened performance " << next.path;
+  } catch (const std::exception& error) {
+    ofLogError("Studio") << "Could not open session: " << error.what();
+    if (replaced && previous) {
+      try {
+        if (synthPtr) {
+          ofRemoveListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload);
+          ofRemoveListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad);
+          midiController.onSynthWillUnload();
+          apcMiniController.onSynthWillUnload();
+          nanoKontrolController.onSynthWillUnload();
+          oscController.onSynthWillUnload();
+          synthPtr->shutdown();
+          synthPtr.reset();
+        }
+        applySessionRuntimeSettings(previous->json);
+        installSynth(buildResourceManagerFromSessionConfig(*previous), true);
+      } catch (const std::exception& restoreError) {
+        ofLogError("Studio") << "Could not restore previous session: " << restoreError.what();
+      }
+    }
+    ofSystemAlertDialog("Studio could not open that performance. See the log for details.");
+  }
 }
 
 void ofApp::onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e) {
@@ -82,6 +151,11 @@ void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
 
 //--------------------------------------------------------------
 void ofApp::update(){
+  if (pendingStudioSession && !isShuttingDown) {
+    const auto path = *pendingStudioSession;
+    pendingStudioSession.reset();
+    openStudioSession(path);
+  }
   if (!synthPtr || isShuttingDown) {
     return;
   }

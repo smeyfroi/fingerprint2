@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <filesystem>
+#include <optional>
 
 #include "ApcMiniController.h"
 #include "MidiController.h"
@@ -14,6 +16,8 @@ public:
   void setup() override;
   void setGuiWindowPtr(std::shared_ptr<ofAppBaseWindow> windowPtr) { guiWindowPtr = windowPtr; }
   void setForceChooseConfig(bool v) { forceChooseConfig = v; }
+  void setInitialSession(std::filesystem::path path) { initialSession = std::move(path); }
+  void setInitialStudio(bool enabled) { initialStudio = enabled; }
   void attachGuiWindowListeners();
   void detachGuiWindowListeners();
   void onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e);
@@ -39,6 +43,11 @@ public:
   void gotMessage(ofMessage msg) override;
   
 private:
+  void installSynth(ofxMarkSynth::ResourceManager resources, bool studio);
+  void openStudioSession(const std::filesystem::path& path);
+  std::filesystem::path initialSession;
+  std::optional<std::filesystem::path> pendingStudioSession;
+  bool initialStudio { false };
   std::shared_ptr<ofAppBaseWindow> guiWindowPtr;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
   bool guiWindowListenersAttached { false };

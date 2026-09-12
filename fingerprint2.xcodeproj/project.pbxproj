@@ -750,6 +750,13 @@
 			"name": "NodeEditorModel.hpp",
 			"sourceTree": "<group>"
 		},
+		"1AD3CA2E-C97A-5D1F-9507-11BA683B0375": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "StudioSurface.hpp",
+			"sourceTree": "<group>"
+		},
 		"1BB5C320-871C-4F91-88C0-05701C2243D6": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -3933,6 +3940,17 @@
 			"name": "LayoutAutosaveController.hpp",
 			"sourceTree": "<group>"
 		},
+		"81EE98E8-A0E1-5565-950F-0A8125F888B6": {
+			"children": [
+				"E896E3A9-39E6-5423-8815-732F83B0090F",
+				"B30742AB-3938-57CB-A9BD-CCB4FC1541BF",
+				"FC78F1B0-5377-5D90-A7E0-8DB5651C5B67"
+			],
+			"isa": "PBXGroup",
+			"name": "studio",
+			"path": "studio",
+			"sourceTree": "<group>"
+		},
 		"8231619F-D34B-4AA0-82B4-F8D021337E24": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -4082,6 +4100,13 @@
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.h",
 			"name": "ThrottleSmoother.h",
+			"sourceTree": "<group>"
+		},
+		"88D8A50D-A071-5AC1-9AC2-C2E1997562D6": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.cpp",
+			"name": "StudioSurface.cpp",
 			"sourceTree": "<group>"
 		},
 		"88FC4345-3CB3-49C8-8D4A-363B565A2D6D": {
@@ -5315,6 +5340,13 @@
 			"name": "TimeTracker.cpp",
 			"sourceTree": "<group>"
 		},
+		"B30742AB-3938-57CB-A9BD-CCB4FC1541BF": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "StudioJob.hpp",
+			"sourceTree": "<group>"
+		},
 		"B3149DE0-DE40-4ED6-BA91-98AE7CDD86D1": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -5946,6 +5978,10 @@
 			"path": "somPalette",
 			"sourceTree": "<group>"
 		},
+		"C57A9470-2011-5D19-97FF-1EF20C77848E": {
+			"fileRef": "E896E3A9-39E6-5423-8815-732F83B0090F",
+			"isa": "PBXBuildFile"
+		},
 		"C5A2CF4F-9031-4212-A979-90A3C226AFF5": {
 			"fileRef": "B47267CB-AF67-4614-A550-257F22BA46CB",
 			"isa": "PBXBuildFile"
@@ -6172,7 +6208,8 @@
 				"920C7697-4BCD-4FFD-A424-A99AEF7C3471",
 				"5F2F9877-144B-4F28-82BD-A6143BC556A8",
 				"CF340E48-C570-4E80-A39F-22EE887C947E",
-				"3DEADC61-40B9-433B-B315-7A947FA6AB2D"
+				"3DEADC61-40B9-433B-B315-7A947FA6AB2D",
+				"81EE98E8-A0E1-5565-950F-0A8125F888B6"
 			],
 			"isa": "PBXGroup",
 			"name": "src",
@@ -6803,6 +6840,10 @@
 			"fileRef": "849F99EE-1814-4E97-9A07-0A42CEC65773",
 			"isa": "PBXBuildFile"
 		},
+		"E23835EF-2E38-5C50-947E-DBE98FE5C422": {
+			"fileRef": "88D8A50D-A071-5AC1-9AC2-C2E1997562D6",
+			"isa": "PBXBuildFile"
+		},
 		"E286DAD9-CAC6-48F6-84E4-F7E20F846836": {
 			"fileRef": "218BE61B-8BB2-4A3A-A19F-73ABCDDB9082",
 			"isa": "PBXBuildFile"
@@ -7239,7 +7280,9 @@
 				"C5CECEF7-3279-4067-A6A2-F821F9A0DF10",
 				"DB48BCE5-605D-4B41-836C-82F25E207BC4",
 				"415A9A6F-C57C-4896-8EE5-EDCC8270A342",
-				"80046C14-94FC-4598-A269-CBB3823901A9"
+				"80046C14-94FC-4598-A269-CBB3823901A9",
+				"E23835EF-2E38-5C50-947E-DBE98FE5C422",
+				"C57A9470-2011-5D19-97FF-1EF20C77848E"
 			],
 			"isa": "PBXSourcesBuildPhase",
 			"runOnlyForDeploymentPostprocessing": "0"
@@ -7745,6 +7788,13 @@
 			"name": "SessionRuntimeSettings.cpp",
 			"sourceTree": "<group>"
 		},
+		"E896E3A9-39E6-5423-8815-732F83B0090F": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.cpp",
+			"name": "StudioJob.cpp",
+			"sourceTree": "<group>"
+		},
 		"E8A05DEA-5B19-4DDD-B691-3A91021B6166": {
 			"fileEncoding": "4",
 			"isa": "PBXFileReference",
@@ -7809,7 +7859,9 @@
 				"C740E44F-65CE-40F8-AC39-7FA0F4368CE0",
 				"654546F8-A7CA-4ECF-83A1-0CDE1E86A908",
 				"95F376DD-E45C-4AE9-AFD0-2F86DB3FD04B",
-				"F6D8FB94-DD08-406D-8E7A-E991156744A5"
+				"F6D8FB94-DD08-406D-8E7A-E991156744A5",
+				"88D8A50D-A071-5AC1-9AC2-C2E1997562D6",
+				"1AD3CA2E-C97A-5D1F-9507-11BA683B0375"
 			],
 			"isa": "PBXGroup",
 			"name": "surfaces",
@@ -8423,6 +8475,13 @@
 			"isa": "PBXFileReference",
 			"lastKnownFileType": "sourcecode.cpp.cpp",
 			"name": "OfflineAudioAnalysisPanel.cpp",
+			"sourceTree": "<group>"
+		},
+		"FC78F1B0-5377-5D90-A7E0-8DB5651C5B67": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "StudioAudition.hpp",
 			"sourceTree": "<group>"
 		},
 		"FCD0A968-0964-4EBE-B6A3-51A29AC67C98": {
