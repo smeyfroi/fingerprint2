@@ -18,6 +18,8 @@ public:
   void setForceChooseConfig(bool v) { forceChooseConfig = v; }
   void setInitialSession(std::filesystem::path path) { initialSession = std::move(path); }
   void setInitialStudio(bool enabled) { initialStudio = enabled; }
+  void queueStudioSession(const std::filesystem::path& path, bool remember = true);
+  std::optional<std::filesystem::path> currentSessionPath() const;
   void attachGuiWindowListeners();
   void detachGuiWindowListeners();
   void onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e);
@@ -44,9 +46,13 @@ public:
   
 private:
   void installSynth(ofxMarkSynth::ResourceManager resources, bool studio);
-  void openStudioSession(const std::filesystem::path& path);
+  void openStudioSession(const std::filesystem::path& path, bool remember);
+  struct StudioSessionRequest {
+    std::filesystem::path path;
+    bool remember;
+  };
   std::filesystem::path initialSession;
-  std::optional<std::filesystem::path> pendingStudioSession;
+  std::optional<StudioSessionRequest> pendingStudioSession;
   bool initialStudio { false };
   std::shared_ptr<ofAppBaseWindow> guiWindowPtr;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;

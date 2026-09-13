@@ -81,7 +81,7 @@ void ofApp::installSynth(ResourceManager resources, bool studio) {
     throw std::runtime_error("The session has no loadable performance config");
   }
   synthPtr->onStudioSessionRequested = [this](const std::filesystem::path& path) {
-    pendingStudioSession = path;
+    queueStudioSession(path);
   };
   ofAddListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload); // before configureGui
   ofAddListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad); // before configureGui
@@ -89,9 +89,19 @@ void ofApp::installSynth(ResourceManager resources, bool studio) {
   if (studio) synthPtr->showStudio();
 }
 
-void ofApp::openStudioSession(const std::filesystem::path& path) {
+void ofApp::queueStudioSession(const std::filesystem::path& path, bool remember) {
+  pendingStudioSession = StudioSessionRequest { path, remember };
+}
+
+std::optional<std::filesystem::path> ofApp::currentSessionPath() const {
+  if (!synthPtr) return std::nullopt;
+  const auto path = synthPtr->getConfigSubsystem().resources.get<std::filesystem::path>(ResourceKeys::SessionConfigPath);
+  return path ? std::optional(*path) : std::nullopt;
+}
+
+void ofApp::openStudioSession(const std::filesystem::path& path, bool remember) {
   if (!synthPtr || synthPtr->getRuntimeSubsystem().isRecording()) return;
-  const auto previousPath = synthPtr->getConfigSubsystem().resources.get<std::filesystem::path>(ResourceKeys::SessionConfigPath);
+  const auto previousPath = currentSessionPath();
   std::optional<SessionConfig> previous;
   bool replaced = false;
   try {
@@ -109,7 +119,9 @@ void ofApp::openStudioSession(const std::filesystem::path& path) {
     replaced = true;
     applySessionRuntimeSettings(next.json);
     installSynth(std::move(resources), true);
-    saveLastSessionConfigPath(getSessionConfigPointerFilePath("fingerprint2", "lastSessionConfig.json"), next.path);
+    if (remember) {
+      saveLastSessionConfigPath(getSessionConfigPointerFilePath("fingerprint2", "lastSessionConfig.json"), next.path);
+    }
     ofLogNotice("Studio") << "Opened performance " << next.path;
   } catch (const std::exception& error) {
     ofLogError("Studio") << "Could not open session: " << error.what();
@@ -152,9 +164,9 @@ void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
 //--------------------------------------------------------------
 void ofApp::update(){
   if (pendingStudioSession && !isShuttingDown) {
-    const auto path = *pendingStudioSession;
+    const auto request = *pendingStudioSession;
     pendingStudioSession.reset();
-    openStudioSession(path);
+    openStudioSession(request.path, request.remember);
   }
   if (!synthPtr || isShuttingDown) {
     return;
