@@ -6,6 +6,7 @@ Artifacts: app bundles land in `bin/` (see `Project.xcconfig`).
 Lint/Format: none configured (no `.clang-format`, `clang-tidy`, etc.).
 Tests: none in repo (no single-test runner); validate via build + manual run.
 Dependencies: add/remove addons via `addons.make` and regenerate Xcode if needed.
+Xcode project: new/removed source files (e.g. a new Mod in ofxMarkSynth) need `./refresh-xcode-project.sh [--build]`; NEVER run projectGenerator by hand - its options eat their own path and it throws away this Makefile's Syphon bundling. See [docs/Xcode-Project.md](docs/Xcode-Project.md).
 C++ standard: C++23 (see `Project.xcconfig`).
 Indentation: 2 spaces; avoid introducing tabs.
 Braces: K&R (`if (...) {`), space before `{`.
