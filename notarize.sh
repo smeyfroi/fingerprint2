@@ -21,7 +21,8 @@ ZIP="bin/Fingerprints.zip"
 
 # --- 1. Build Release (signed by App.xcconfig) ----------------------------
 echo "==> [1/4] Building Release…"
-xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release OTHER_CODE_SIGN_FLAGS="--timestamp" build | tail -20
+xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
+  OTHER_CODE_SIGN_FLAGS="--timestamp" CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO build | tail -20
 test -d "$APP" || { echo "ERROR: build did not produce $APP"; exit 1; }
 
 # --- 2. Verify the build really is Developer ID signed + hardened ----------
