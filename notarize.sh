@@ -31,6 +31,12 @@ codesign -dvv "$APP" 2>&1 | grep -q "Authority=Developer ID Application" \
   || { echo "ERROR: $APP is not Developer ID signed — check App.xcconfig"; exit 1; }
 codesign -dvv "$APP" 2>&1 | grep -q "flags=.*runtime" \
   || { echo "ERROR: $APP is missing Hardened Runtime — check App.xcconfig"; exit 1; }
+if codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q "get-task-allow"; then
+  echo "ERROR: $APP carries com.apple.security.get-task-allow, which the notary service"
+  echo "       rejects. Xcode injects it into a plain \`build\`; set"
+  echo "       CODE_SIGN_INJECT_BASE_ENTITLEMENTS[config=Release] = NO in App.xcconfig."
+  exit 1
+fi
 
 # --- 3. Notarize ----------------------------------------------------------
 echo "==> [3/4] Submitting to Apple notary service (may take a few minutes)…"

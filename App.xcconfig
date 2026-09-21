@@ -14,6 +14,12 @@ DEVELOPMENT_TEAM = EZCN55TA7J
 CODE_SIGN_STYLE[config=Release] = Manual
 CODE_SIGN_IDENTITY[config=Release] = Developer ID Application
 ENABLE_HARDENED_RUNTIME[config=Release] = YES
+// Xcode injects com.apple.security.get-task-allow (debugger-may-attach) into every
+// `xcodebuild ... build`. Archive/Distribute strips it; notarize.sh builds rather than
+// archives, so without this the entitlement reaches the binary it submits and the notary
+// service rejects it - a process a debugger can attach to undoes the Hardened Runtime.
+// Debug keeps the injection, so debugging is unaffected.
+CODE_SIGN_INJECT_BASE_ENTITLEMENTS[config=Release] = NO
 // --timestamp is intentionally NOT set here, so everyday Release builds are
 // fully OFFLINE (the secure timestamp needs internet to Apple). notarize.sh
 // re-adds --timestamp for distribution builds; local Release runs fine without it.
