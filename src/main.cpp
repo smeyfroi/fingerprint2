@@ -1,3 +1,5 @@
+#include <csignal>
+
 #include "ofMain.h"
 #include "ofApp.h"
 #include "ofAppGLFWWindow.h"
@@ -66,6 +68,15 @@ bool isShiftKeyHeldAtLaunch() {
 
 //========================================================================
 int main(int argc, char** argv) {
+  // A send() on a socket the OS has torn down raises SIGPIPE, whose default
+  // action kills the app mid-show. macOS does this to the OSC echo socket the
+  // moment Local Network privacy refuses it (NECP marks it defunct), and can
+  // on a network change. Ignored process-wide, the send fails with EPIPE
+  // instead and only the echo to the surface is lost. Installed here, before
+  // any socket exists, rather than relying on the video recorder's own
+  // SIG_IGN, which only runs once a recording starts.
+  std::signal(SIGPIPE, SIG_IGN);
+
   std::filesystem::path initialSession;
   bool initialStudio = false;
   for (int i = 1; i < argc; ++i) {
