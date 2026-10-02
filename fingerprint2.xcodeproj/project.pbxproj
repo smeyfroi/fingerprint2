@@ -7328,6 +7328,7 @@
 				"1AF68EAE-AF46-452C-BDA7-E7B0B8BB786F",
 				"FF7083A9-5258-4A5E-8F2B-BC8D746E5A87",
 				"8CE9B963-69AC-4B4E-AA06-9D5870DF1114",
+				"00E6F1DB-581E-4266-98F4-4A120E7C77FE",
 				"24E42E83-81F2-48CF-A922-150FDD97EF01",
 				"0984DBE8-B1B8-4720-9FBE-F455282AF6F7",
 				"E2E4B41D-E13B-4647-924B-2BFC9A61DB4A",
@@ -8662,7 +8663,9 @@
 				"A5DEC0EA-B0ED-4764-9888-61C4E6F23BDF",
 				"C2721464-87BA-4A5E-B5F1-70CC16B9E7C0",
 				"044C1EC5-83F6-4235-87A3-631C4C4CACD9",
+				"FCEF2EEA-781D-4ABA-B71F-B933452A5618",
 				"F3DBCBD5-FA22-4F94-95FE-E18198CAF5E6",
+				"EE0A7F41-CF68-4C1D-8187-078FABE1E317",
 				"E92B39AC-8CEA-45DC-82B2-FC395FE1D480",
 				"1F4C8FDE-D4C0-4526-AFF7-95FBFA80A9ED",
 				"B8424162-2156-44D9-98B6-3EFCA79A806C",
@@ -8718,6 +8721,24 @@
 			"lastKnownFileType": "sourcecode.cpp.h",
 			"name": "RandomHslColorMod.hpp",
 			"sourceTree": "<group>"
+		},
+		"FCEF2EEA-781D-4ABA-B71F-B933452A5618": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.cpp",
+			"name": "FieldWalkerMod.cpp",
+			"sourceTree": "<group>"
+		},
+		"EE0A7F41-CF68-4C1D-8187-078FABE1E317": {
+			"fileEncoding": "4",
+			"isa": "PBXFileReference",
+			"lastKnownFileType": "sourcecode.cpp.h",
+			"name": "FieldWalkerMod.hpp",
+			"sourceTree": "<group>"
+		},
+		"00E6F1DB-581E-4266-98F4-4A120E7C77FE": {
+			"fileRef": "FCEF2EEA-781D-4ABA-B71F-B933452A5618",
+			"isa": "PBXBuildFile"
 		}
 	},
 	"rootObject": "E4B69B4C0A3A1720003C02F2"
