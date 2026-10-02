@@ -48,5 +48,12 @@ MARKETING_VERSION = 1.0.0
 // silently denies the app's local-network use (no prompt, not in the list).
 INFOPLIST_KEY_NSLocalNetworkUsageDescription = Fingerprints exchanges OSC control data over your local network with a TouchOSC surface on iPad.
 
+// The same for the Documents and Desktop folders (2026-10-02): the Developer ID
+// Release build (com.meyfroidt.fingerprints) had never been granted Documents,
+// and with no usage string macOS showed no prompt, so opening a recording under
+// ~/Documents waited forever and the app never started.
+INFOPLIST_KEY_NSDocumentsFolderUsageDescription = Fingerprints reads its performance grids and recorded audio from your Documents folder.
+INFOPLIST_KEY_NSDesktopFolderUsageDescription = Fingerprints reads performance grids and recorded audio kept on your Desktop.
+
 ICON_NAME = icon.icns
 ICON_FILE = $(ICON_NAME)
