@@ -79,6 +79,7 @@ public:
   static constexpr uint64_t kIndicatorIntervalMs = 200;   // 5 Hz read-only indicator stream
   static constexpr uint64_t kFullSyncIntervalMs  = 2000;  // re-push all control state every ~2 s
   static constexpr uint64_t kIdleGuardMs         = 1500;  // ...but only while the surface is quiet
+  static constexpr double   kSlowUpdateWarnMs    = 4.0;   // update() longer than this logs a breakdown
 
   // === Per-strip R/M/S state (/layer/<i>/state) ===
   // The nanoKONTROL2's per-strip cue grammar, packed into one int so the iPad can
@@ -153,7 +154,7 @@ private:
   static const std::array<std::string, 7> kIntentNames;
 
   bool startReceiver();
-  void pollIncoming();
+  int pollIncoming();  // returns the number of non-/sync messages handled
   void handleMessage(const ofxOscMessage& m);
 
   // Target resolution (nullptr if absent in the current config).
@@ -170,7 +171,12 @@ private:
   void sendCurrentState();
   // Slow "tempo sync": periodically re-push the full control state so GUI/MIDI
   // edits reach the surface, gated so it never fights an in-flight iPad drag.
-  void maybePeriodicSync();
+  bool maybePeriodicSync();  // true when it pushed the full state
+  // Every outbound message goes through here, so update() can report how much
+  // of a slow frame was the sends themselves versus the reads around them.
+  void send(const ofxOscMessage& m);
+  int sendCount_ = 0;
+  double sendMs_ = 0.0;
   void sendFloat(const std::string& addr, float value);
   void sendString(const std::string& addr, const std::string& value);
   void sendInt(const std::string& addr, int value);

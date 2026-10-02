@@ -3,6 +3,7 @@
 #include "subsystem/SynthSubsystems.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cctype>
 #include <optional>
@@ -29,11 +30,33 @@ OscController::~OscController() {
 
 void OscController::update() {
   if (!synthPtr) return;
-  pollIncoming();
+  // Everything here runs on the main thread, so a slow frame here is a slow
+  // frame on screen. Timed per phase so a stall can be pinned on inbound
+  // handling (parameter listeners) or on the outbound pushes.
+  using Clock = std::chrono::steady_clock;
+  const auto msSince = [](Clock::time_point t) {
+    return std::chrono::duration<double, std::milli>(Clock::now() - t).count();
+  };
+  sendCount_ = 0;
+  sendMs_ = 0.0;
+  const auto t0 = Clock::now();
+  const int inbound = pollIncoming();
+  const double inMs = msSince(t0);
+  const auto t1 = Clock::now();
   streamIndicators();
   maybeActiveCellResync();
   maybeStripStateResync();
-  maybePeriodicSync();
+  const double streamMs = msSince(t1);
+  const auto t2 = Clock::now();
+  const bool fullSync = maybePeriodicSync();
+  const double syncMs = msSince(t2);
+  const double totalMs = msSince(t0);
+  if (totalMs > kSlowUpdateWarnMs) {
+    ofLogWarning("OscController") << "Slow update " << totalMs << " ms: inbound "
+        << inMs << " ms (" << inbound << " msgs), indicators " << streamMs
+        << " ms, full sync " << syncMs << " ms" << (fullSync ? " (ran)" : "")
+        << "; of which " << sendCount_ << " sends took " << sendMs_ << " ms";
+  }
 }
 
 void OscController::exit() {
@@ -91,7 +114,8 @@ void OscController::ensureSender(const std::string& host) {
   }
 }
 
-void OscController::pollIncoming() {
+int OscController::pollIncoming() {
+  int handled = 0;
   while (receiver.hasWaitingMessages()) {
     ofxOscMessage m;
     if (!receiver.getNextMessage(m)) break;
@@ -119,21 +143,24 @@ void OscController::pollIncoming() {
     // periodic sync can hold off while the performer is actively editing.
     lastControlInMs_ = ofGetElapsedTimeMillis();
     handleMessage(m);
+    ++handled;
   }
+  return handled;
 }
 
-void OscController::maybePeriodicSync() {
-  if (!synthPtr || !senderReady) return;
+bool OscController::maybePeriodicSync() {
+  if (!synthPtr || !senderReady) return false;
   const uint64_t now = ofGetElapsedTimeMillis();
-  if (now - lastFullSyncMs_ < kFullSyncIntervalMs) return;
+  if (now - lastFullSyncMs_ < kFullSyncIntervalMs) return false;
   // Hold off if the surface sent control traffic recently: re-pushing mid-drag
   // would echo a slightly-stale value back and fight the performer's finger.
   // The /sync heartbeat is excluded (it never stamps lastControlInMs_), so an
   // idle-but-connected surface still gets re-synced. This idle gate doubles as
   // echo-suppression, which is why no per-parameter guard is needed.
-  if (now - lastControlInMs_ < kIdleGuardMs) return;
+  if (now - lastControlInMs_ < kIdleGuardMs) return false;
   lastFullSyncMs_ = now;
   sendCurrentState();
+  return true;
 }
 
 namespace {
@@ -307,25 +334,33 @@ float OscController::normOf(ofParameter<float>& p) {
   return std::clamp((p.get() - min) / (max - min), 0.0f, 1.0f);
 }
 
+void OscController::send(const ofxOscMessage& m) {
+  const auto t = std::chrono::steady_clock::now();
+  sender.sendMessage(m, false);
+  sendMs_ += std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - t).count();
+  ++sendCount_;
+}
+
 void OscController::sendFloat(const std::string& addr, float value) {
   ofxOscMessage m;
   m.setAddress(addr);
   m.addFloatArg(value);
-  sender.sendMessage(m, false);
+  send(m);
 }
 
 void OscController::sendString(const std::string& addr, const std::string& value) {
   ofxOscMessage m;
   m.setAddress(addr);
   m.addStringArg(value);
-  sender.sendMessage(m, false);
+  send(m);
 }
 
 void OscController::sendInt(const std::string& addr, int value) {
   ofxOscMessage m;
   m.setAddress(addr);
   m.addInt32Arg(value);
-  sender.sendMessage(m, false);
+  send(m);
 }
 
 void OscController::maybeStripStateResync(bool force) {
@@ -421,7 +456,7 @@ void OscController::sendCurrentState() {
   for (const auto& name : kIntentNames) {
     impacts.addInt32Arg(surfaceInfo.bucket(name));
   }
-  sender.sendMessage(impacts, false);
+  send(impacts);
 
   if (auto* p = synthParam("LiveAgency")) sendFloat("/synth/agency", normOf(*p));
   if (auto* p = synthParam("AudioResp")) sendFloat("/synth/audiogain", normOf(*p));
@@ -502,17 +537,17 @@ void OscController::sendGridState() {
         cells.addInt32Arg(packed);
       }
     }
-    sender.sendMessage(cells, false);
+    send(cells);
 
     ofxOscMessage page;
     page.setAddress("/grid/page");
     page.addInt32Arg(set.currentPage() + 1);  // 0-based here, 1-based on the wire
-    sender.sendMessage(page, false);
+    send(page);
   } else {
     // No set: clear a possibly-stale surface with one all-zero message so the
     // tab-2 cells don't keep showing a previous session's colours.
     for (int i = 0; i < kGridCellCount; ++i) cells.addInt32Arg(0);
-    sender.sendMessage(cells, false);
+    send(cells);
   }
 }
 
