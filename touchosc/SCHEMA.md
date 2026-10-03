@@ -382,3 +382,35 @@ inventory. The proof that this works:
    two rebased ones fails it in three places.
 
 All three are cheap. Run them.
+
+## 8. Three tabs (v3, 2026-10-02)
+
+`v3-pages` rebuilds the three page groups from their own children rather than
+splicing at anchors: each group is split into its head and its child nodes,
+existing children get new frames (and, for the pads, three properties), new
+children are clones of existing nodes of the same kind with their `ID`
+attribute dropped, and the group is joined back. So every OSC binding, hue and
+fader style that was hand-tuned survives; only frames and the properties named
+in the code change.
+
+Root children, in order: `gridTab` (SET), `ctlTab` (MIX), `liveTab` (LIVE),
+then `tab_1..3` / `tabLabel_1..3`. All three pages are `(0, 0, 640, 840)`; the
+tab row stays at y 854.
+
+| Node | Kind | Notes |
+|---|---|---|
+| `qframe_<q>` / `qname_<q>` | LABEL | quadrant outline (`background 0`, `outline 1`, `outlineStyle 0`) and caption; `q` = 0 NW, 1 NE, 2 SW, 3 SE |
+| `sw_<x>_<y>` | LABEL | the pad's colour and name: `background 1`, drawn before (under) its `cell_<x>_<y>` |
+| `cell_<x>_<y>` | BUTTON | unchanged OSC; now `background 0`, `outline 0`, colour white at 0.45 alpha -- a press flash only |
+| `padRing` | LABEL | one outline, moved by the script onto the active pad |
+| `page_1..16` / `pageLabel_1..16` | BUTTON / LABEL | 2 rows of 8; the label sits ON the button; `page_5..16` are `page_1` clones with the constant argument renumbered |
+| `liveTab` | GROUP | a clone of `ctlTab`'s head, renamed, hidden |
+| `input<i>` | GROUP | `name` `level` `gain` `db` `reset` `resetLabel`, assembled from `agency0`'s children and a `layer0` fader with their OSC paths rewritten |
+| `agency4..7` | GROUP | `agency0` clones with `/agency/0/...` rewritten |
+
+SET geometry: quadrant columns at x 16 and 328 (296 wide, 16 px gutter), rows
+at y 56 and 356 (272 tall); inside, a 6 px inset and a 72 × 66 pitch for 68 × 62
+pads. `check()` asserts that every pad sits exactly on its swatch, swatches draw
+underneath, no two touch targets overlap, and each quadrant frame holds its 16
+pads. The grid is no longer evenly pitched (the gutter), so the two-tab
+mutations that measured that pitch skip once `liveTab` exists.

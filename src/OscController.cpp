@@ -4,14 +4,18 @@
 
 #include <algorithm>
 #include <chrono>
+#include <iomanip>
+#include <sstream>
 #include <cmath>
 #include <cctype>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "ofMain.h"
 #include "ofxMarkSynth.h"
 #include "processMods/AgencyControllerMod.hpp"
+#include "audio/IAudioAnalysisSource.hpp"
 
 const std::array<std::string, 7> OscController::kIntentNames = {
   // The 7 poles (2026-07-12: Ordered dropped, Chaotic solo last), fader order. /intent/0../6.
@@ -70,6 +74,7 @@ void OscController::exit() {
 void OscController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synth) {
   synthPtr = synth;
   cacheAgencyMods();
+  cacheInputs();
   // Re-subscribe the RAII page-change listener to THIS synth's SetController.
   // The Synth persists across config switches, so the multi-listener event
   // outlives a reload; re-assigning here replaces only our own slot. Any
@@ -184,18 +189,101 @@ namespace {
     return true;
   }
 
-  // Strip a leading "Agency"/"agency" from a controller name (the panel title
-  // already says AGENCY) so the on-screen labels are short and unambiguous.
+  // The surface's labels are drawn by TouchOSC with no fallback font, and every
+  // other string this app hands a UI is plain ASCII (the GUI font rule), so
+  // fold here too: drop anything outside printable ASCII.
+  std::string asciiOnly(const std::string& in) {
+    std::string out;
+    out.reserve(in.size());
+    for (unsigned char c : in) {
+      if (c >= 0x20 && c < 0x7f) out.push_back(static_cast<char>(c));
+    }
+    return out;
+  }
+
+  // Fit a name into at most two lines of `width` characters, breaking after a
+  // space or a hyphen (group names are hyphenated: voice-2-fluid-group), and
+  // mark anything that still does not fit with a trailing '.'. Labels cannot
+  // measure text, so this is the only place a long name gets shaped.
+  std::string wrapTwoLines(const std::string& raw, std::size_t width) {
+    const std::string name = asciiOnly(raw);
+    if (name.size() <= width) return name;
+    std::size_t cut = std::string::npos;
+    for (std::size_t i = 0; i < name.size() && i < width; ++i) {
+      if (name[i] == ' ' || name[i] == '-') cut = i;
+    }
+    std::string first, rest;
+    if (cut == std::string::npos) {
+      first = name.substr(0, width);
+      rest = name.substr(width);
+    } else {
+      first = name.substr(0, name[cut] == '-' ? cut + 1 : cut);
+      rest = name.substr(cut + 1);
+    }
+    if (rest.size() > width) rest = rest.substr(0, width - 1) + ".";
+    return first + "\n" + rest;
+  }
+
+  // Controller names are CamelCase with "Agency" somewhere in them (Agency1,
+  // RoomAgencyOmni, PedalGlassAgencyOmni); the panel heading already says
+  // AGENCY. Drop the word wherever it sits and space out what is left:
+  // RoomAgencyOmni -> "Room Omni", TrioAgency1 -> "Trio 1". A bare number
+  // keeps the word ("Agency 1"), since "1" alone says nothing.
   std::string agencyShortName(const std::string& name) {
     std::string s = name;
-    if (s.size() >= 6) {
-      const std::string head = s.substr(0, 6);
-      if (head == "Agency" || head == "agency") s.erase(0, 6);
+    for (const char* word : { "Agency", "agency" }) {
+      for (auto at = s.find(word); at != std::string::npos; at = s.find(word)) {
+        s.replace(at, 6, " ");
+      }
     }
-    while (!s.empty() && (s.front() == ' ' || s.front() == '-' || s.front() == '_')) {
-      s.erase(0, 1);
+    std::string spaced;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+      const char c = s[i];
+      const char prev = i > 0 ? s[i - 1] : ' ';
+      const bool boundary = (std::isupper(static_cast<unsigned char>(c)) &&
+                             std::islower(static_cast<unsigned char>(prev))) ||
+                            (std::isdigit(static_cast<unsigned char>(c)) &&
+                             std::islower(static_cast<unsigned char>(prev)));
+      if (boundary) spaced.push_back(' ');
+      spaced.push_back(c == '-' || c == '_' ? ' ' : c);
     }
-    return s.empty() ? name : s;
+    std::string out;
+    for (char c : spaced) {
+      if (c == ' ' && (out.empty() || out.back() == ' ')) continue;
+      out.push_back(c);
+    }
+    while (!out.empty() && out.back() == ' ') out.pop_back();
+    if (out.empty()) return name;
+    const bool bareNumber = std::all_of(out.begin(), out.end(),
+        [](unsigned char c) { return std::isdigit(c) || c == ' '; });
+    return bareNumber ? "Agency " + out : out;
+  }
+
+  // A strip's name under the GROUPS heading: "-group" says nothing there and
+  // costs the line its last word (voice-2-fluid-group).
+  std::string stripName(const std::string& name) {
+    constexpr std::string_view kSuffix = "-group";
+    if (name.size() > kSuffix.size() && name.ends_with(kSuffix)) {
+      return name.substr(0, name.size() - kSuffix.size());
+    }
+    return name;
+  }
+
+  // 0 NW, 1 NE, 2 SW, 3 SE: the 4x4 quarters of the 8x8 grid.
+  int quadrantOf(int x, int y) {
+    return (y < 4 ? 0 : 2) + (x < 4 ? 0 : 1);
+  }
+
+  // What a pad says on the surface: a scene's name, else the config cell's
+  // headline, else its world, else its config; snapshots by slot (1-based,
+  // as the GUI numbers them).
+  std::string padName(const ofxMarkSynth::SetController::Cell& cell) {
+    using Kind = ofxMarkSynth::SetController::CellKind;
+    if (cell.kind == Kind::Scene) return cell.sceneName.empty() ? "Scene" : cell.sceneName;
+    if (cell.kind == Kind::Snapshot) return "Snap " + ofToString(cell.snapshotSlot + 1);
+    if (!cell.label.empty()) return cell.label;
+    if (!cell.world.empty()) return cell.world;
+    return cell.config;
   }
 }  // namespace
 
@@ -273,6 +361,13 @@ void OscController::handleMessage(const ofxOscMessage& m) {
   } else if (matchIndexed(addr, "/agency/", "/force", idx)) {
     if (v > 0.5f) {  // momentary press
       if (auto mod = agencyMod(idx)) mod->requestForceTrigger();
+    }
+  } else if (matchIndexed(addr, "/input/", "/gain", idx)) {
+    setInputTrim(idx, (std::clamp(v, 0.0f, 1.0f) * 2.0f - 1.0f) * kInputTrimRangeDb);
+  } else if (matchIndexed(addr, "/input/", "/reset", idx)) {
+    if (v > 0.5f && idx >= 0 && idx < static_cast<int>(inputIds_.size())) {
+      setInputTrim(idx, inputBaselineDb_[inputIds_[idx]]);
+      sendInputState();  // snap the fader back; the finger is off it
     }
   }
 }
@@ -414,6 +509,7 @@ void OscController::sendCurrentState() {
   // Send active + values for every strip the surface has (kSurfaceLayers), so a
   // config with fewer layers marks the surplus strips inactive — the surface
   // hides them — instead of leaving stale faders/labels behind.
+  sendString("/mix/heading", groups ? "GROUPS" : "LAYERS");
   const int nLayers = static_cast<int>(alphas.size());
   for (int i = 0; i < kSurfaceLayers; ++i) {
     const bool active = (i < nLayers);
@@ -421,7 +517,8 @@ void OscController::sendCurrentState() {
     if (active) {
       ofParameter<float>& a = alphas.getFloat(i);
       sendFloat("/layer/" + ofToString(i) + "/alpha", normOf(a));
-      sendString("/layer/" + ofToString(i) + "/name", a.getName());
+      sendString("/layer/" + ofToString(i) + "/name",
+                 wrapTwoLines(stripName(a.getName()), kStripNameLineChars));
     }
   }
   for (int i = 0; i < static_cast<int>(pausePtrs.size()) && i < kSurfaceLayers; ++i) {
@@ -471,7 +568,9 @@ void OscController::sendCurrentState() {
                            agencyShortName(agencyModNames_[i]));
   }
 
-  // Set-pages grid tab: cell colours + current page (or a clear when no set).
+  sendInputState();
+
+  // SET tab: pads, quadrants, pages (or a clear when no set).
   sendGridState();
 }
 
@@ -483,72 +582,147 @@ void OscController::sendGridState() {
   if (!synthPtr || !senderReady) return;
 
   const auto& set = synthPtr->getSetController();
-  ofxOscMessage cells;
+  ofxOscMessage cells, state, labels;
   cells.setAddress("/grid/cells");
+  state.setAddress("/grid/state");
+  labels.setAddress("/grid/labels");
 
-  if (set.hasSet()) {
-    const bool memReady = isMemoryReady();
-    const auto& active = synthPtr->getActiveSetCell();
-    const bool activeIntact = synthPtr->isActiveSetCellPoseIntact();
-    const int curPage = set.currentPage();
-    // ONE message, 64 int32 in row-major order (y=0..7, x=0..7): 0xRRGGBB per
-    // assigned cell, 0 for an unassigned pad. Brightness tiers mirror the APC
-    // pads (2026-08-30 audition feedback: "how do i know which pad i am
-    // playing?"): the ACTIVE pad — the last-landed press, any kind, on the
-    // current page — carries its authored colour at FULL brightness while the
-    // pose it set is intact, dropping to the rest tier once a scene
-    // chain-pause is hand-flipped; every other assigned cell rests at
-    // kSetCellRestDimFactor; snapshot/scene cells scoped to a NOT-loaded
-    // family (carried stem != loaded stem; the engine refuses the press) sit
-    // at kForeignDimFactor — config cells are exempt, they are the doors
-    // between families; memoryDependent CONFIG cells sit at kMemoryDimFactor
-    // until the bank fills (snapshot and scene cells never memory-dim). The
-    // surface receives colour only, so these tiers ARE the whole affordance
-    // there — played-pad and foreign-half alike. The foreign/own flip on a
-    // family switch needs no plumbing here: a config load re-runs this via
-    // onSynthDidLoad -> sendCurrentState with the new stem.
-    const auto& cfgPath = synthPtr->getConfigSubsystem().getCurrentConfigPath();
-    const std::string stem = cfgPath.empty() ? std::string{}
-                                             : ofFilePath::getBaseName(cfgPath);
-    for (int y = 0; y < kGridRows; ++y) {
-      for (int x = 0; x < kGridCols; ++x) {
-        int32_t packed = 0;
-        if (const auto* cell = set.cellAt(x, y)) {
-          ofColor c = cell->color;
-          const bool isActivePad = active && active->page == curPage &&
-                                   active->x == x && active->y == y;
-          const bool isConfigCell =
-              (cell->kind == ofxMarkSynth::SetController::CellKind::Config);
-          float dim = kSetCellRestDimFactor;
-          if (isActivePad && activeIntact) {
-            dim = 1.0f;
-          } else if (!isConfigCell && !cell->config.empty() && cell->config != stem) {
-            dim = kForeignDimFactor;
-          } else if (isConfigCell && cell->memoryDependent && !memReady) {
-            dim = kMemoryDimFactor;
-          }
-          c.r = static_cast<unsigned char>(c.r * dim);
-          c.g = static_cast<unsigned char>(c.g * dim);
-          c.b = static_cast<unsigned char>(c.b * dim);
-          packed = (static_cast<int32_t>(c.r) << 16)
-                 | (static_cast<int32_t>(c.g) << 8)
-                 |  static_cast<int32_t>(c.b);
-        }
-        cells.addInt32Arg(packed);
-      }
+  ofxOscMessage quadrants;
+  quadrants.setAddress("/grid/quadrants");
+  ofxOscMessage now;
+  now.setAddress("/grid/now");
+  ofxOscMessage pages;
+  pages.setAddress("/grid/pages");
+
+  if (!set.hasSet()) {
+    // No set: clear a possibly-stale surface so the pads don't keep showing a
+    // previous session's colours, names or quadrants.
+    for (int i = 0; i < kGridCellCount; ++i) {
+      cells.addInt32Arg(0);
+      state.addInt32Arg(kPadEmpty);
+      labels.addStringArg("");
     }
-    send(cells);
-
-    ofxOscMessage page;
-    page.setAddress("/grid/page");
-    page.addInt32Arg(set.currentPage() + 1);  // 0-based here, 1-based on the wire
-    send(page);
-  } else {
-    // No set: clear a possibly-stale surface with one all-zero message so the
-    // tab-2 cells don't keep showing a previous session's colours.
-    for (int i = 0; i < kGridCellCount; ++i) cells.addInt32Arg(0);
-    send(cells);
+    quadrants.addInt32Arg(-1);
+    for (int q = 0; q < 4; ++q) quadrants.addStringArg("");
+    now.addStringArg("No set loaded");
+    pages.addInt32Arg(0);
+    pages.addInt32Arg(0);
+    for (const auto* m : { &cells, &state, &labels, &quadrants, &now, &pages }) send(*m);
+    return;
   }
+
+  // Colours go out as authored; what each pad LOOKS like is the surface's call,
+  // from the tier in /grid/state. The tiers keep the APC's facts -- the active
+  // pad, a family that is not loaded (the engine refuses the press), a memory
+  // config waiting for the bank -- and add the one a screen can show and LEDs
+  // cannot: which 4x4 quadrant the performer is in.
+  const bool memReady = isMemoryReady();
+  const auto& active = synthPtr->getActiveSetCell();
+  const bool activeIntact = synthPtr->isActiveSetCellPoseIntact();
+  const int curPage = set.currentPage();
+  const auto& cfgPath = synthPtr->getConfigSubsystem().getCurrentConfigPath();
+  const std::string stem = cfgPath.empty() ? std::string{}
+                                           : ofFilePath::getBaseName(cfgPath);
+  const int curQuad = currentQuadrant();
+  std::string activeName;
+  for (int y = 0; y < kGridRows; ++y) {
+    for (int x = 0; x < kGridCols; ++x) {
+      const auto* cell = set.cellAt(x, y);
+      if (!cell) {
+        cells.addInt32Arg(0);
+        state.addInt32Arg(kPadEmpty);
+        labels.addStringArg("");
+        continue;
+      }
+      const ofColor& c = cell->color;
+      cells.addInt32Arg((static_cast<int32_t>(c.r) << 16) |
+                        (static_cast<int32_t>(c.g) << 8) |
+                         static_cast<int32_t>(c.b));
+      const bool isConfigCell =
+          (cell->kind == ofxMarkSynth::SetController::CellKind::Config);
+      int tier = (curQuad < 0 || quadrantOf(x, y) == curQuad) ? kPadHere : kPadElsewhere;
+      if ((!isConfigCell && !cell->config.empty() && cell->config != stem) ||
+          (isConfigCell && cell->memoryDependent && !memReady)) {
+        tier = kPadUnavailable;
+      }
+      if (active && active->page == curPage && active->x == x && active->y == y) {
+        tier += activeIntact ? kPadActive : kPadActiveBroken;
+        activeName = asciiOnly(padName(*cell));
+      }
+      state.addInt32Arg(tier);
+      labels.addStringArg(wrapTwoLines(padName(*cell), kPadNameLineChars));
+    }
+  }
+
+  quadrants.addInt32Arg(curQuad);
+  for (int q = 0; q < 4; ++q) quadrants.addStringArg(asciiOnly(quadrantName(q)));
+
+  // One line saying where the performer is: quadrant | pad | page.
+  std::string line;
+  const auto join = [&line](const std::string& part) {
+    if (part.empty()) return;
+    if (!line.empty()) line += "  |  ";
+    line += part;
+  };
+  if (curQuad >= 0) join(asciiOnly(quadrantName(curQuad)));
+  join(activeName);
+  const std::string pageName = asciiOnly(set.pageName(curPage));
+  join("page " + ofToString(curPage + 1) + (pageName.empty() ? "" : " " + pageName));
+  now.addStringArg(line);
+
+  const int nPages = std::min(set.pageCount(), kMaxSurfacePages);
+  pages.addInt32Arg(nPages);
+  pages.addInt32Arg(curPage + 1);  // 0-based here, 1-based on the wire
+  for (int p = 0; p < nPages; ++p) pages.addStringArg(asciiOnly(set.pageName(p)));
+
+  for (const auto* m : { &cells, &state, &labels, &quadrants, &now, &pages }) send(*m);
+}
+
+int OscController::currentQuadrant() const {
+  if (!synthPtr) return -1;
+  const auto& set = synthPtr->getSetController();
+  if (!set.hasSet()) return -1;
+  const int curPage = set.currentPage();
+  if (const auto& active = synthPtr->getActiveSetCell(); active && active->page == curPage) {
+    return quadrantOf(active->x, active->y);
+  }
+  // No pad played on this page yet (startup, a config loaded from the arrows):
+  // the quadrant whose config is loaded, its home pad first.
+  const auto& cfgPath = synthPtr->getConfigSubsystem().getCurrentConfigPath();
+  if (cfgPath.empty()) return -1;
+  const std::string stem = ofFilePath::getBaseName(cfgPath);
+  int found = -1;
+  for (const auto& cell : set.cellsForCurrentPage()) {
+    if (cell.kind != ofxMarkSynth::SetController::CellKind::Config || cell.config != stem) continue;
+    if (cell.home) return quadrantOf(cell.x, cell.y);
+    if (found < 0) found = quadrantOf(cell.x, cell.y);
+  }
+  return found;
+}
+
+std::string OscController::quadrantName(int q) const {
+  if (!synthPtr) return {};
+  // A quadrant is named by its home pad -- the world's outer-corner safe config,
+  // whose `world` is the audience name ("Minuet and trio") -- else by the
+  // config most of its config pads load.
+  std::map<std::string, int> configs;
+  for (const auto& cell : synthPtr->getSetController().cellsForCurrentPage()) {
+    if (quadrantOf(cell.x, cell.y) != q) continue;
+    if (cell.home) {
+      if (!cell.world.empty()) return cell.world;
+      if (!cell.label.empty()) return cell.label;
+      return cell.config;
+    }
+    if (cell.kind == ofxMarkSynth::SetController::CellKind::Config && !cell.config.empty()) {
+      ++configs[cell.config];
+    }
+  }
+  std::string best;
+  int bestCount = 0;
+  for (const auto& [config, n] : configs) {
+    if (n > bestCount) { best = config; bestCount = n; }
+  }
+  return best;
 }
 
 void OscController::maybeActiveCellResync() {
@@ -572,6 +746,57 @@ void OscController::maybeActiveCellResync() {
   lastActiveCellY_ = y;
   lastActiveCellIntact_ = intact;
   sendGridState();
+}
+
+void OscController::cacheInputs() {
+  inputIds_.clear();
+  if (!synthPtr) return;
+  for (const auto& [id, src] : synthPtr->getAudioAnalysisSources()) {
+    if (!src) continue;
+    inputIds_.push_back(id);
+    // First sight only: the rig persists across config loads, so a later load
+    // must not adopt a live trim as the baseline.
+    if (!inputBaselineDb_.contains(id)) inputBaselineDb_[id] = src->getChannelInfo().inputGainDb;
+  }
+  if (static_cast<int>(inputIds_.size()) > kInputSlots) {
+    ofLogWarning("OscController") << inputIds_.size() << " audio sources, but the surface has "
+                                  << kInputSlots << " trim slots; the rest are GUI-only";
+  }
+}
+
+void OscController::setInputTrim(int slot, float db) {
+  if (!synthPtr || slot < 0 || slot >= static_cast<int>(inputIds_.size())) return;
+  if (auto src = synthPtr->getAudioAnalysisSource(inputIds_[slot])) src->setInputGainDb(db);
+}
+
+void OscController::sendInputState() {
+  if (!synthPtr || !senderReady) return;
+  for (int i = 0; i < kInputSlots; ++i) {
+    const bool active = (i < static_cast<int>(inputIds_.size()));
+    sendFloat("/input/" + ofToString(i) + "/active", active ? 1.0f : 0.0f);
+    if (!active) continue;
+    auto src = synthPtr->getAudioAnalysisSource(inputIds_[i]);
+    if (!src) continue;
+    const float db = src->getChannelInfo().inputGainDb;
+    sendString("/input/" + ofToString(i) + "/name", asciiOnly(inputIds_[i]));
+    sendFloat("/input/" + ofToString(i) + "/gain",
+              std::clamp((db / kInputTrimRangeDb + 1.0f) * 0.5f, 0.0f, 1.0f));
+    std::ostringstream text;
+    text << std::showpos << std::fixed << std::setprecision(1) << db << " dB";
+    sendString("/input/" + ofToString(i) + "/db", text.str());
+  }
+}
+
+void OscController::streamInputLevels() {
+  // Rides streamIndicators' 5 Hz tick. The post-trim analysis RMS, i.e. what
+  // the mods actually hear, so a trim move shows on the meter at once.
+  for (int i = 0; i < kInputSlots && i < static_cast<int>(inputIds_.size()); ++i) {
+    auto src = synthPtr->getAudioAnalysisSource(inputIds_[i]);
+    if (!src) continue;
+    const float rms = src->getScalarValue(ofxAudioData::AnalysisScalar::rootMeanSquare);
+    sendFloat("/input/" + ofToString(i) + "/level",
+              std::clamp(rms / kInputMeterFullRms, 0.0f, 1.0f));
+  }
 }
 
 void OscController::cacheAgencyMods() {
@@ -617,4 +842,5 @@ void OscController::streamIndicators() {
     sendFloat("/agency/" + ofToString(i) + "/budget", charge);
     sendFloat("/agency/" + ofToString(i) + "/armed", (charge >= 1.0f) ? 1.0f : 0.0f);
   }
+  streamInputLevels();
 }

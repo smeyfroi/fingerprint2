@@ -40,6 +40,14 @@ Mutations `apply` performs, each idempotent and independently skippable:
   page-script   showPage()/pageChild() in the root Lua, the tab poll in
                 update(), and the strip/slot lookups rebased through ctlTab.
 
+  v3-pages      (2026-10-02) the three-tab surface, SET / MIX / LIVE: the SET grid
+                as four framed quadrants of named swatch pads under transparent
+                touch buttons, 16 page buttons and an outlined HOME; MIX with
+                taller faders and two-line names; LIVE with the response faders,
+                four input trims and eight agency slots.  Supersedes the grid
+                and page mutations above, which skip once it is in.
+  v3-script     the root Lua for it, replaced whole.
+
 Everything is recoverable from git -- the .tosc is versioned, so this tool
 writes no backup files.  `git checkout touchosc/sharksynth.tosc` undoes it.
 """
@@ -684,15 +692,737 @@ def mutate_page_script(xml: str) -> tuple[str, str]:
                                   "lamps now reach the strips through ctlTab")
 
 
+# --------------------------------------------------------------------------- #
+# v3: three tabs -- SET / MIX / LIVE (2026-10-02)
+# --------------------------------------------------------------------------- #
+#
+# The owner's audit of the two-tab surface: the set page row out-shouted the
+# pads (amber against pads the host had dimmed and TouchOSC dimmed again), the
+# pads could not be told apart or placed in their 4x4 quadrant, names were
+# truncated everywhere, four agency slots could not hold the eight a config
+# carries, four page buttons could not reach a five-page set, and the audio
+# trims lived only in the desktop GUI.
+#
+# Unlike the earlier passes this one re-lays-out every page, so it works on
+# whole page groups: each is split into its head and its child nodes, the
+# children are edited (frames, a property or two) or cloned, and the group is
+# joined back. Every existing widget keeps its bytes apart from the properties
+# named here -- OSC bindings, hues and fader styling survive -- and every new
+# widget is a clone of an existing one of the same kind, so nothing is
+# invented. Clones drop their ID attribute (optional; see SCHEMA.md).
+
+V3_PAGES = ("gridTab", "ctlTab", "liveTab")          # SET, MIX, LIVE -- tab order
+V3_TAB_TEXT = ("SET", "MIX", "LIVE")
+V3_PAGE_H = 840                                       # every page fills the rect
+V3_TAB_X, V3_TAB_W = (16, 222, 428), 196
+
+# SET tab geometry. Two quadrant columns 296 wide with a 16px gutter fill the
+# 608px between the 16px margins; inside a quadrant, a 6px inset and a 72x66
+# pad pitch leave a 4px gap between 68x62 pads.
+Q_X, Q_Y, Q_W, Q_H = (16, 328), (56, 356), 296, 272
+Q_NAME_Y = (34, 334)
+PAD_INSET, PAD_PITCH_X, PAD_PITCH_Y, PAD_W, PAD_H = 6, 72, 66, 68, 62
+PAGE_ROW_Y, PAGE_ROW_PITCH, PAGE_BTN_W, PAGE_BTN_H, PAGE_PITCH_X = 640, 44, 72, 40, 76
+SURFACE_PAGES = 16
+HOME_FRAME = (484, 740, 140, 44)
+
+SWATCH_EMPTY = (0.07, 0.07, 0.08, 1)
+QFRAME_DIM = (0.3, 0.3, 0.34, 1)
+PAD_PRESS = (1, 1, 1, 0.45)
+HOME_AMBER = (1.0, 0.55, 0.0, 1)
+
+
+def _strip_ids(t: str) -> str:
+    return re.sub(r'<node ID="[^"]*" ', "<node ", t)
+
+
+def _own_props(t: str) -> tuple[int, int]:
+    i = t.index("<properties>")
+    return i, t.index("</properties>", i) + len("</properties>")
+
+
+def n_set(t: str, key: str, typ: str, inner: str) -> str:
+    """Set (or add) one of a node's OWN properties, on the node's own text."""
+    i, j = _own_props(t)
+    props = t[i:j]
+    pat = re.compile(r'<property type="' + typ + r'"><key>' + re.escape(key)
+                     + r"</key><value>.*?</value></property>", re.S)
+    new = f'<property type="{typ}"><key>{key}</key><value>{inner}</value></property>'
+    props = pat.sub(lambda _m: new, props, count=1) if pat.search(props) \
+        else props.replace("</properties>", new + "</properties>")
+    return t[:i] + props + t[j:]
+
+
+def n_frame(t: str, x: int, y: int, w: int, h: int) -> str:
+    return n_set(t, "frame", "r", f"<x>{x}</x><y>{y}</y><w>{w}</w><h>{h}</h>")
+
+
+def n_colour(t: str, key: str, rgba) -> str:
+    r, g, b, a = rgba
+    return n_set(t, key, "c", f"<r>{r}</r><g>{g}</g><b>{b}</b><a>{a}</a>")
+
+
+def n_bool(t: str, key: str, on: bool) -> str:
+    return n_set(t, key, "b", "1" if on else "0")
+
+
+def n_int(t: str, key: str, v: int) -> str:
+    return n_set(t, key, "i", str(v))
+
+
+def n_name(t: str, name: str) -> str:
+    return n_set(t, "name", "s", name)
+
+
+def n_text(t: str, text: str) -> str:
+    """A leaf LABEL's authored text."""
+    pat = re.compile(r"(<key>text</key><locked>0</locked><lockedDefaultCurrent>1"
+                     r"</lockedDefaultCurrent><default>).*?(</default>)", re.S)
+    if len(pat.findall(t)) != 1:
+        raise RuntimeError(f"{Span(t, 0, len(t), 0).name}: text default not unique")
+    return pat.sub(lambda m: m.group(1) + escape(text) + m.group(2), t, count=1)
+
+
+def n_osc(t: str, old: str, new: str) -> str:
+    anchor = f"<value>{old}</value>"
+    if t.count(anchor) != 1:
+        raise RuntimeError(f"OSC path {old!r} not unique in clone source")
+    return t.replace(anchor, f"<value>{new}</value>", 1)
+
+
+def _nm(t: str) -> str:
+    return Span(t, 0, len(t), 0).name or "?"
+
+
+def split_group(t: str) -> tuple[str, list[str]]:
+    spans = index_nodes(t)
+    if spans[0].start != 0 or spans[0].end != len(t):
+        raise RuntimeError("split_group: not a single node")
+    return t[:t.index("<children>")], [s.text for s in spans if s.depth == 1]
+
+
+def join_group(head: str, kids: list[str]) -> str:
+    return head + "<children>" + "".join(kids) + "</children></node>"
+
+
+def _by_name(kids: list[str]) -> dict[str, str]:
+    out = {}
+    for k in kids:
+        n = _nm(k)
+        if n in out:
+            raise RuntimeError(f"duplicate sibling {n!r}")
+        out[n] = k
+    return out
+
+
+def _edit_kids(group: str, edits: dict) -> str:
+    """Apply fn(child_text) -> child_text to named children of a group."""
+    head, kids = split_group(group)
+    out = []
+    for k in kids:
+        fn = edits.get(_nm(k))
+        out.append(fn(k) if fn else k)
+    return join_group(head, out)
+
+
+def _label(src: str, name: str, frame, text: str, size: int | None = None) -> str:
+    t = n_name(_strip_ids(src), name)
+    t = n_frame(t, *frame)
+    t = n_text(t, text)
+    return n_int(t, "textSize", size) if size else t
+
+
+def _no_osc(t: str) -> str:
+    """A clone that must never send or receive: drop its <messages> block."""
+    return re.sub(r"<messages>.*?</messages>", "", t, count=1, flags=re.S)
+
+
+def _lit_swatch(toggle_src: str, name: str, frame) -> str:
+    """A pad's colour: a toggle BUTTON held ON. TouchOSC draws every widget's
+    background heavily dimmed (a label's included -- the first v3 swatches came
+    out at about a third of their authored colour on the iPad), and only a
+    button that is on paints its colour at full strength, as the amber PARKED
+    pause buttons always have. No OSC, not interactive, x = 1 from the file and
+    re-asserted by the script."""
+    t = _no_osc(n_name(_strip_ids(toggle_src), name))
+    t = n_bool(n_bool(n_frame(t, *frame), "interactive", False), "outline", False)
+    t = n_int(n_colour(t, "color", SWATCH_EMPTY), "buttonType", 1)
+    pat = re.compile(r"(<value><key>x</key><locked>0</locked><lockedDefaultCurrent>0"
+                     r"</lockedDefaultCurrent><default>)0(</default>)")
+    if len(pat.findall(t)) != 1:
+        raise RuntimeError(f"{name}: x default not in the expected shape")
+    return pat.sub(lambda m: m.group(1) + "1" + m.group(2), t, count=1)
+
+
+def _build_set(grid: str, label_src: str, toggle_src: str) -> str:
+    head, kids = split_group(grid)
+    k = _by_name(kids)
+    head = n_frame(head + "<children></children></node>", 0, 0, 640, V3_PAGE_H)
+    head = head[:head.index("<children>")]
+
+    hdr = n_frame(k["gridHeader"], 16, 6, 608, 26)
+    hdr = n_int(n_text(hdr, "SET"), "textSize", 14)
+    out = [hdr]
+
+    # Quadrant frames (outline only) and their captions, under everything else.
+    for q in range(4):
+        qx, qy = Q_X[q % 2], Q_Y[q // 2]
+        f = _label(label_src, f"qframe_{q}", (qx, qy, Q_W, Q_H), "")
+        f = n_bool(n_bool(f, "background", False), "outline", True)
+        out.append(n_colour(n_int(f, "outlineStyle", 0), "color", QFRAME_DIM))
+    for q in range(4):
+        qn = _label(label_src, f"qname_{q}", (Q_X[q % 2], Q_NAME_Y[q // 2], Q_W, 20), "", 12)
+        out.append(n_int(qn, "textAlignH", 1))
+
+    def pad_frame(x, y):
+        q = (0 if y < 4 else 2) + (0 if x < 4 else 1)
+        return (Q_X[q % 2] + PAD_INSET + (x % 4) * PAD_PITCH_X,
+                Q_Y[q // 2] + PAD_INSET + (y % 4) * PAD_PITCH_Y, PAD_W, PAD_H)
+
+    # Each pad is three layers: its colour (a lit toggle, see _lit_swatch), its
+    # name on two labels -- TouchOSC labels do not break lines, so the script
+    # splits the host's two-line name across t1/t2 -- and on top the original
+    # button, transparent at rest, for the touch.
+    for y in range(8):
+        for x in range(8):
+            out.append(_lit_swatch(toggle_src, f"sw_{x}_{y}", pad_frame(x, y)))
+    for y in range(8):
+        for x in range(8):
+            px, py, pw, ph = pad_frame(x, y)
+            for line, ly in (("t1", py + 8), ("t2", py + ph // 2)):
+                t = _label(label_src, f"{line}_{x}_{y}", (px, ly, pw, ph // 2 - 8), "", 10)
+                out.append(n_colour(t, "textColor", (1, 1, 1, 1)))
+    for y in range(8):
+        for x in range(8):
+            c = n_frame(k[f"cell_{x}_{y}"], *pad_frame(x, y))
+            c = n_bool(n_bool(c, "background", False), "outline", False)
+            out.append(n_colour(c, "color", PAD_PRESS))
+
+    fx, fy, fw, fh = pad_frame(0, 0)
+    ring = _label(label_src, "padRing", (fx - 3, fy - 3, fw + 6, fh + 6), "")
+    ring = n_bool(n_bool(ring, "background", False), "outline", True)
+    ring = n_colour(n_int(ring, "outlineStyle", 0), "color", (1, 1, 1, 1))
+    out.append(n_bool(ring, "visible", False))
+
+    # Sixteen page buttons in two rows of eight, the label ON the button.
+    for p in range(1, SURFACE_PAGES + 1):
+        row, col = divmod(p - 1, 8)
+        frame = (16 + col * PAGE_PITCH_X, PAGE_ROW_Y + row * PAGE_ROW_PITCH, PAGE_BTN_W, PAGE_BTN_H)
+        if f"page_{p}" in k:
+            btn = k[f"page_{p}"]
+        else:
+            btn = n_name(_strip_ids(k["page_1"]), f"page_{p}")
+            btn = btn.replace(
+                "<conversion>INTEGER</conversion><value>1</value>",
+                f"<conversion>INTEGER</conversion><value>{p}</value>", 1)
+        btn = n_colour(n_frame(btn, *frame), "color", TAB_OFF)
+        out.append(btn)
+        lab = k.get(f"pageLabel_{p}") or n_name(_strip_ids(k["pageLabel_1"]), f"pageLabel_{p}")
+        lab = n_text(n_frame(lab, *frame), str(p))
+        out.append(n_colour(lab, "textColor", TAB_TEXT_OFF))
+
+    home = n_frame(k["home"], *HOME_FRAME)
+    out.append(n_colour(n_bool(home, "background", False), "color", HOME_AMBER))
+    hl = n_int(n_frame(k["homeLabel"], *HOME_FRAME), "textSize", 12)
+    out.append(n_colour(hl, "textColor", HOME_AMBER))
+    return join_group(head, out)
+
+
+MOVE_TO_LIVE = ("hdrSynth", "agencyLabel", "agency", "audiogainLabel", "audiogain",
+                "motiongainLabel", "motiongain", "hdrAgency", "agencyLevelLabel",
+                "agencyLevel", "agency0", "agency1", "agency2", "agency3")
+
+
+def _build_mix(ctl: str) -> tuple[str, dict[str, str]]:
+    head, kids = split_group(ctl)
+    k = _by_name(kids)
+    moved = {n: k.pop(n) for n in MOVE_TO_LIVE}
+    head = n_frame(head + "<children></children></node>", 0, 0, 640, V3_PAGE_H)
+    head = head[:head.index("<children>")]
+
+    out = [n_text(n_frame(k["hdrLayers"], 12, 8, 300, 20), "GROUPS")]
+    # Strips: a two-line name on top, then a taller fader -- the room the SYNTH
+    # band used to take. Labels do not break lines, so the name is two labels
+    # and the root script splits the host's wrapped name across them; `name`
+    # stops taking /layer/<i>/name itself (receive off) so the raw two-line
+    # string never lands on it.
+    for i in range(7):
+        g = n_frame(k[f"layer{i}"], 12 + 78 * i, 32, 72, 384)
+        g = _edit_kids(g, {
+            "name": lambda t: n_int(n_frame(t, 2, 0, 68, 18), "textSize", 12)
+                              .replace("<receive>1</receive>", "<receive>0</receive>", 1),
+            "fader": lambda t: n_frame(t, 16, 40, 40, 290),
+            "pause": lambda t: n_frame(t, 14, 338, 44, 40),
+        })
+        head_g, kids_g = split_group(g)
+        name2 = _no_osc(n_name(_strip_ids(_by_name(kids_g)["name"]), "name2"))
+        name2 = n_text(n_frame(name2, 2, 18, 68, 18), "")
+        kids_g.insert(1, name2)
+        out.append(join_group(head_g, kids_g))
+    out.append(n_frame(k["masterAlphaLabel"], 558, 32, 72, 36))
+    out.append(n_frame(k["masterAlpha"], 574, 72, 40, 290))
+    out.append(n_frame(k["hdrIntent"], 12, 432, 200, 20))
+    for i in range(7):
+        out.append(n_frame(k[f"intent{i}Label"], 8 + 66 * i, 456, 64, 20))
+        out.append(n_frame(k[f"intent{i}"], 20 + 66 * i, 480, 40, 340))
+    out.append(n_frame(k["strengthLabel"], 558, 456, 72, 20))
+    out.append(n_frame(k["intentStrength"], 574, 480, 40, 340))
+    leftover = set(k) - {_nm(t) for t in out}
+    if leftover:
+        raise RuntimeError(f"mix: unplaced children {sorted(leftover)}")
+    return join_group(head, out), moved
+
+
+def _agency_slot(src: str, j: int) -> str:
+    g = src if j < 4 else _strip_ids(src)
+    if j >= 4:
+        g = n_name(g, f"agency{j}")
+        for leaf in ("name", "armed", "budget", "force"):
+            g = n_osc(g, f"/agency/0/{leaf}", f"/agency/{j}/{leaf}")
+    col, row = j % 4, j // 4
+    g = n_frame(g, 56 + 146 * col, 330 + 254 * row, 140, 248)
+    edits = {
+        "name": lambda t: n_int(n_frame(t, 2, 0, 136, 30), "textSize", 12),
+        "armed": lambda t: n_frame(t, 6, 34, 28, 4),
+        "budget": lambda t: n_frame(t, 12, 36, 16, 206),
+        "force": lambda t: n_frame(t, 40, 36, 98, 206),
+        "forceLabel": lambda t: n_int(n_frame(t, 40, 36, 98, 206), "textSize", 14),
+    }
+    if j >= 4:
+        edits["name"] = lambda t: n_int(n_text(n_frame(t, 2, 0, 136, 30), f"A{j + 1}"),
+                                        "textSize", 12)
+    return _edit_kids(g, edits)
+
+
+def _input_strip(i: int, agency0: str, layer_fader: str) -> str:
+    """A trim strip, assembled from parts the file already has: agency0's slot
+    (name label, meter, momentary button and its caption) plus a layer fader."""
+    head, kids = split_group(_strip_ids(agency0))
+    k = _by_name(kids)
+    head = n_frame(n_name(head + "<children></children></node>", f"input{i}"),
+                   330 + 76 * i, 32, 72, 270)
+    head = head[:head.index("<children>")]
+    name = n_osc(k["name"], "/agency/0/name", f"/input/{i}/name")
+    name = n_int(n_text(n_frame(name, 2, 0, 68, 20), f"in{i + 1}"), "textSize", 12)
+    level = n_name(n_osc(k["budget"], "/agency/0/budget", f"/input/{i}/level"), "level")
+    level = n_frame(level, 4, 24, 12, 200)
+    gain = n_osc(_strip_ids(layer_fader), "/layer/0/alpha", f"/input/{i}/gain")
+    gain = n_colour(n_frame(n_name(gain, "gain"), 20, 24, 44, 200), "color", (0.95, 0.65, 0.1, 1))
+    db = n_name(n_osc(_strip_ids(k["name"]), "/agency/0/name", f"/input/{i}/db"), "db")
+    db = n_text(n_frame(db, 0, 228, 72, 16), "")
+    reset = n_name(n_osc(k["force"], "/agency/0/force", f"/input/{i}/reset"), "reset")
+    reset = n_frame(reset, 10, 248, 52, 22)
+    cap = n_text(n_frame(n_name(k["forceLabel"], "resetLabel"), 10, 248, 52, 22), "RESET")
+    return join_group(head, [name, level, gain, db, reset, cap])
+
+
+def _build_live(ctl_head: str, moved: dict[str, str], layer0: str) -> str:
+    head = n_name(ctl_head + "<children></children></node>", "liveTab")
+    head = n_bool(n_frame(head, 0, 0, 640, V3_PAGE_H), "visible", False)
+    head = _strip_ids(head[:head.index("<children>")])
+    m = moved
+    out = [n_text(n_frame(m["hdrSynth"], 12, 8, 300, 20), "RESPONSE")]
+    for cap, fader, x, text in (("agencyLabel", "agency", 12, "Agency"),
+                                ("audiogainLabel", "audiogain", 90, "Audio"),
+                                ("motiongainLabel", "motiongain", 168, "Motion")):
+        out.append(n_text(n_frame(m[cap], x, 32, 72, 20), text))
+        out.append(n_frame(m[fader], x + 16, 56, 40, 220))
+    out.append(_label(m["hdrSynth"], "hdrInputs", (330, 8, 300, 20), "INPUTS"))
+    _, lkids = split_group(layer0)
+    fader = _by_name(lkids)["fader"]
+    for i in range(4):
+        out.append(_input_strip(i, m["agency0"], fader))
+    out.append(n_text(n_frame(m["hdrAgency"], 12, 306, 300, 20), "AGENCY"))
+    out.append(n_text(n_frame(m["agencyLevelLabel"], 8, 330, 40, 20), "level"))
+    out.append(n_frame(m["agencyLevel"], 20, 354, 16, 476))
+    for j in range(8):
+        out.append(_agency_slot(m[f"agency{j}"] if j < 4 else m["agency0"], j))
+    return join_group(head, out)
+
+
+def mutate_v3_pages(xml: str) -> tuple[str, str]:
+    if any(s.name == "liveTab" for s in index_nodes(xml)):
+        return xml, "v3-pages: liveTab already present, skipped"
+    root = index_nodes(xml)[0]
+    kids = root_children(xml)
+    names = [k.name for k in kids]
+    if names != [PAGE_GROUP, GRID_GROUP, "tab_1", "tabLabel_1", "tab_2", "tabLabel_2"]:
+        raise RuntimeError(f"v3-pages: unexpected root children {names}")
+    ctl, grid = kids[0].text, kids[1].text
+    tab1, lab1, tab2, lab2 = (k.text for k in kids[2:])
+    label_src = find_node(xml, "pageLabel_1").text
+
+    _, ctl_kids = split_group(ctl)
+    layer0 = _by_name(ctl_kids)["layer0"]
+    mix, moved = _build_mix(ctl)
+    live = _build_live(ctl[:ctl.index("<children>")], moved, layer0)
+    toggle_src = _by_name(split_group(layer0)[1])["pause"]
+    sett = n_bool(_build_set(grid, label_src, toggle_src), "visible", True)
+    mix = n_bool(mix, "visible", False)
+
+    tabs = []
+    for i, (x, text) in enumerate(zip(V3_TAB_X, V3_TAB_TEXT), start=1):
+        b = tab1 if i == 1 else n_name(_strip_ids(tab2), f"tab_{i}") if i == 3 else tab2
+        if i == 3:
+            b = b.replace("<conversion>INTEGER</conversion><value>2</value>",
+                          "<conversion>INTEGER</conversion><value>3</value>", 1)
+        f = Span(b, 0, len(b), 0).frame
+        b = n_colour(n_frame(b, x, f["y"], V3_TAB_W, f["h"]), "color", TAB_ON if i == 1 else TAB_OFF)
+        lb = lab1 if i == 1 else n_name(_strip_ids(lab2), f"tabLabel_{i}") if i == 3 else lab2
+        lf = Span(lb, 0, len(lb), 0).frame
+        lb = n_text(n_frame(lb, x, lf["y"], V3_TAB_W, lf["h"]), text)
+        lb = n_colour(lb, "textColor", TAB_TEXT_ON if i == 1 else TAB_TEXT_OFF)
+        tabs += [b, lb]
+
+    i = xml.index("<children>", root.start) + len("<children>")
+    j = kids[-1].end
+    xml = xml[:i] + sett + mix + live + "".join(tabs) + xml[j:]
+    return xml, ("v3-pages: SET (gridTab: quadrant frames + names, 64 swatches under "
+                 "transparent pads, active ring, 16 page buttons, outlined HOME) / MIX "
+                 "(ctlTab: GROUPS + INTENT, taller faders, two-line names) / LIVE (liveTab: "
+                 "RESPONSE, 4 INPUT trims, 8 AGENCY slots); tabs SET / MIX / LIVE")
+
+
+V3_SCRIPT = r"""-- sharksynth root script, v3 (2026-10-02): three tabs, SET / MIX / LIVE.
+--
+-- Heartbeat: ping /sync on connect and every ~2s so the host learns our
+-- address and can send feedback, no matter when the app launches. The host
+-- treats /sync as keepalive only (it pushes state on first contact and on
+-- config load, NOT on every ping), so this does not fight live edits.
+local frameCount = 0
+
+-- Pages: three full-height groups sharing the rect above the tab row, exactly
+-- one visible. TouchOSC associates a pointer with a control only when it is
+-- visible, so a page that is put away cannot be pressed through the one up.
+-- gridTab = SET, ctlTab = MIX, liveTab = LIVE (the names predate the tabs).
+local PAGES = {'gridTab', 'ctlTab', 'liveTab'}
+local currentPage = 1
+
+local function showPage(p)
+  currentPage = p
+  for i = 1, #PAGES do
+    local on = (i == p)
+    local page = self.children[PAGES[i]]
+    if page then page.visible = on end
+    local tab = self.children['tab_' .. i]
+    if tab then
+      if on then tab.color = Color(0.80, 0.84, 0.92, 1.0)
+      else tab.color = Color(0.20, 0.21, 0.26, 1.0) end
+    end
+    local label = self.children['tabLabel_' .. i]
+    if label then
+      if on then label.textColor = Color(0.85, 0.85, 0.90, 1.0)
+      else label.textColor = Color(0.40, 0.42, 0.48, 1.0) end
+    end
+  end
+end
+
+-- Widgets live inside the page groups, and `fader`, `pause`, `name` repeat in
+-- every strip, so reach them through their page and never by name.
+local function onPage(page, name)
+  local g = self.children[page]
+  return g and g.children[name] or nil
+end
+local function pageChild(name)
+  return onPage('ctlTab', name) or onPage('liveTab', name)
+end
+
+-- ---- SET tab -------------------------------------------------------------
+-- The host sends each pad's authored colour (/grid/cells), its tier
+-- (/grid/state: 0 empty, 1 here, 2 another quadrant, 3 unavailable; +8 the
+-- active pad, +16 the active pad whose pose has since moved) and its name
+-- (/grid/labels). They arrive as separate messages, so keep all three and
+-- redraw from the lot whenever any of them lands.
+local gridColor, gridState, gridLabel = {}, {}, {}
+local curQuad = -1
+
+local function unpackColour(packed)
+  local r = math.floor(packed / 65536) % 256
+  local g = math.floor(packed / 256) % 256
+  local b = packed % 256
+  return r / 255, g / 255, b / 255
+end
+
+local function renderGrid()
+  local page = self.children.gridTab
+  if not page then return end
+  local ring = page.children.padRing
+  local ringShown = false
+  for i = 1, 64 do
+    local x = (i - 1) % 8
+    local y = math.floor((i - 1) / 8)
+    local sw = page.children['sw_' .. x .. '_' .. y]
+    if sw then
+      local st = gridState[i] or 0
+      local tier = st % 8
+      local active = math.floor(st / 8) % 2 == 1
+      local moved = math.floor(st / 16) % 2 == 1
+      local r, g, b = unpackColour(gridColor[i] or 0)
+      local k, grey, text = 1.0, 0.0, 1.0
+      sw.values.x = 1   -- a lit toggle is the only widget that shows its colour at full strength
+      if tier == 0 then
+        sw.color = Color(0.07, 0.07, 0.08, 1.0)
+      else
+        -- here: as authored. another quadrant: two-thirds of the way to its own
+        -- grey and darker, still readable. unavailable: dark.
+        if tier == 2 then grey, k, text = 0.65, 0.6, 0.6
+        elseif tier == 3 then grey, k, text = 0.3, 0.3, 0.45 end
+        local l = (r + g + b) / 3
+        r = (r + (l - r) * grey) * k
+        g = (g + (l - g) * grey) * k
+        b = (b + (l - b) * grey) * k
+        sw.color = Color(r, g, b, 1.0)
+      end
+      -- White text on every pad (owner, 2026-10-02), dimmer off the current
+      -- quadrant. Labels do not break lines, so a two-line name is split over
+      -- t1/t2; a one-line name sits in t1, moved to the middle of the pad.
+      local t1 = page.children['t1_' .. x .. '_' .. y]
+      local t2 = page.children['t2_' .. x .. '_' .. y]
+      if t1 and t2 then
+        local name = gridLabel[i] or ''
+        local a, b2 = name:match('^(.-)\n(.*)$')
+        if a then
+          t1.values.text, t2.values.text = a, b2
+          t1.frame.y = sw.frame.y + 8
+        else
+          t1.values.text, t2.values.text = name, ''
+          t1.frame.y = sw.frame.y + math.floor((sw.frame.h - t1.frame.h) / 2)
+        end
+        t1.textColor = Color(1.0, 1.0, 1.0, text)
+        t2.textColor = Color(1.0, 1.0, 1.0, text)
+      end
+      if (active or moved) and ring then
+        ring.frame.x = sw.frame.x - 3
+        ring.frame.y = sw.frame.y - 3
+        ring.frame.w = sw.frame.w + 6
+        ring.frame.h = sw.frame.h + 6
+        if active then ring.color = Color(1.0, 1.0, 1.0, 1.0)
+        else ring.color = Color(0.55, 0.55, 0.6, 1.0) end
+        ringShown = true
+      end
+    end
+  end
+  if ring then ring.visible = ringShown end
+  for q = 0, 3 do
+    local on = (q == curQuad)
+    local f = page.children['qframe_' .. q]
+    if f then
+      if on then f.color = Color(0.92, 0.92, 0.96, 1.0)
+      else f.color = Color(0.30, 0.30, 0.34, 1.0) end
+    end
+    local n = page.children['qname_' .. q]
+    if n then
+      if on then n.textColor = Color(0.95, 0.95, 0.98, 1.0)
+      else n.textColor = Color(0.45, 0.46, 0.52, 1.0) end
+    end
+  end
+end
+
+local function renderPages(count, cur, names)
+  local page = self.children.gridTab
+  if not page then return end
+  for p = 1, 16 do
+    local btn = page.children['page_' .. p]
+    local lab = page.children['pageLabel_' .. p]
+    local shown = (p <= count)
+    if btn then btn.visible = shown end
+    if lab then
+      lab.visible = shown
+      local name = names[p] or ''
+      if name ~= '' then lab.values.text = p .. ' ' .. name
+      else lab.values.text = tostring(p) end
+    end
+    -- TouchOSC draws an idle button's colour dimmed, so the current page
+    -- reads by its text: bright white on the brighter button, grey elsewhere.
+    if p == cur then
+      if btn then btn.color = Color(0.80, 0.84, 0.92, 1.0) end
+      if lab then lab.textColor = Color(1.0, 1.0, 1.0, 1.0) end
+    else
+      if btn then btn.color = Color(0.20, 0.21, 0.26, 1.0) end
+      if lab then lab.textColor = Color(0.50, 0.52, 0.58, 1.0) end
+    end
+  end
+end
+
+function init()
+  showPage(1)
+  sendOSC('/sync')
+end
+
+function update()
+  frameCount = frameCount + 1
+  if frameCount >= 120 then   -- ~2s at 60fps
+    frameCount = 0
+    sendOSC('/sync')
+  end
+  -- Page tabs. A child button cannot call back into the root script, so poll
+  -- them here: a finger holds x = 1 for several frames at 60fps, and the
+  -- currentPage guard makes the switch fire once per press.
+  for i = 1, #PAGES do
+    local tab = self.children['tab_' .. i]
+    if tab and tab.values.x == 1 and i ~= currentPage then showPage(i) end
+  end
+end
+
+-- /layer|agency|input/<n>/active 0|1 -> hide/show that strip or slot.
+local function setActive(prefix, n, args)
+  local active = (#args >= 1) and (args[1].value ~= 0) or false
+  local node = pageChild(prefix .. n)
+  if node then node.visible = active end
+end
+
+function onReceiveOSC(message, connections)
+  local path = message[1]
+  local args = message[2]
+  local n = path:match('^/layer/(%d+)/active$')
+  if n then setActive('layer', n, args); return true end
+  local a = path:match('^/agency/(%d+)/active$')
+  if a then setActive('agency', a, args); return true end
+  local inp = path:match('^/input/(%d+)/active$')
+  if inp then setActive('input', inp, args); return true end
+  -- /layer/<n>/state: the strip's R/M/S lamps packed into one int, exactly as
+  -- the nanoKONTROL2 lights them -- 1 = exists (R), 2 = parked (M), 4 = audible
+  -- (S). Colour the pause button and the name label so the strip says the same
+  -- thing as the Korg and the desktop GUI's pips.
+  local s = path:match('^/layer/(%d+)/state$')
+  if s then
+    local state = (#args >= 1) and args[1].value or 0
+    local exists  = state % 2 == 1
+    local parked  = math.floor(state / 2) % 2 == 1
+    local audible = math.floor(state / 4) % 2 == 1
+    local strip = onPage('ctlTab', 'layer' .. s)
+    if strip and exists then
+      local c
+      if parked then      c = Color(1.00, 0.69, 0.19, 1.0)   -- amber: PARKED
+      elseif audible then c = Color(0.36, 0.82, 0.44, 1.0)   -- green: playing
+      else                c = Color(0.34, 0.36, 0.42, 1.0)   -- dim: armed and waiting
+      end
+      if strip.children.pause then strip.children.pause.color = c end
+      if strip.children.name then strip.children.name.textColor = c end
+      if strip.children.name2 then strip.children.name2.textColor = c end
+    end
+    return true
+  end
+  -- /layer/<n>/name: the host wraps long group names onto two lines with a
+  -- newline; labels do not break lines, so split it over name / name2.
+  local ln = path:match('^/layer/(%d+)/name$')
+  if ln then
+    local strip = onPage('ctlTab', 'layer' .. ln)
+    local name = (#args >= 1) and args[1].value or ''
+    local a, b = name:match('^(.-)\n(.*)$')
+    if strip then
+      if strip.children.name then strip.children.name.values.text = a or name end
+      if strip.children.name2 then strip.children.name2.values.text = b or '' end
+    end
+    return true
+  end
+  if path == '/mix/heading' then
+    local hdr = onPage('ctlTab', 'hdrLayers')
+    if hdr and #args >= 1 then hdr.values.text = args[1].value end
+    return true
+  end
+  if path == '/intent/impacts' then
+    -- Measured intent surface for the active config (one int per pole fader:
+    -- -1 unmeasured, 0 below-noise, 1/2/3 moderate/solid/strong). Impact rides
+    -- BRIGHTNESS of the axis-pair hue; labels dim in step.
+    local axis = {
+      {1.0, 0.47, 0.35}, {1.0, 0.47, 0.35},   -- presence: coral
+      {0.35, 0.78, 1.0}, {0.35, 0.78, 1.0},   -- motion:   cyan
+      {0.43, 0.86, 0.55}, {0.43, 0.86, 0.55}, -- memory:   green
+      {0.75, 0.51, 1.0},                      -- chaotic:  violet (solo)
+    }
+    local dim = { [-1]=1.0, [0]=0.22, [1]=0.55, [2]=0.8, [3]=1.0 }
+    for i = 1, math.min(#args, 7) do
+      local d = dim[args[i].value] or 1.0
+      local h = axis[i]
+      local c = Color(h[1]*d, h[2]*d, h[3]*d, 1.0)
+      local fader = self:findByName('intent'..(i-1), true)
+      if fader then fader.color = c end
+      local label = self:findByName('intent'..(i-1)..'Label', true)
+      if label then label.textColor = c end
+    end
+    return true
+  end
+  if path == '/grid/cells' then
+    -- 64 authored 0xRRGGBB ints, row-major (y=0..7, x=0..7); 0 = no pad.
+    for i = 1, math.min(#args, 64) do gridColor[i] = args[i].value end
+    renderGrid()
+    return true
+  end
+  if path == '/grid/state' then
+    for i = 1, math.min(#args, 64) do gridState[i] = args[i].value end
+    renderGrid()
+    return true
+  end
+  if path == '/grid/labels' then
+    for i = 1, math.min(#args, 64) do gridLabel[i] = args[i].value end
+    renderGrid()
+    return true
+  end
+  if path == '/grid/quadrants' then
+    curQuad = (#args >= 1) and args[1].value or -1
+    local page = self.children.gridTab
+    for q = 0, 3 do
+      local lab = page and page.children['qname_' .. q]
+      if lab then lab.values.text = (args[q + 2] and args[q + 2].value) or '' end
+    end
+    renderGrid()
+    return true
+  end
+  if path == '/grid/now' then
+    local hdr = onPage('gridTab', 'gridHeader')
+    if hdr and #args >= 1 then hdr.values.text = args[1].value end
+    return true
+  end
+  if path == '/grid/pages' then
+    local count = (#args >= 1) and args[1].value or 0
+    local cur = (#args >= 2) and args[2].value or 0
+    local names = {}
+    for p = 1, count do names[p] = (args[p + 2] and args[p + 2].value) or '' end
+    renderPages(count, cur, names)
+    return true
+  end
+  if path == '/grid/page' then
+    return true   -- pre-v3 hosts; the page row now rides /grid/pages
+  end
+  return false
+end
+"""
+
+
+def mutate_v3_script(xml: str) -> tuple[str, str]:
+    lua, _, _ = get_script(xml)
+    if lua == V3_SCRIPT:
+        return xml, "v3-script: already current, skipped"
+    return set_script(xml, V3_SCRIPT), (f"v3-script: root Lua replaced ({len(lua.splitlines())} "
+                                        f"-> {len(V3_SCRIPT.splitlines())} lines)")
+
+
+def _is_v3(xml: str) -> bool:
+    return any(s.name == "liveTab" for s in index_nodes(xml))
+
+
+def _pre_v3(fn):
+    """The two-tab mutations assume an evenly pitched 8x8; v3's quadrant gutter
+    breaks that on purpose, so once v3 is in they have nothing left to do."""
+    def wrapped(xml):
+        if _is_v3(xml):
+            return xml, f"{fn.__name__.replace('mutate_', '').replace('_', '-')}: superseded by v3, skipped"
+        return fn(xml)
+    return wrapped
+
+
 MUTATIONS = [
-    ("state-lamps", mutate_state_lamps),
-    ("grid-clamp", mutate_grid_clamp),
-    ("grid-reflow", mutate_grid_reflow),
-    ("grid-row-7", mutate_grid_row),
-    ("page-split", mutate_page_split),
-    ("page-tabs", mutate_page_tabs),
+    ("state-lamps", _pre_v3(mutate_state_lamps)),
+    ("grid-clamp", _pre_v3(mutate_grid_clamp)),
+    ("grid-reflow", _pre_v3(mutate_grid_reflow)),
+    ("grid-row-7", _pre_v3(mutate_grid_row)),
+    ("page-split", _pre_v3(mutate_page_split)),
+    ("page-tabs", _pre_v3(mutate_page_tabs)),
     ("page-canvas", mutate_page_canvas),
-    ("page-script", mutate_page_script),
+    ("page-script", _pre_v3(mutate_page_script)),
+    ("v3-pages", mutate_v3_pages),
+    ("v3-script", mutate_v3_script),
 ]
 
 
@@ -810,6 +1540,94 @@ def name_counts(xml: str) -> dict[str, int]:
     return counts
 
 
+def check_v3(xml: str, notes: list[str]) -> list[str]:
+    """The three-tab layout: pages, pads, buttons, tabs and the script's hooks."""
+    root = index_nodes(xml)[0]
+    rw, rh = root.frame["w"], root.frame["h"]
+    names = [s.name for s in root_children(xml)]
+    want = list(V3_PAGES) + ["tab_1", "tabLabel_1", "tab_2", "tabLabel_2", "tab_3", "tabLabel_3"]
+    notes.append(f"root children: {names}" + (" -- as expected" if names == want
+                                               else f" -- EXPECTED {want}"))
+    pages = [find_node(xml, n) for n in V3_PAGES]
+    bad = [p.name for p in pages if (p.frame["x"], p.frame["y"], p.frame["w"], p.frame["h"])
+           != (0, 0, rw, V3_PAGE_H)]
+    notes.append(f"pages share one rect (0,0,{rw},{V3_PAGE_H})"
+                 + (f" -- MISPLACED: {bad}" if bad else ""))
+    lit = [p.name for p in pages if p.prop("visible") == "1"]
+    notes.append(f"exactly one page visible on load: {lit}"
+                 + ("" if lit == [V3_PAGES[0]] else " -- WARNING"))
+    for p in pages:
+        kids = [s for s in direct_children(xml, p) if s.frame]
+        spill = [s.name for s in kids
+                 if s.frame["x"] < 0 or s.frame["y"] < 0
+                 or s.frame["x"] + s.frame["w"] > rw or s.frame["y"] + s.frame["h"] > V3_PAGE_H]
+        notes.append(f"{p.name}: {len(kids)} children"
+                     + (f" -- OVERFLOWS: {spill}" if spill else ", all inside the page"))
+        # Group children (strips, slots) must sit inside their own group too.
+        for g in kids:
+            if g.type != "GROUP":
+                continue
+            out = [c.name for c in direct_children(xml, g) if c.frame and (
+                c.frame["x"] + c.frame["w"] > g.frame["w"] or c.frame["y"] + c.frame["h"] > g.frame["h"])]
+            if out:
+                notes.append(f"  WARNING {p.name}/{g.name} children overflow it: {out}")
+
+    grid = find_node(xml, "gridTab")
+    gk = {s.name: s for s in direct_children(xml, grid)}
+    cells = [n for n in gk if re.fullmatch(r"cell_\d_\d", n)]
+    sws = [n for n in gk if re.fullmatch(r"sw_\d_\d", n)]
+    notes.append(f"SET: {len(cells)}/64 pads, {len(sws)}/64 swatches")
+    misfit = [n for n in cells if gk.get("sw" + n[4:]) is None
+              or gk["sw" + n[4:]].frame != gk[n].frame]
+    notes.append("every pad sits exactly on its swatch" if not misfit
+                 else f"WARNING pad/swatch frames differ: {misfit[:6]}")
+    order = [s.name for s in direct_children(xml, grid)]
+    behind = all(order.index("sw" + n[4:]) < order.index(n) for n in cells)
+    notes.append("swatches draw behind their pads" if behind else "WARNING a swatch draws over its pad")
+    touch = [gk[n] for n in gk if n.startswith(("cell_", "page_")) or n == "home"]
+    boxes = [(s.name, s.frame["x"], s.frame["y"], s.frame["x"] + s.frame["w"],
+              s.frame["y"] + s.frame["h"]) for s in touch]
+    clashes = [f"{p[0]}/{q[0]}" for i, p in enumerate(boxes) for q in boxes[i + 1:]
+               if p[1] < q[3] and q[1] < p[3] and p[2] < q[4] and q[2] < p[4]]
+    notes.append(f"no two of the {len(touch)} SET touch targets overlap" if not clashes
+                 else f"WARNING touch targets overlap: {clashes[:6]}")
+    for q in range(4):
+        f = gk[f"qframe_{q}"].frame
+        inside = [n for n in cells
+                  if ((0 if int(n[7]) < 4 else 2) + (0 if int(n[5]) < 4 else 1)) == q]
+        stray = [n for n in inside if not (f["x"] <= gk[n].frame["x"]
+                 and gk[n].frame["x"] + gk[n].frame["w"] <= f["x"] + f["w"]
+                 and f["y"] <= gk[n].frame["y"]
+                 and gk[n].frame["y"] + gk[n].frame["h"] <= f["y"] + f["h"])]
+        if len(inside) != 16 or stray:
+            notes.append(f"WARNING quadrant {q}: {len(inside)} pads, outside frame: {stray}")
+    notes.append("each quadrant frame holds its 16 pads")
+
+    live = find_node(xml, "liveTab")
+    lk = [s.name for s in direct_children(xml, live)]
+    notes.append(f"LIVE: {sum(n.startswith('agency') and n[6:].isdigit() for n in lk)} agency "
+                 f"slots, {sum(n.startswith('input') for n in lk)} input strips")
+
+    tabs = [find_node(xml, n) for n in want[3:]]
+    top = min(t.frame["y"] for t in tabs)
+    base = max(t.frame["y"] + t.frame["h"] for t in tabs)
+    notes.append(f"tab row y={top}..{base}"
+                 + (" -- clear of the pages and inside the canvas"
+                    if top >= V3_PAGE_H and base <= rh else " -- WARNING"))
+    sends = [t.name for t in tabs if "<enabled>1</enabled>" in t.text]
+    notes.append("tab buttons send nothing to the host" if not sends
+                 else f"WARNING tabs have live OSC: {sends}")
+
+    lua, _, _ = get_script(xml)
+    for hook in ("showPage", "/layer/(%d+)/state", "/layer/(%d+)/name", "/input/(%d+)/active", "/grid/state",
+                 "/grid/labels", "/grid/quadrants", "/grid/now", "/grid/pages", "/mix/heading"):
+        if hook not in lua:
+            notes.append(f"WARNING root script lacks {hook}")
+    notes.append("root script: every v3 address handled; falls through to `return false` "
+                 + ("(intact)" if lua.rstrip().endswith("return false\nend") else "-- CHECK"))
+    return notes
+
+
 def check(xml: str, baseline: str | None = None) -> list[str]:
     """Everything that must hold for TouchOSC to load the result."""
     notes = []
@@ -823,12 +1641,17 @@ def check(xml: str, baseline: str | None = None) -> list[str]:
     was = name_counts(baseline) if baseline is not None else {}
     inherited = {n for n, c in was.items() if c > 1}
     dupes = {n: c for n, c in now.items() if c > 1}
-    fresh = {n: c for n, c in dupes.items() if n not in inherited}
+    # v3's input strips repeat their children the way the layer strips always
+    # have (`name`/`fader`/`pause`): reached through the strip, never by name.
+    by_design = {"level", "gain", "db", "reset", "resetLabel", "name2"} if _is_v3(xml) else set()
+    fresh = {n: c for n, c in dupes.items() if n not in inherited and n not in by_design}
     if fresh:
         notes.append(f"WARNING new duplicate names, unsafe for findByName: {fresh}")
     else:
         notes.append(f"no NEW duplicate names (pre-existing, by design: "
                      f"{ {n: dupes[n] for n in sorted(inherited & set(dupes))} })")
+    if _is_v3(xml):
+        return check_v3(xml, notes)
 
     geo = grid_geometry(xml)
     missing = [(x, y) for y in range(8) for x in range(8)
@@ -992,8 +1815,10 @@ def cmd_test(args) -> int:
 
     def emit(node, depth):
         pad = "  " * depth
+        f = prop(node, "frame") or {}
+        frame = "{" + ", ".join(f"{k} = {f.get(k, 0)}" for k in "xywh") + "}"
         lines.append(f'{pad}node("{prop(node, "name")}", '
-                     f'{"true" if prop(node, "visible") == "1" else "false"}, {{')
+                     f'{"true" if prop(node, "visible") == "1" else "false"}, {frame}, {{')
         kids = node.find("children")
         for k in (kids.findall("node") if kids is not None else []):
             emit(k, depth + 1)

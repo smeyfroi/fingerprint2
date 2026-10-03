@@ -68,13 +68,23 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/agency/level` | ← | overall agency level (read-only meter) |
 | `/agency/<i>/budget` | ← | controller `i` charge-to-fire = budget ÷ threshold (read-only) |
 | `/agency/<i>/armed` | ← | controller `i` armed (budget ≥ threshold; lights the fire-line) |
-| `/agency/<i>/name` | ← | controller `i` name (`Agency` prefix stripped) |
+| `/agency/<i>/name` | ← | controller `i` name, "Agency" dropped wherever it sits and the rest spaced: `RoomAgencyOmni` → `Room Omni`, `Agency1` → `Agency 1` |
 | `/agency/<i>/active` | ← | 0 hides / 1 shows controller slot `i` |
 | `/agency/<i>/force` | → | force-trigger controller `i` (momentary) |
 | `/grid/press` | → | tap set cell `x y` — dispatched by cell kind: Config / Snapshot / Scene (no set → ignored) |
-| `/grid/page` | ⇄ | → switch to 1-based page; ← current page (highlights the page button) |
+| `/grid/page` | → | switch to 1-based page (the page row's highlight now rides `/grid/pages`) |
 | `/grid/home` | → | load the set's designated home config |
-| `/grid/cells` | ← | ONE msg, 64 `0xRRGGBB` int32 (row-major `y`=0..7, `x`=0..7); 0 = dark |
+| `/grid/cells` | ← | ONE msg, 64 `0xRRGGBB` int32 (row-major `y`=0..7, `x`=0..7): the cell's authored colour, **undimmed**; 0 = no pad |
+| `/grid/state` | ← | ONE msg, 64 int32: `0` empty · `1` in the current quadrant · `2` another quadrant · `3` unavailable (foreign family, or waiting for memory) · `+8` the active pad · `+16` the active pad whose pose has since moved |
+| `/grid/labels` | ← | ONE msg, 64 strings: each pad's name (scene name, cell label, world, config; `Snap N`), ASCII, at most two lines joined by `\n` |
+| `/grid/quadrants` | ← | int current quadrant (`0` NW `1` NE `2` SW `3` SE, `-1` none), then the 4 quadrant names (the home pad's `world`) |
+| `/grid/now` | ← | one line: quadrant · pad · page |
+| `/grid/pages` | ← | int page count, int 1-based current page, then one name per page (up to 16) |
+| `/mix/heading` | ← | `GROUPS` (config has a chains manifest) or `LAYERS` |
+| `/input/<i>/gain` | ⇄ | audio source `i`'s analysis-path trim; 0..1 = −12..+12 dB, live, not saved |
+| `/input/<i>/reset` | → | trim back to the session file's `inputGainDb` (momentary) |
+| `/input/<i>/name` `/db` `/active` | ← | source id, `+1.5 dB` readout, 0 hides / 1 shows slot `i` (`i` = 0..3) |
+| `/input/<i>/level` | ← | post-trim analysis RMS ÷ 0.4 (what the mods hear), streamed at 5 Hz |
 | `/sync` | → | heartbeat / discovery (see below) |
 
 > **Eighth row — fixed.** The host has always sent all **64** grid cells (`y`=0..7,
@@ -194,7 +204,9 @@ pick up a change:
 1. Open `touchosc/sharksynth.tosc` in the **TouchOSC editor** on the Mac.
 2. **Send** it to the iPad over the network (or AirDrop / re-import the file).
 3. On the iPad, leave edit mode and reconnect — the surface pings `/sync` on
-   load, so the Mac pushes full state within a second or two.
+   load, so the Mac pushes full state within a second or two. The host must be
+   a build with the matching `OscController` (the v3 surface needs
+   `/grid/state`, `/grid/labels`, `/grid/pages` and the `/input/*` addresses).
 
 The previous file is always recoverable from git (`git checkout
 touchosc/sharksynth.tosc`), so no backup copies are kept alongside it.
@@ -223,63 +235,58 @@ touchosc/sharksynth.tosc`), so no backup copies are kept alongside it.
   crosses the audibility threshold, however that change was made (iPad, GUI,
   nanoKONTROL2, a scene press). See **Strip state** above.
 
-## Layout — two pages
+## Layout — three tabs: SET / MIX / LIVE
 
-Portrait canvas (640 × 924), **two pages** sharing the rect at the top and a tab
-row underneath:
+Portrait canvas (640 × 924): three full-height pages sharing the 640 × 840 rect
+at the top, and a tab row underneath. SET is the page on load.
 
-| Tab | Holds |
-|---|---|
-| **CONTROL** (`ctlTab`) | **LAYERS** — 7 alpha faders + pause toggles + name labels, master-α at right · **INTENT** — 7 activation faders + strength · **SYNTH** — agency / audio gain / motion gain, and the four agency slots |
-| **SET** (`gridTab`) | the 8×8 grid of `cell_<x>_<y>` buttons, the set-page row `page_1..4`, and `HOME` |
+| Tab | Group | Holds |
+|---|---|---|
+| **SET** | `gridTab` | the "now" line (quadrant · pad · page) · the 8×8 set as **four framed 4×4 quadrants**, each captioned with its home pad's world, the current one framed bright · 64 named pads · a white ring on the active pad · 16 quiet page buttons in two rows, named · `HOME` outlined |
+| **MIX** | `ctlTab` | **GROUPS** (or LAYERS) — 7 strips with two-line names, taller faders, pause/R-M-S lamp, master at right · **INTENT** — 7 poles + strength |
+| **LIVE** | `liveTab` | **RESPONSE** — agency / audio / motion · **INPUTS** — a trim fader, level meter, dB readout and RESET per audio source (4 slots) · **AGENCY** — overall level and 8 controller slots, each a charge meter, fire line and a big FORCE pad |
 
-The `pause` button and `name` label in each LAYERS strip double as that strip's
-R/M/S lamp — see **Strip state** above.
+**Why the pads look the way they do.** A momentary TouchOSC button paints its
+colour only while pressed, and the host used to send pads pre-dimmed for the
+APC's LEDs (0.55 at rest, 0.30 for a foreign family) — together, near-black. Now
+each pad's colour lives on a `sw_<x>_<y>` LABEL behind the `cell_<x>_<y>` button
+(a label paints its colour solidly, with the pad's name on it), the button is a
+transparent touch target that flashes white, and the host sends colours
+undimmed plus a tier in `/grid/state`. The surface decides the look: pads in the
+current quadrant as authored, other quadrants greyed and darker but readable,
+unavailable pads dark. The APC keeps its own LED tiers.
 
-**Why pages.** Everything used to be one 640 × 1426 column — three control bands
-with the SET band bolted underneath, growing 4 % taller again when the eighth row
-of pads landed. The iPad scales the whole canvas to fit, so the taller it got the
-smaller everything drew. Splitting it puts the two halves in the same rect
-instead of end to end: **1426 → 924**, and every widget renders about **1.54×
-larger**. Nothing moved within a page — all 82 re-parented nodes kept their exact
-frames, so the surface reads the same, just bigger.
+**Why three tabs.** The configs in the five current performances need up to 6
+group strips (fits 7), up to **8** agency controllers (the old surface had 4
+slots, filled alphabetically, so baroque `world-ne`'s Trio controllers were
+unreachable) and up to **5** set pages (the old row had 4). Moving agency and
+the response faders to LIVE gives MIX the room for taller faders and two-line
+names, and gives the per-source trims a home.
 
-924 is nearly all of the available gain. A 640-wide canvas stops being
-height-limited at around 853 on a 4:3 iPad, so a third page — LAYERS on its own,
-the "maybe the group faders" half of the idea — would buy roughly 8 % more and
-cost you seeing the layer faders and the intent poles at the same time. Say if
-you want it anyway; it is another mutation, not a redesign.
-
-**How the switch works.** There is no native `PAGER` control here. The format has
-one, but this document contains no example of it to clone from, and an invented
-one could only be tested on the iPad — so the pages are two ordinary groups with
-exactly one `visible`, switched by the root script, which is the same mechanism
-`/layer/<i>/active` has used all along. `tab_1` / `tab_2` are clones of the
-set-page buttons with their OSC message disabled; the root script polls them in
-`update()`, because a child button cannot call back into the root's Lua.
-[`SCHEMA.md` § Pages](SCHEMA.md) has the format evidence and the geometry.
+**How the switch works** is unchanged: ordinary groups with exactly one
+`visible`, switched by the root script, which polls the `tab_<n>` buttons in
+`update()`. [`SCHEMA.md` § Pages](SCHEMA.md) has the format evidence.
 
 ### What to check on the iPad after sending this
 
-Nothing here could be tested on the Mac — there is no editor or device in the
-loop — so look at these first, in this order:
+The Mac can check the structure (`./build_layout.py apply`'s checks) and run the
+real script against a stub (`./build_layout.py test`, 54 checks), but these are
+TouchOSC rendering behaviours nothing here can prove:
 
-1. **The tab row works.** `CONTROL` and `SET` at the bottom; the lit one is pale
-   grey, the other near-black. It should switch on a single tap.
-2. **The page underneath is deaf.** On `SET`, press where a layer fader or the
-   `INTENT` band would be. Nothing should move and nothing should be sent. This
-   is the one assumption the whole design rests on — Hexler documents that a
-   control needs `visible` *and* `interactive` true to take a pointer, but that
-   it holds for a hidden group's *children* is inferred, not proven.
-3. **Strip lamps and hide/show still work.** Load a config with fewer than seven
-   layers: the unused strips should disappear, and the used ones should colour
-   amber / green / dim as before. Those two lookups were rebased through the new
-   page group and are the only script paths the split touched.
-4. **The set grid is unchanged** — colours arrive, pads press the right cells,
-   the page row highlights. It moved as one group, so if anything is off there it
-   will be off by exactly 860 px.
-5. **Everything fits.** The canvas is shorter than the screen now; nothing should
-   be clipped at the bottom.
+1. **Pads show their colour at rest**, with their name on them. If they are
+   black, labels are not painting `background` and the swatch idea needs another
+   widget. If a white veil covers them, the button's `background = 0` is not
+   suppressing its idle fill.
+2. **A pad flashes when pressed** and the white ring jumps to it. No flash is
+   acceptable (the ring confirms the press); no ring means `frame` is not
+   settable from Lua.
+3. **Two-line names break onto two lines** (group strips, pads). If a literal
+   `\n` or one long clipped line shows, labels do not honour newlines and the
+   host's wrapping needs another approach.
+4. **The current quadrant's frame is bright**, the others dim, and the frames are
+   full outlines (`outlineStyle 0`) rather than corner brackets.
+5. **LIVE**: trims move the source's level meter and dB readout, RESET snaps the
+   fader back, FORCE fires.
+6. **The pages underneath are deaf**, as before: on SET, press where a MIX fader
+   would be; nothing should move.
 
-If (2) fails, the fix is in `build_layout.py` — the page put away would also need
-its `interactive` cleared — not in the editor.

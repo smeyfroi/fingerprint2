@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <map>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -49,19 +50,29 @@ namespace ofxMarkSynth {
 ///   /agency/<i>/armed   (out)   -> agency controller i armed (budget >= threshold)
 ///   /agency/<i>/name    (out)   -> agency controller i name
 ///   /agency/<i>/force   button  -> force-trigger agency controller i
+///   /mix/heading        (out)   -> "GROUPS" (chains manifest) or "LAYERS"
+///   /input/<i>/gain     fader   -> audio source i analysis-path trim, 0..1 on the
+///                                   wire = -kInputTrimRangeDb..+kInputTrimRangeDb
+///   /input/<i>/reset    button  -> trim back to the session file's value
+///   /input/<i>/name|db|active (out) source id, "+1.5 dB" readout, slot shown
+///   /input/<i>/level    (out)   -> post-trim analysis RMS, streamed with agency
 ///
-/// Set-pages grid surface (tab 2; only live while the Synth has a set loaded):
+/// Set-pages grid surface (the SET tab; only live while the Synth has a set):
 ///   /grid/press  i i    button  -> press the cell at (x, y=0..7) if assigned
 ///   /grid/page   i      button  -> switch to 1-based page i (clamped)
 ///   /grid/home   trig   button  -> load the set's designated home config
 ///   /grid/cells  (out)          -> ONE msg, 64 int32 (row-major y=0..7, x=0..7):
-///                                   0xRRGGBB per assigned cell — full brightness
-///                                   for the ACTIVE pad (last-landed press) while
-///                                   its pose is intact, x0.55 rest tier otherwise
-///                                   (x0.25 for memory-waiting config cells until
-///                                   the bank fills) — 0 for unassigned / no set
-///                                   (clears the surface)
-///   /grid/page   (out)          -> 1-based current page (highlights the page btn)
+///                                   the cell's authored 0xRRGGBB, undimmed; 0 for
+///                                   an unassigned pad. The surface styles it from
+///                                   /grid/state, so a screen gets its own tiers.
+///   /grid/state  (out)          -> ONE msg, 64 int32: kPad* tier + kPadActive*
+///   /grid/labels (out)          -> ONE msg, 64 strings: pad name, ASCII, <= 2
+///                                   lines joined by '\n'
+///   /grid/quadrants (out)       -> int current quadrant (0 NW 1 NE 2 SW 3 SE, -1
+///                                   none), then 4 quadrant names
+///   /grid/now    (out)          -> one line: quadrant | pad | page
+///   /grid/pages  (out)          -> int page count, int 1-based current page,
+///                                   then one name per page
 ///
 /// The receiver is polled on the main thread from update(). ofxOscReceiver does
 /// its own socket threading and getNextMessage() is synchronous, so unlike the
@@ -75,7 +86,17 @@ public:
   static constexpr int kReceivePort = 8000;  // iPad  -> here
   static constexpr int kSendPort    = 9000;  // here  -> iPad
   static constexpr int kSurfaceLayers = 7;   // layer strips on the surface (hardware-bounded)
-  static constexpr int kAgencySlots   = 4;   // agency-controller slots on the surface
+  static constexpr int kAgencySlots   = 8;   // agency-controller slots (LIVE tab, 4x2)
+  static constexpr int kInputSlots    = 4;   // audio-source trims on the LIVE tab
+  static constexpr float kInputTrimRangeDb = 12.0f;  // fader spans +/- this
+  // The level meter's full scale: the top of the RMS window the calibrated
+  // configs map (AudioDataSource MaxRms ~0.4), so a full meter = "as loud as
+  // the analysis expects anything to get".
+  static constexpr float kInputMeterFullRms = 0.4f;
+  static constexpr int kMaxSurfacePages = 16;  // page buttons on the SET tab (set max)
+  // Characters per line the surface's name labels hold before wrapping.
+  static constexpr std::size_t kStripNameLineChars = 10;
+  static constexpr std::size_t kPadNameLineChars = 10;
   static constexpr uint64_t kIndicatorIntervalMs = 200;   // 5 Hz read-only indicator stream
   static constexpr uint64_t kFullSyncIntervalMs  = 2000;  // re-push all control state every ~2 s
   static constexpr uint64_t kIdleGuardMs         = 1500;  // ...but only while the surface is quiet
@@ -126,6 +147,15 @@ public:
   // colour is this surface's only channel, so the dim IS the "enter that
   // family first" affordance. Config cells are exempt: they are the doors.
   static constexpr float kForeignDimFactor = 0.30f;
+
+  // /grid/state tiers. The surface, not the host, decides what each looks like,
+  // because the APC's LED dims read as near-black on a screen.
+  static constexpr int kPadEmpty       = 0;  // unassigned
+  static constexpr int kPadHere        = 1;  // in the current quadrant (or no quadrant is current)
+  static constexpr int kPadElsewhere   = 2;  // in another quadrant of this page
+  static constexpr int kPadUnavailable = 3;  // foreign-scoped, or waiting for memory
+  static constexpr int kPadActive      = 8;   // + the last-landed press, pose intact
+  static constexpr int kPadActiveBroken = 16; // + the last-landed press, pose since moved
 
   OscController();
   ~OscController();
@@ -199,6 +229,10 @@ private:
   // (maybeActiveCellResync). isMemoryReady() gates the memory-dependent dimming.
   void sendGridState();
   bool isMemoryReady() const;
+  // The 4x4 quarter (0 NW, 1 NE, 2 SW, 3 SE) the performer is in on the
+  // current page: the active pad's, else the loaded config's, else -1.
+  int currentQuadrant() const;
+  std::string quadrantName(int q) const;
   // Active-pad tracker: SetController has no activeCellChanged event, so
   // update() polls Synth::getActiveSetCell() / isActiveSetCellPoseIntact() and
   // re-pushes the grid the moment the last-landed cell moves or its scene pose
@@ -221,6 +255,16 @@ private:
   uint64_t lastFullSyncMs_ = 0;  // last periodic full-state re-push
   uint64_t lastControlInMs_ = 0; // last non-/sync inbound; gates the re-push
   void cacheAgencyMods();
+
+  // Audio-source trims (LIVE tab). Slot order = source id order; the baseline
+  // is the trim each source had when this controller first saw it, i.e. the
+  // session file's inputGainDb, so reset means "back to the rig as authored".
+  std::vector<std::string> inputIds_;
+  std::map<std::string, float> inputBaselineDb_;
+  void cacheInputs();
+  void sendInputState();
+  void streamInputLevels();
+  void setInputTrim(int slot, float db);
   void streamIndicators();
   std::shared_ptr<ofxMarkSynth::AgencyControllerMod> agencyMod(int slot);
 };
