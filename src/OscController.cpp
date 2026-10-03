@@ -41,6 +41,9 @@ void OscController::update() {
   const auto msSince = [](Clock::time_point t) {
     return std::chrono::duration<double, std::milli>(Clock::now() - t).count();
   };
+  for (const auto& line : sender.takeLogLines()) {
+    ofLogWarning("OscController") << line;
+  }
   sendCount_ = 0;
   sendMs_ = 0.0;
   const auto t0 = Clock::now();
@@ -59,15 +62,16 @@ void OscController::update() {
     ofLogWarning("OscController") << "Slow update " << totalMs << " ms: inbound "
         << inMs << " ms (" << inbound << " msgs), indicators " << streamMs
         << " ms, full sync " << syncMs << " ms" << (fullSync ? " (ran)" : "")
-        << "; of which " << sendCount_ << " sends took " << sendMs_ << " ms";
+        << "; of which " << sendCount_ << " sends took " << sendMs_ << " ms to queue";
   }
 }
 
 void OscController::exit() {
-  // ofxOscReceiver / ofxOscSender tear themselves down on destruction; here we
-  // just stop touching the synth.
+  // ofxOscReceiver tears itself down on destruction. The send thread is joined
+  // here so nothing is still sending while the app shuts down.
   listening = false;
   senderReady = false;
+  sender.stop();
   synthPtr.reset();
 }
 
@@ -110,13 +114,11 @@ bool OscController::startReceiver() {
 }
 
 void OscController::ensureSender(const std::string& host) {
-  if (sender.setup(host, kSendPort)) {
-    senderReady = true;
-    ofLogNotice("OscController") << "Echoing OSC state to " << host << ":" << kSendPort;
-  } else {
-    senderReady = false;
-    ofLogWarning("OscController") << "Could not set up OSC sender to " << host;
-  }
+  // The send thread resolves and connects; anything that goes wrong there
+  // comes back through takeLogLines() in update().
+  sender.setTarget(host, kSendPort);
+  senderReady = true;
+  ofLogNotice("OscController") << "Echoing OSC state to " << host << ":" << kSendPort;
 }
 
 int OscController::pollIncoming() {
@@ -431,7 +433,7 @@ float OscController::normOf(ofParameter<float>& p) {
 
 void OscController::send(const ofxOscMessage& m) {
   const auto t = std::chrono::steady_clock::now();
-  sender.sendMessage(m, false);
+  sender.post(m);
   sendMs_ += std::chrono::duration<double, std::milli>(
       std::chrono::steady_clock::now() - t).count();
   ++sendCount_;

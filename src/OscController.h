@@ -13,6 +13,7 @@
 #include "gui/panels/IntentSurfaceInfo.h"
 
 #include "MemoryReadyPolicy.h"
+#include "OscSendThread.h"
 // For kAudibleAlphaEpsilon: the iPad's "audible" boundary IS the Korg's.
 #include "NanoKontrol2Controller.h"
 
@@ -78,6 +79,10 @@ namespace ofxMarkSynth {
 /// its own socket threading and getNextMessage() is synchronous, so unlike the
 /// MIDI controllers no lock-free ring buffer is needed. The iPad's address is
 /// learned from the first inbound packet, so there is no hard-coded client IP.
+///
+/// Outbound messages are built here on the main thread (the synth reads must
+/// stay on it) but sent from OscSendThread, so no socket call runs on the
+/// render thread.
 ///
 /// Works alongside MidiController (LC XL3), ApcMiniController and
 /// NanoKontrol2Controller.
@@ -175,7 +180,7 @@ private:
   ofxMarkSynth::IntentSurfaceInfo surfaceInfo;
 
   ofxOscReceiver receiver;
-  ofxOscSender   sender;
+  OscSendThread  sender;
   bool listening   = false;
   bool senderReady = false;
   std::string remoteHost;   // learned from the first inbound packet
@@ -203,7 +208,7 @@ private:
   // edits reach the surface, gated so it never fights an in-flight iPad drag.
   bool maybePeriodicSync();  // true when it pushed the full state
   // Every outbound message goes through here, so update() can report how much
-  // of a slow frame was the sends themselves versus the reads around them.
+  // of a slow frame was serialising and queueing versus the reads around them.
   void send(const ofxOscMessage& m);
   int sendCount_ = 0;
   double sendMs_ = 0.0;
