@@ -7,7 +7,7 @@ so they survive a `projectGenerator` regenerate.
 ## Where the release settings live (authoritative)
 
 - **`Project.xcconfig`** — product name (`PRODUCT_NAME = Fingerprints`, Debug
-  `FingerprintsDebug`), bundle id (`com.meyfroidt.fingerprints`),
+  `FingerprintsDebug`), bundle id (`com.meyfroidt.fingerprint2`; Debug `com.meyfroidt.fingerprint2.debug` -- see `App.xcconfig` for why Release changed),
   `MARKETING_VERSION` (1.0.0), `CURRENT_PROJECT_VERSION`, icon
   (`ICON_NAME = icon.icns`), `HIGH_RESOLUTION_CAPABLE` (currently `NO`).
   **`projectGenerator` overwrites this file** — restore it after regenerating:

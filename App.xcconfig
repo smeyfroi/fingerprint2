@@ -39,8 +39,14 @@ CODE_SIGN_IDENTITY[config=Debug] = Developer ID Application
 // these survive -- no more restoring naming/icon after each regen.
 PRODUCT_NAME = Fingerprints
 PRODUCT_NAME[config=Debug] = FingerprintsDebug
-PRODUCT_BUNDLE_IDENTIFIER = com.meyfroidt.fingerprints
-PRODUCT_BUNDLE_IDENTIFIER[config=Debug] = com.meyfroidt.fingerprints.debug
+// Release is com.meyfroidt.fingerprint2 since 2026-10-02, not .fingerprints: the
+// old id carried a macOS Local Network rule pinned to the executable in the old
+// of_v20251123 tree, set to deny, which refused every new build's replies to the
+// iPad without a prompt. The rule cannot be removed (the networkextension plist
+// is protected even from root), so the app took an id with no history; Debug
+// follows it (.debug) so the two stay in step.
+PRODUCT_BUNDLE_IDENTIFIER = com.meyfroidt.fingerprint2
+PRODUCT_BUNDLE_IDENTIFIER[config=Debug] = com.meyfroidt.fingerprint2.debug
 MARKETING_VERSION = 1.0.0
 
 // Privacy usage string for macOS Local Network access -- REQUIRED for the
@@ -49,7 +55,7 @@ MARKETING_VERSION = 1.0.0
 INFOPLIST_KEY_NSLocalNetworkUsageDescription = Fingerprints exchanges OSC control data over your local network with a TouchOSC surface on iPad.
 
 // The same for the Documents and Desktop folders (2026-10-02): the Developer ID
-// Release build (com.meyfroidt.fingerprints) had never been granted Documents,
+// Release build (then com.meyfroidt.fingerprints) had never been granted Documents,
 // and with no usage string macOS showed no prompt, so opening a recording under
 // ~/Documents waited forever and the app never started.
 INFOPLIST_KEY_NSDocumentsFolderUsageDescription = Fingerprints reads its performance grids and recorded audio from your Documents folder.
