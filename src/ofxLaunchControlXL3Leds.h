@@ -8,7 +8,7 @@
  * The XL3 requires a separate DAW MIDI port and DAW mode enabled
  * to control RGB LEDs via SysEx messages.
  *
- * Reference: docs/MIDI-Controller.md for the mapping this drives, and
+ * Reference: addons/ofxMarkSynth/docs/controllers/MIDI-Controller.md for the mapping this drives, and
  * docs/launch_control_xl_3_user_guide_v1_en.pdf for the device itself.
  */
 class ofxLaunchControlXL3Leds {

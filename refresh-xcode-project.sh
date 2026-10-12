@@ -17,7 +17,7 @@
 #     Syphon.framework into the make-built app. Without it `make` produces an app that
 #     dies at launch: "Library not loaded: @loader_path/../Frameworks/Syphon.framework".
 #   * It overwrites Project.xcconfig, which holds the product name, bundle id and
-#     version (see docs/Release-Build.md).
+#     version (see addons/ofxMarkSynth/docs/dev/fingerprint2-release-build.md).
 # Both files are restored from git below, so commit them before running this.
 #
 # Usage: ./refresh-xcode-project.sh [--build]

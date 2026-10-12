@@ -6,7 +6,7 @@
 -- for the iPad. What it does prove: the script is valid Lua, every OSC branch
 -- resolves the widget it means to on the page it now lives on, the SET tab
 -- draws each pad from its colour, tier and name, and the tab poll switches
--- pages exactly once per press. See README.md "What to check on the iPad".
+-- pages exactly once per press. See addons/ofxMarkSynth/docs/controllers/touchosc.md "What to check on the iPad".
 
 -- A stub TouchOSC just rich enough to run the shipped root script: node tree
 -- straight out of the .tosc (name, visible, frame), Color/sendOSC stubs,

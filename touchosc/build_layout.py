@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Programmatic surgery on sharksynth.tosc, the TouchOSC iPad control surface.
 
-The .tosc is a single zlib stream wrapping one XML document (see SCHEMA.md).
+The .tosc is a single zlib stream wrapping one XML document (see addons/ofxMarkSynth/docs/controllers/touchosc-schema.md).
 It is the owner's live performance surface: positions, colours, the hues matched
 to the Novation axis pairs and the /sync handshake are all hand-tuned. So this
 tool NEVER regenerates the layout -- it edits the existing XML **as text**,
@@ -28,7 +28,7 @@ Mutations `apply` performs, each idempotent and independently skippable:
   grid-clamp    the root script's /grid/cells loop, 56 -> 64 cells.
   grid-reflow   makes room for row 7: the page row, its labels and HOME move
                 down exactly one row pitch; gridTab and the canvas grow to match.
-                Nothing overlaps and no existing cell moves.  See SCHEMA.md
+                Nothing overlaps and no existing cell moves.  See addons/ofxMarkSynth/docs/controllers/touchosc-schema.md
                 "Why the canvas grew" for the measurements.
   page-split    the second page: everything above the SET band is wrapped in a
                 new `ctlTab` group and gridTab moves up onto the same rect, so
@@ -225,7 +225,7 @@ def set_script(xml: str, lua: str) -> str:
 # mutation: the /layer/<n>/state lamps
 # --------------------------------------------------------------------------- #
 
-# Verbatim from README.md's "What the layout does with it".  Reached through the
+# Verbatim from addons/ofxMarkSynth/docs/controllers/touchosc.md's "What the layout does with it".  Reached through the
 # strip group rather than findByName because `pause` and `name` each occur seven
 # times; `self.children[...]` is the same lookup setActive already relies on.
 STATE_BRANCH = """\
@@ -419,7 +419,7 @@ def mutate_grid_reflow(xml: str) -> tuple[str, str]:
 # contains no PAGER, so every byte of one would have to be invented rather than
 # cloned -- and the published property tables are provably incomplete against
 # this very file (they omit `shape`, which all 159 nodes here carry, and
-# `metaActive`, which the root carries).  See SCHEMA.md "Pages".
+# `metaActive`, which the root carries).  See addons/ofxMarkSynth/docs/controllers/touchosc-schema.md "Pages".
 #
 # So the split is built from vocabulary the file already proves: two sibling
 # GROUPs occupying the same rect, exactly one visible, switched by the root Lua
@@ -523,7 +523,7 @@ def mutate_page_split(xml: str) -> tuple[str, str]:
     # The wrapper is layer0's own <properties>/<values> verbatim -- a transparent,
     # non-interactive container whose every key, type and value this file already
     # proves -- with only the name changed here and the frame set below.  No ID:
-    # 75 nodes already ship without one (SCHEMA.md "ID attributes are optional"),
+    # 75 nodes already ship without one (addons/ofxMarkSynth/docs/controllers/touchosc-schema.md "ID attributes are optional"),
     # and layer0's ID is in any case not unique (gridTab carries the same UUID).
     template = find_node(xml, "layer0")
     lo, hi = template.own_properties
@@ -643,7 +643,7 @@ end
 
 -- The layer strips and the agency slots sit on page 1 now, so they are the
 -- root's GRANDchildren. Reach them through the page group and never by name:
--- `fader`, `pause` and `name` are not unique (see SCHEMA.md).
+-- `fader`, `pause` and `name` are not unique (see addons/ofxMarkSynth/docs/controllers/touchosc-schema.md).
 local function pageChild(name)
   local page = self.children[PAGES[1]]
   return page and page.children[name] or nil
@@ -709,7 +709,7 @@ def mutate_page_script(xml: str) -> tuple[str, str]:
 # joined back. Every existing widget keeps its bytes apart from the properties
 # named here -- OSC bindings, hues and fader styling survive -- and every new
 # widget is a clone of an existing one of the same kind, so nothing is
-# invented. Clones drop their ID attribute (optional; see SCHEMA.md).
+# invented. Clones drop their ID attribute (optional; see addons/ofxMarkSynth/docs/controllers/touchosc-schema.md).
 
 V3_PAGES = ("gridTab", "ctlTab", "liveTab")          # SET, MIX, LIVE -- tab order
 V3_TAB_TEXT = ("SET", "MIX", "LIVE")
@@ -1636,7 +1636,7 @@ def check(xml: str, baseline: str | None = None) -> list[str]:
 
     # findByName searches the whole tree, so a name that repeats is only safe if
     # nothing resolves it that way.  What matters is that WE did not add a new
-    # collision: the layout already ships several by design (see SCHEMA.md).
+    # collision: the layout already ships several by design (see addons/ofxMarkSynth/docs/controllers/touchosc-schema.md).
     now = name_counts(xml)
     was = name_counts(baseline) if baseline is not None else {}
     inherited = {n for n, c in was.items() if c > 1}

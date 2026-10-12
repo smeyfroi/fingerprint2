@@ -27,7 +27,7 @@ namespace ofxMarkSynth {
 ///
 /// Faders 4-9 are unused — layer alpha control, layer mute toggles, and
 /// prev/next config moved to the nanoKONTROL2
-/// (see docs/NanoKontrol2-Controller.md).
+/// (see addons/ofxMarkSynth/docs/controllers/NanoKontrol2-Controller.md).
 ///
 /// Works alongside MidiController (Launch Control XL) and
 /// NanoKontrol2Controller.
@@ -73,7 +73,7 @@ public:
   // === Config Grid (Rows 0-7, notes 0-63) ===
   // All 8 physical rows are config-selection pads. Config grid row y=7 maps
   // to the bottom physical row (notes 0-7) via xyToPadNote. Layer alpha + mute
-  // live on the nanoKONTROL2 (see docs/NanoKontrol2-Controller.md).
+  // live on the nanoKONTROL2 (see addons/ofxMarkSynth/docs/controllers/NanoKontrol2-Controller.md).
   static constexpr int kConfigPadNoteFirst = 0;
   static constexpr int kConfigPadNoteLast = 63;
   static constexpr int kConfigPadCount = 64;  // 8 rows * 8 columns
