@@ -165,7 +165,7 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
   auto getEncoderBinding = [&](int knobIndex) -> std::optional<EncoderBinding> {
     switch (knobIndex) {
       // Encoders 0, 8, 16 (agency / AudioResp / VideoResp) moved to APC Mini
-      // faders 1-3 — see addons/ofxMarkSynth/docs/controllers/APC-Mini-Controller.md.
+      // faders 1-3 — see docs/APC-Mini-Controller.md.
 
       case 2: return EncoderBinding{"MinPitch", true, 2.0f};
       case 3: return EncoderBinding{"MaxPitch", true, 2.0f};
