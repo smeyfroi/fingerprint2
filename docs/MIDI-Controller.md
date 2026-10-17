@@ -50,7 +50,7 @@ Why they went: this row was the only surface anywhere that addressed a snapshot 
 | 1 | (unused) |
 | 2 | (unused) |
 | 3 | Min Pitch |
-| 4 | Max Pitch |
+| 4 | Pitch Octaves |
 | 5 | Min Spectral Centroid |
 | 6 | Max Spectral Centroid |
 | 7 | (unused) |
