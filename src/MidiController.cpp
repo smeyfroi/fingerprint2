@@ -167,8 +167,10 @@ void MidiController::handleButtonCC(int channel, int cc, int value) {
       // Encoders 0, 8, 16 (agency / AudioResp / VideoResp) moved to APC Mini
       // faders 1-3 — see docs/APC-Mini-Controller.md.
 
+      // Pitch is read in octaves: MinPitch (Hz) sets where the reading starts, PitchOctaves
+      // how many octaves it spans before it wraps (MaxPitch is gone).
       case 2: return EncoderBinding{"MinPitch", true, 2.0f};
-      case 3: return EncoderBinding{"MaxPitch", true, 2.0f};
+      case 3: return EncoderBinding{"PitchOctaves", true, 0.05f};
 
       case 10: return EncoderBinding{"MinRms", true, 0.001f};
       case 11: return EncoderBinding{"MaxRms", true, 0.001f};
