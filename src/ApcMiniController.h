@@ -124,6 +124,13 @@ public:
 
   // === Config LED Brightness ===
   static constexpr float kConfigDimFactor = 0.20f;
+  // LED gamma for authored colours (2026-10-18, owner: "the colours on the AKAI surface are
+  // bright and too close to white: need to bring brightness down"). The set palette is muted
+  // GUI colours whose three channels sit close together, and the LEDs render them near white:
+  // each channel goes through (c / 255) ^ kLedGamma before the brightness tiers below, which
+  // dims the pads and pulls the smaller channels down furthest, so the hue shows. Pad-side
+  // only; white and amber feedback are not authored colours and stay as they are.
+  static constexpr float kLedGamma = 2.2f;
 
   // === Set-mode LED policy (SetController-driven pages) ===
   // A memoryDependent cell is READY once the MemoryBank has collected this many
@@ -245,12 +252,6 @@ private:
   };
   HoldState currentHold;
   uint64_t lastHoldAmberSendMs = 0;
-  // Instant set cells (SetController::CellKind::Snapshot and ::Scene) never
-  // arm a hold — the press commits instantly (2026-08-28/29). This tracks the
-  // pad wearing the one-shot amber press feedback so getPadDisplayColor
-  // sustains it (heal sweep included) until the release repaint restores the
-  // rest colour. -1 = no instant pad is down.
-  int instantFeedbackPadNote = -1;
 
   // === LED Update Queue ===
   // Pad repaints requested by the drained pad handlers, applied at a single
@@ -320,6 +321,7 @@ private:
   RgbColor getSetPadDisplayColor(int padNote) const;
   bool isMemoryReady() const;
   static RgbColor scaleRgb(const RgbColor& c, float factor);
+  static RgbColor ledRgb(const RgbColor& authored);
 
   // Coordinate conversion (y=0 is top row, but MIDI note 0 is bottom-left)
   // So we invert Y: y=0 maps to row 7 (notes 56-63), y=7 maps to row 0 (notes 0-7)
