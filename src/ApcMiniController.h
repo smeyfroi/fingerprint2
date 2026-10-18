@@ -100,7 +100,8 @@ public:
   };
 
   // === Timing ===
-  static constexpr uint64_t kHoldThresholdMs = 400;
+  // The hold to change pad that the GUI and the iPad share (Synth::pressSetCell).
+  static constexpr uint64_t kHoldThresholdMs = ofxMarkSynth::Synth::kSetCellHoldMs;
 
   // === LED Colors (RGB) ===
   struct RgbColor {

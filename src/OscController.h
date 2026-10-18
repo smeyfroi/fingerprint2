@@ -60,6 +60,8 @@ namespace ofxMarkSynth {
 ///
 /// Set-pages grid surface (the SET tab; only live while the Synth has a set):
 ///   /grid/press  i i    button  -> press the cell at (x, y=0..7) if assigned
+///   /grid/release i i   button  -> the finger lifts: held 400 ms applies the cell,
+///                                   a shorter press only shows its preview
 ///   /grid/page   i      button  -> switch to 1-based page i (clamped)
 ///   /grid/home   trig   button  -> load the set's designated home config
 ///   /grid/cells  (out)          -> ONE msg, 64 int32 (row-major y=0..7, x=0..7):

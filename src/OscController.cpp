@@ -294,32 +294,23 @@ void OscController::handleMessage(const ofxOscMessage& m) {
   const std::string& addr = m.getAddress();
 
   // === Set-pages grid surface (tab 2) ===
-  // Handled before the generic single-float path below because /grid/press
-  // carries two ints and /grid/home may carry none. All three are no-ops unless
+  // Handled before the generic single-float path below because /grid/press and
+  // /grid/release carry two ints and /grid/home may carry none. All of them are no-ops unless
   // a set is loaded — when hasSet() is false the pads/GUI/iPad keep today's
   // buttonGrid behaviour untouched.
-  if (addr == "/grid/press") {
+  if (addr == "/grid/press" || addr == "/grid/release") {
     if (!synthPtr->getSetController().hasSet() || m.getNumArgs() < 2) return;
     const int x = m.getArgAsInt32(0);
     const int y = m.getArgAsInt32(1);
-    // A touchscreen tap is deliberate — no hold-to-confirm on this surface.
-    // Dispatch by kind (2026-08-28/29): config cells keep the guarded load
-    // path (the same guards live inside applySetCellAction); snapshot cells
-    // recall their mod-snapshot slot instantly; scene cells apply their batch
-    // (slots + chain states) instantly.
-    if (const auto* cell = synthPtr->getSetController().cellAt(x, y)) {
-      synthPtr->applySetCellAction(*cell);
-      if (cell->kind == ofxMarkSynth::SetController::CellKind::Snapshot) {
-        ofLogNotice("OscController") << "Grid cell snapshot recall (" << x << "," << y
-                                     << "): slot " << cell->snapshotSlot;
-      } else if (cell->kind == ofxMarkSynth::SetController::CellKind::Scene) {
-        ofLogNotice("OscController") << "Grid cell scene apply (" << x << "," << y
-                                     << "): "
-                                     << (cell->sceneName.empty() ? "(unnamed)" : cell->sceneName);
-      } else {
-        ofLogNotice("OscController") << "Grid cell load (" << x << "," << y
-                                     << "): " << cell->config;
-      }
+    // Hold to change pad, as on the APC (2026-10-18, owner: "let's make that hold to change pad
+    // update everywhere including the OSC surface"): the pad sends /grid/press when the finger
+    // lands and /grid/release when it lifts. The Synth applies the cell once held for
+    // kSetCellHoldMs; a tap only shows its preview in the GUI. A layout without the release
+    // message applies every tap after the hold time.
+    if (addr == "/grid/press") {
+      synthPtr->pressSetCell(x, y);
+    } else {
+      synthPtr->releaseSetCell(x, y);
     }
     return;
   }

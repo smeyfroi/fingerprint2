@@ -144,7 +144,7 @@ caption.
 
 ### Messages
 
-119 `<osc>` blocks, no `<midi>`.
+234 `<osc>` blocks, no `<midi>` (counted 2026-10-18).
 
 ```xml
 <messages><osc>
@@ -172,8 +172,9 @@ caption.
 - `<path>` and `<arguments>` are both lists of `<partial>`s, concatenated.
   `type` is `CONSTANT` (literal `value`) or `VALUE` (the named widget value,
   e.g. `x` or `text`). `conversion` is `STRING` / `INTEGER` / `FLOAT`.
-- `<triggers>` conditions in use: `RISE` (71 — buttons firing on press) and
-  `ANY` (50 — faders and labels).
+- `<triggers>` conditions in use: `RISE` (84, buttons firing on press), `FALL`
+  (64, the set pads' `/grid/release` when the finger lifts) and `ANY` (86, faders and
+  labels).
 - A set cell's `x`/`y` live **only** in its two CONSTANT INTEGER argument
   partials. Renaming `cell_6_6` to `cell_6_7` without also bumping the second
   partial would produce a button that looks right and presses the wrong pad —

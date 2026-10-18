@@ -47,6 +47,9 @@ Mutations `apply` performs, each idempotent and independently skippable:
                 four input trims and eight agency slots.  Supersedes the grid
                 and page mutations above, which skip once it is in.
   v3-script     the root Lua for it, replaced whole.
+  grid-release  (2026-10-18) a second message on every set pad, /grid/release x y
+                when the finger lifts, so the host can hold to change pad as the
+                AKAI does: a tap shows the pad's preview, a 400 ms hold applies it.
 
 Everything is recoverable from git -- the .tosc is versioned, so this tool
 writes no backup files.  `git checkout touchosc/sharksynth.tosc` undoes it.
@@ -1398,6 +1401,33 @@ def mutate_v3_script(xml: str) -> tuple[str, str]:
                                         f"-> {len(V3_SCRIPT.splitlines())} lines)")
 
 
+GRID_PRESS_TRIGGER = "<triggers><trigger><var>x</var><condition>RISE</condition></trigger></triggers>"
+GRID_PRESS_PATH = "<value>/grid/press</value>"
+
+
+def mutate_grid_release(xml: str) -> tuple[str, str]:
+    """Clone each set pad's /grid/press message as /grid/release on the finger's lift (FALL).
+    The owner, 2026-10-18: "let's make that hold to change pad update everywhere including the
+    OSC surface". A pad that already sends the release is left alone."""
+    added = 0
+    for span in sorted((s for s in index_nodes(xml) if re.fullmatch(r"cell_\d_\d", s.name or "")),
+                       key=lambda s: s.start, reverse=True):
+        node = xml[span.start:span.end]
+        if "<value>/grid/release</value>" in node:
+            continue
+        m = re.search(r"<osc>(?:(?!</osc>).)*" + re.escape(GRID_PRESS_PATH) + r"(?:(?!</osc>).)*</osc>", node, re.S)
+        if not m or m.group(0).count(GRID_PRESS_TRIGGER) != 1:
+            raise RuntimeError(f"{span.name}: /grid/press message not in the expected shape")
+        release = (m.group(0).replace(GRID_PRESS_TRIGGER, GRID_PRESS_TRIGGER.replace("RISE", "FALL"))
+                   .replace(GRID_PRESS_PATH, "<value>/grid/release</value>"))
+        node = node[:m.end()] + release + node[m.end():]
+        xml = xml[:span.start] + node + xml[span.end:]
+        added += 1
+    if not added:
+        return xml, "grid-release: every set pad already sends /grid/release, skipped"
+    return xml, f"grid-release: /grid/release on the lift added to {added} set pads"
+
+
 def _is_v3(xml: str) -> bool:
     return any(s.name == "liveTab" for s in index_nodes(xml))
 
@@ -1423,6 +1453,7 @@ MUTATIONS = [
     ("page-script", _pre_v3(mutate_page_script)),
     ("v3-pages", mutate_v3_pages),
     ("v3-script", mutate_v3_script),
+    ("grid-release", mutate_grid_release),
 ]
 
 

@@ -71,7 +71,8 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/agency/<i>/name` | ← | controller `i` name, "Agency" dropped wherever it sits and the rest spaced: `RoomAgencyOmni` → `Room Omni`, `Agency1` → `Agency 1` |
 | `/agency/<i>/active` | ← | 0 hides / 1 shows controller slot `i` |
 | `/agency/<i>/force` | → | force-trigger controller `i` (momentary) |
-| `/grid/press` | → | tap set cell `x y` — dispatched by cell kind: Config / Snapshot / Scene (no set → ignored) |
+| `/grid/press` | → | finger down on set cell `x y` (no set → ignored) |
+| `/grid/release` | → | finger up on set cell `x y`: held 400 ms applies the cell (Config / Snapshot / Scene), a shorter press only shows its preview in the GUI. A layout without this message applies every tap after 400 ms |
 | `/grid/page` | → | switch to 1-based page (the page row's highlight now rides `/grid/pages`) |
 | `/grid/home` | → | load the set's designated home config |
 | `/grid/cells` | ← | ONE msg, 64 `0xRRGGBB` int32 (row-major `y`=0..7, `x`=0..7): the cell's authored colour, **undimmed**; 0 = no pad |
