@@ -31,6 +31,10 @@ bundle_syphon:
 
 ifndef FP2_INNER
 
+# A bare `make` builds Release, as AGENTS.md says. Without this the first target
+# above, bundle_syphon, became the default goal and a bare `make` built nothing.
+.DEFAULT_GOAL := Release
+
 .PHONY: Release Debug
 Release Debug:
 	@$(MAKE) $@ FP2_INNER=1
