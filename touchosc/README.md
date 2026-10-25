@@ -80,7 +80,6 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/grid/labels` | ← | ONE msg, 64 strings: each pad's name (scene name, cell label, world, config; `Snap N`), ASCII, at most two lines joined by `\n` |
 | `/grid/quadrants` | ← | int current quadrant (`0` NW `1` NE `2` SW `3` SE, `-1` none), then the 4 quadrant names (the home pad's `world`) |
 | `/grid/now` | ← | one line: quadrant · pad · page |
-| `/grid/feel` | ← | ONE msg, 192 int32: three a pad (row-major), its presence, motion and memory against its world's Home: `1` less, `2` as Home, `3` more, `0` not measured (`studio.py pad feel` writes `<config>.previews/.feel.json`). Fills the `fb_<x>_<y>_<k>` step-bars under each pad's name |
 | `/grid/pages` | ← | int page count, int 1-based current page, then one name per page (up to 16) |
 | `/mix/heading` | ← | `GROUPS` (config has a chains manifest) or `LAYERS` |
 | `/input/<i>/gain` | ⇄ | audio source `i`'s analysis-path trim; 0..1 = −12..+12 dB, live, not saved |
@@ -291,9 +290,4 @@ TouchOSC rendering behaviours nothing here can prove:
    fader back, FORCE fires.
 6. **The pages underneath are deaf**, as before: on SET, press where a MIX fader
    would be; nothing should move.
-7. **The step-bars under a measured pad's name** (2026-10-25) fill left to right in
-   one, two or three steps, with the steps' lines showing; Home's three bars sit at
-   two steps. If they fill upwards inside their thin frames, `orientation 1` is not
-   horizontal on the iPad and the mutation wants another value. Pads with no
-   measurement show none, and the line beside HOME says what the bars are.
 

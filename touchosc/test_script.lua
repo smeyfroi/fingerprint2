@@ -161,24 +161,6 @@ onReceiveOSC(msg("/grid/state", table.unpack(state)), {})
 is("no active pad, no ring", SET.children.padRing.visible, false)
 is("script leaves the touch pads alone", SET.children.cell_0_0.color, nil)
 
-print("-- SET pads: presence, motion, memory against Home")
-local feel = {}
-for i = 1, 192 do feel[i] = 0 end
-feel[7], feel[8], feel[9] = 3, 2, 1   -- (2,0)
-feel[4] = 2                           -- (1,0): no pad there
-is("/grid/feel consumed", onReceiveOSC(msg("/grid/feel", table.unpack(feel)), {}), true)
-local fb = function(x, y, k) return SET.children["fb_" .. x .. "_" .. y .. "_" .. k] end
-is("measured pad shows its bars", fb(2, 0, 0).visible, true)
-is("presence 3 = all three steps", fb(2, 0, 0).values.x, 1)
-is("motion 2 = two steps, as Home", math.abs(fb(2, 0, 1).values.x - 2 / 3) < 1e-9, true)
-is("memory 1 = one step", math.abs(fb(2, 0, 2).values.x - 1 / 3) < 1e-9, true)
-is("unmeasured pad shows none", fb(3, 0, 0).visible, false)
-is("empty pad shows none", fb(1, 0, 0).visible, false)
-is("bars dimmer elsewhere", (function()
-  feel[22] = 2                         -- (7,0), another quadrant
-  onReceiveOSC(msg("/grid/feel", table.unpack(feel)), {})
-  return fb(7, 0, 0).color.a < 1.0 end)(), true)
-
 print("-- quadrants, now line, pages")
 onReceiveOSC(msg("/grid/quadrants", 1, "Toccata", "Minuet and trio", "Fugue", ""), {})
 is("current quadrant framed bright", SET.children.qframe_1.color.r, 0.92)

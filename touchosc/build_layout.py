@@ -50,10 +50,6 @@ Mutations `apply` performs, each idempotent and independently skippable:
   grid-release  (2026-10-18) a second message on every set pad, /grid/release x y
                 when the finger lifts, so the host can hold to change pad as the
                 AKAI does: a tap shows the pad's preview, a 400 ms hold applies it.
-  feel-bars     (2026-10-25) three step-bars along the foot of every set pad,
-                presence, motion and memory against the world's Home (1 to 3
-                steps, 2 being Home's), filled from /grid/feel, and a line beside
-                HOME saying what they are.
 
 Everything is recoverable from git -- the .tosc is versioned, so this tool
 writes no backup files.  `git checkout touchosc/sharksynth.tosc` undoes it.
@@ -1141,9 +1137,6 @@ end
 -- (/grid/labels). They arrive as separate messages, so keep all three and
 -- redraw from the lot whenever any of them lands.
 local gridColor, gridState, gridLabel = {}, {}, {}
--- Where each pad sits against its world's Home (/grid/feel, 2026-10-25): three
--- ints a pad, presence / motion / memory, 1..3 with 2 = as Home, 0 = unmeasured.
-local gridFeel = {}
 local curQuad = -1
 
 local function unpackColour(packed)
@@ -1200,15 +1193,6 @@ local function renderGrid()
         end
         t1.textColor = Color(1.0, 1.0, 1.0, text)
         t2.textColor = Color(1.0, 1.0, 1.0, text)
-      end
-      for k = 0, 2 do
-        local bar = page.children['fb_' .. x .. '_' .. y .. '_' .. k]
-        if bar then
-          local lv = gridFeel[(i - 1) * 3 + k + 1] or 0
-          bar.visible = (tier ~= 0 and lv > 0)
-          bar.values.x = lv / 3
-          bar.color = Color(0.95, 0.95, 0.97, text)
-        end
       end
       if (active or moved) and ring then
         ring.frame.x = sw.frame.x - 3
@@ -1378,11 +1362,6 @@ function onReceiveOSC(message, connections)
     renderGrid()
     return true
   end
-  if path == '/grid/feel' then
-    for i = 1, math.min(#args, 192) do gridFeel[i] = args[i].value end
-    renderGrid()
-    return true
-  end
   if path == '/grid/quadrants' then
     curQuad = (#args >= 1) and args[1].value or -1
     local page = self.children.gridTab
@@ -1463,59 +1442,6 @@ def _pre_v3(fn):
     return wrapped
 
 
-FEEL_W, FEEL_H, FEEL_GAP = 18, 6, 3                    # one bar an axis, three grid steps each
-FEEL_Y = PAD_H - FEEL_H - 3                            # along the pad's foot, under the name
-FEEL_KEY = (16, 744, 456, 36)                          # beside HOME, under the page buttons
-FEEL_TEXT = "bars under each name: presence | motion | memory - 2 steps of 3 = as Home"
-
-
-def _pad_frame(x: int, y: int) -> tuple[int, int, int, int]:
-    """A set pad's frame in gridTab, as _build_set lays them out."""
-    q = (0 if y < 4 else 2) + (0 if x < 4 else 1)
-    return (Q_X[q % 2] + PAD_INSET + (x % 4) * PAD_PITCH_X,
-            Q_Y[q // 2] + PAD_INSET + (y % 4) * PAD_PITCH_Y, PAD_W, PAD_H)
-
-
-def _feel_bar(fader_src: str, name: str, frame) -> str:
-    """One step-bar: a fader that only shows its value, filling left to right over three grid
-    steps. No OSC, not interactive, hidden until the host says the pad is measured."""
-    t = _no_osc(n_name(_strip_ids(fader_src), name))
-    t = n_frame(t, *frame)
-    t = n_bool(n_bool(n_bool(t, "interactive", False), "grabFocus", False), "cursor", False)
-    t = n_bool(n_bool(t, "grid", True), "outline", False)
-    t = n_int(n_int(t, "gridSteps", 3), "orientation", 1)
-    t = n_colour(n_colour(t, "color", (0.95, 0.95, 0.97, 1)), "gridColor", (0, 0, 0, 0.6))
-    return n_bool(t, "visible", False)
-
-
-def mutate_feel_bars(xml: str) -> tuple[str, str]:
-    """Three step-bars on every set pad, and one line saying what they are. The owner,
-    2026-10-25: "i like the idea of a 1,2,3 scale across some dimensions", "target the ipad and
-    the GUI, not the APC", "relative to home". The host fills them from /grid/feel; they sit
-    under the transparent touch buttons, so a press still lands on the pad."""
-    if any(s.name == "fb_0_0_0" for s in index_nodes(xml)):
-        return xml, "feel-bars: already present, skipped"
-    grid = find_node(xml, "gridTab")
-    head, kids = split_group(grid.text)
-    names = [_nm(k) for k in kids]
-    if "cell_0_0" not in names or "qname_0" not in names:
-        raise RuntimeError("feel-bars: gridTab is not the v3 SET page")
-    fader_src = _by_name(split_group(find_node(xml, "layer0").text)[1])["fader"]
-    bars = []
-    for y in range(8):
-        for x in range(8):
-            px, py, _, _ = _pad_frame(x, y)
-            for k in range(3):
-                bars.append(_feel_bar(fader_src, f"fb_{x}_{y}_{k}",
-                                      (px + 4 + k * (FEEL_W + FEEL_GAP), py + FEEL_Y, FEEL_W, FEEL_H)))
-    key = _label(_by_name(kids)["qname_0"], "feelKey", FEEL_KEY, FEEL_TEXT, 11)
-    key = n_colour(key, "textColor", (0.62, 0.63, 0.68, 1))
-    first = names.index("cell_0_0")
-    group = join_group(head, kids[:first] + bars + [key] + kids[first:])
-    xml = xml[:grid.start] + group + xml[grid.end:]
-    return xml, f"feel-bars: {len(bars)} step-bars under the set pads' names, and the feelKey line"
-
-
 MUTATIONS = [
     ("state-lamps", _pre_v3(mutate_state_lamps)),
     ("grid-clamp", _pre_v3(mutate_grid_clamp)),
@@ -1528,7 +1454,6 @@ MUTATIONS = [
     ("v3-pages", mutate_v3_pages),
     ("v3-script", mutate_v3_script),
     ("grid-release", mutate_grid_release),
-    ("feel-bars", mutate_feel_bars),
 ]
 
 
@@ -1726,7 +1651,7 @@ def check_v3(xml: str, notes: list[str]) -> list[str]:
 
     lua, _, _ = get_script(xml)
     for hook in ("showPage", "/layer/(%d+)/state", "/layer/(%d+)/name", "/input/(%d+)/active", "/grid/state",
-                 "/grid/labels", "/grid/feel", "/grid/quadrants", "/grid/now", "/grid/pages", "/mix/heading"):
+                 "/grid/labels", "/grid/quadrants", "/grid/now", "/grid/pages", "/mix/heading"):
         if hook not in lua:
             notes.append(f"WARNING root script lacks {hook}")
     notes.append("root script: every v3 address handled; falls through to `return false` "
