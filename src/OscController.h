@@ -11,6 +11,7 @@
 #include "ofEvent.h"
 #include "ofxOsc.h"
 #include "gui/panels/IntentSurfaceInfo.h"
+#include "util/PadFeel.hpp"
 
 #include "MemoryReadyPolicy.h"
 #include "OscSendThread.h"
@@ -76,6 +77,10 @@ namespace ofxMarkSynth {
 ///   /grid/now    (out)          -> one line: quadrant | pad | page
 ///   /grid/pages  (out)          -> int page count, int 1-based current page,
 ///                                   then one name per page
+///   /grid/feel   (out)          -> ONE msg, 192 int32: per pad (row-major), its
+///                                   presence, motion and memory against its world's
+///                                   Home, 1 less, 2 as Home, 3 more, 0 not measured
+///                                   (<config>.previews/.feel.json, `studio.py pad feel`)
 ///
 /// The receiver is polled on the main thread from update(). ofxOscReceiver does
 /// its own socket threading and getNextMessage() is synchronous, so unlike the
@@ -180,6 +185,8 @@ private:
   // Measured intent surface for the active config — feeds the /intent/impacts
   // broadcast so the iPad can mirror the GUI's impact colouring.
   ofxMarkSynth::IntentSurfaceInfo surfaceInfo;
+  // Where each set pad sits against its world's Home, for /grid/feel; re-read when the file changes.
+  ofxMarkSynth::PadFeelCache padFeel;
 
   ofxOscReceiver receiver;
   OscSendThread  sender;
