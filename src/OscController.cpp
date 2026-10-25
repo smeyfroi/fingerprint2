@@ -586,6 +586,8 @@ void OscController::sendGridState() {
   now.setAddress("/grid/now");
   ofxOscMessage pages;
   pages.setAddress("/grid/pages");
+  ofxOscMessage feel;
+  feel.setAddress("/grid/feel");
 
   if (!set.hasSet()) {
     // No set: clear a possibly-stale surface so the pads don't keep showing a
@@ -594,13 +596,14 @@ void OscController::sendGridState() {
       cells.addInt32Arg(0);
       state.addInt32Arg(kPadEmpty);
       labels.addStringArg("");
+      for (int k = 0; k < ofxMarkSynth::PadFeel::kAxes; ++k) feel.addInt32Arg(0);
     }
     quadrants.addInt32Arg(-1);
     for (int q = 0; q < 4; ++q) quadrants.addStringArg("");
     now.addStringArg("No set loaded");
     pages.addInt32Arg(0);
     pages.addInt32Arg(0);
-    for (const auto* m : { &cells, &state, &labels, &quadrants, &now, &pages }) send(*m);
+    for (const auto* m : { &cells, &state, &labels, &quadrants, &now, &pages, &feel }) send(*m);
     return;
   }
 
@@ -625,7 +628,12 @@ void OscController::sendGridState() {
         cells.addInt32Arg(0);
         state.addInt32Arg(kPadEmpty);
         labels.addStringArg("");
+        for (int k = 0; k < ofxMarkSynth::PadFeel::kAxes; ++k) feel.addInt32Arg(0);
         continue;
+      }
+      // Presence, motion and memory against Home (2026-10-25): three small bars under the name.
+      for (const int level : padFeel.get(synthPtr->getSetCellPreviewPath(*cell, curPage)).levels) {
+        feel.addInt32Arg(level);
       }
       const ofColor& c = cell->color;
       cells.addInt32Arg((static_cast<int32_t>(c.r) << 16) |
@@ -668,7 +676,7 @@ void OscController::sendGridState() {
   pages.addInt32Arg(curPage + 1);  // 0-based here, 1-based on the wire
   for (int p = 0; p < nPages; ++p) pages.addStringArg(asciiOnly(set.pageName(p)));
 
-  for (const auto* m : { &cells, &state, &labels, &quadrants, &now, &pages }) send(*m);
+  for (const auto* m : { &cells, &state, &labels, &quadrants, &now, &pages, &feel }) send(*m);
 }
 
 int OscController::currentQuadrant() const {
