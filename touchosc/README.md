@@ -81,7 +81,7 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/grid/quadrants` | ← | int current quadrant (`0` NW `1` NE `2` SW `3` SE, `-1` none), then the 4 quadrant names (the home pad's `world`) |
 | `/grid/now` | ← | one line: quadrant · pad · page |
 | `/grid/pages` | ← | int page count, int 1-based current page, then one name per page (up to 16) |
-| `/mix/heading` | ← | `GROUPS` (config has a chains manifest) or `LAYERS` |
+| `/mix/heading` | ← | `GROUPS`, whatever the strips ride |
 | `/input/<i>/gain` | ⇄ | audio source `i`'s analysis-path trim; 0..1 = −12..+12 dB, live, not saved |
 | `/input/<i>/reset` | → | trim back to the session file's `inputGainDb` (momentary) |
 | `/input/<i>/name` `/db` `/active` | ← | source id, `+1.5 dB` readout, 0 hides / 1 shows slot `i` (`i` = 0..3) |
@@ -110,8 +110,10 @@ the layout's root script recolours each `cell_<x>_<y>` button by name.
 
 ## Strip state (R/M/S) — the same three facts as the Korg
 
-The nanoKONTROL2 tells the performer three things per strip, and the desktop GUI
-now mirrors them as three pips under each group fader:
+The nanoKONTROL2 tells the performer three things per strip. The desktop GUI and
+this layout show only M and S (two pips under each GUI group fader, and the colour
+of each strip's pause button and name here): they draw no strip that does not exist,
+so R would always be lit.
 
 | Lamp | Lit when |
 |---|---|
@@ -119,7 +121,8 @@ now mirrors them as three pips under each group fader:
 | **M** | the chain is **PARKED** (paused) |
 | **S** | the chain is **AUDIBLE** (its alpha is above zero) |
 
-The state that matters most is the one with **only R lit** — *armed and waiting*:
+The state that matters most is the one with **only R lit** on the Korg, both pips
+dark on screen — *armed and waiting*:
 running, but silent. That is what the crossover gesture is aiming at, and it must
 not look like either "playing" or "parked".
 
@@ -244,7 +247,7 @@ at the top, and a tab row underneath. SET is the page on load.
 | Tab | Group | Holds |
 |---|---|---|
 | **SET** | `gridTab` | the "now" line (quadrant · pad · page) · the 8×8 set as **four framed 4×4 quadrants**, each captioned with its home pad's world, the current one framed bright · 64 named pads · a white ring on the active pad · 16 quiet page buttons in two rows, named · `HOME` outlined |
-| **MIX** | `ctlTab` | **GROUPS** (or LAYERS) — 7 strips with two-line names, taller faders, pause/R-M-S lamp, master at right · **INTENT** — 7 poles + strength |
+| **MIX** | `ctlTab` | **GROUPS** — 7 strips with two-line names, taller faders, pause/R-M-S lamp, master at right · **INTENT** — 7 poles + strength |
 | **LIVE** | `liveTab` | **RESPONSE** — agency / audio / motion · **INPUTS** — a trim fader, level meter, dB readout and RESET per audio source (4 slots) · **AGENCY** — overall level and 8 controller slots, each a charge meter, fire line and a big FORCE pad |
 
 **Why the pads look the way they do.** A momentary TouchOSC button paints its

@@ -146,8 +146,8 @@ Together the three rows complete the per-strip cue grammar: **R lit = the strip 
 
 This grammar is the shared vocabulary of all three surfaces, not just this one:
 
-- **The GUI** draws the same three lamps as a row of pips under every fader in the mixer's Groups (and Layers) section, reading them from the same parameters through this file's `kAudibleAlphaEpsilon`. On the group strips the chain name below the pips is tinted to match — amber parked, green playing, dim when armed and waiting.
-- **The iPad** receives them bit-packed on `/layer/<i>/state` (1 = R, 2 = M, 4 = S), delta-tracked so a park or a fade reaches the surface at once rather than on the ~2 s state push. See [`../touchosc/README.md`](../touchosc/README.md).
+- **The GUI** draws the M and S lamps as two pips under every fader in the mixer's Groups section, reading them from the same parameters through this file's `kAudibleAlphaEpsilon`. It draws no R pip: it shows only strips that exist, so R would always be lit. On the group strips the chain name below the pips is tinted to match — amber parked, green playing, dim when armed and waiting.
+- **The iPad** receives them bit-packed on `/layer/<i>/state` (1 = R, 2 = M, 4 = S), delta-tracked so a park or a fade reaches the surface at once rather than on the ~2 s state push, and shows M and S as the colour of each strip's pause button and name (it hides a strip that does not exist). See [`../touchosc/README.md`](../touchosc/README.md).
 
 ### M Buttons (middle row) — Strip Pause Toggle
 

@@ -501,8 +501,10 @@ void OscController::sendCurrentState() {
 
   // Send active + values for every strip the surface has (kSurfaceLayers), so a
   // config with fewer layers marks the surplus strips inactive — the surface
-  // hides them — instead of leaving stale faders/labels behind.
-  sendString("/mix/heading", groups ? "GROUPS" : "LAYERS");
+  // hides them — instead of leaving stale faders/labels behind. The heading is
+  // GROUPS whatever the strips ride (owner 2026-10-26: "the iPad label should be
+  // GROUPS"); a config without a manifest shows its layers as the groups.
+  sendString("/mix/heading", "GROUPS");
   const int nLayers = static_cast<int>(alphas.size());
   for (int i = 0; i < kSurfaceLayers; ++i) {
     const bool active = (i < nLayers);
