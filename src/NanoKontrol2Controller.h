@@ -26,9 +26,10 @@ namespace ofxMarkSynth {
 ///   Slider 8     : CC 7           (input only — master composite alpha)
 ///   Knobs 1-7    : CC 16..22      (unused)
 ///   Knob 8       : CC 23          (input only — texture-preview gain, w/ pickup)
-///   S buttons    : CC 32..39      (LED only — lit when strip N is audible,
+///   S buttons    : CC 32..39      (LED only: lit when strip N is showing,
 ///                                  alpha > 0; rightmost tracks master alpha)
-///   M buttons    : CC 48..55      (toggle layer pause; LED reflects pause)
+///   M buttons    : CC 48..55      (toggle strip pause; LED lit while the
+///                                  strip is marking: it runs, not paused)
 ///   R buttons    : CC 64..71      (LED only — lit when layer N exists;
 ///                                  rightmost is always-on for master alpha)
 ///   Rewind       : CC 43          (prev config; LED always-on + flash)
@@ -70,11 +71,12 @@ public:
   static constexpr int kPreviewGainKnobCC = 23;
 
   // === S buttons (CC 32..39) ===
-  // LED-only "strip audible" indicator: lit while the strip's alpha (chain or
+  // LED-only "strip showing" indicator: lit while the strip's alpha (chain or
   // layer, same binding as the sliders) is above zero; the rightmost tracks
   // the master composite alpha. Completes the per-strip cue grammar: R lit =
-  // the strip exists, M lit = it is parked (paused), S lit = it is audible —
-  // so armed-and-waiting reads as R lit with M and S dark.
+  // the strip exists, S lit = it is SHOWING, M lit = it is MARKING (running),
+  // so armed-and-waiting reads as R and M lit with S dark, and a parked strip
+  // has M dark.
   static constexpr int kSButtonCCFirst = 32;
   static constexpr int kSButtonCCLast = 39;
   static constexpr int kSButtonCount = 8;

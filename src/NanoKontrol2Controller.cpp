@@ -256,7 +256,7 @@ void NanoKontrol2Controller::pollAndUpdateLeds() {
     setLed(kRButtonCCFirst + i, lit);
   }
 
-  // S buttons (CC 32..39): lit iff the strip is AUDIBLE — its alpha above zero.
+  // S buttons (CC 32..39): lit iff the strip is SHOWING: its alpha above zero.
   // Same chain-vs-layer binding as the sliders; the rightmost button belongs to
   // the master alpha fader and tracks the master composite alpha, mirroring the
   // fader's role. The epsilon guards the zero test (a fader pulled to the
@@ -276,12 +276,15 @@ void NanoKontrol2Controller::pollAndUpdateLeds() {
     setLed(kSButtonCCFirst + i, audible);
   }
 
-  // M buttons (CC 48..55): lit iff layer paused.
+  // M buttons (CC 48..55): lit iff the strip is MARKING: it exists and runs, so its
+  // mods draw (owner 2026-10-26: "'M' is lit when something is actively making marks
+  // on the group"). A press still toggles the pause, so the lamp shows what a press
+  // would stop.
   for (int i = 0; i < kMButtonCount; ++i) {
-    bool paused = i < static_cast<int>(pauseParamPtrs.size())
-                  && pauseParamPtrs[i]
-                  && pauseParamPtrs[i]->get();
-    setLed(kMButtonCCFirst + i, paused);
+    bool marking = i < static_cast<int>(pauseParamPtrs.size())
+                   && pauseParamPtrs[i]
+                   && !pauseParamPtrs[i]->get();
+    setLed(kMButtonCCFirst + i, marking);
   }
 
   // Transport LEDs.

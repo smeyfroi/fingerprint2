@@ -110,10 +110,11 @@ the layout's root script recolours each `cell_<x>_<y>` button by name.
 
 ## Strip state (R/M/S) — the same three facts as the Korg
 
-The nanoKONTROL2 tells the performer three things per strip. The desktop GUI and
-this layout show only M and S (two pips under each GUI group fader, and the colour
-of each strip's pause button and name here): they draw no strip that does not exist,
-so R would always be lit.
+The nanoKONTROL2 tells the performer three things per strip: R (the strip exists),
+S Showing (its alpha is above zero) and M Marking (it runs, not paused). The desktop
+GUI shows S and M as two pips under each group fader; this layout shows them as the
+colour of each strip's pause button and name. Neither draws a strip that does not
+exist, so R would always be lit there. The int below carries PARKED, the inverse of M.
 
 | Lamp | Lit when |
 |---|---|

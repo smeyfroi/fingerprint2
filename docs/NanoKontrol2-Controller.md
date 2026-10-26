@@ -69,8 +69,8 @@ All controls send Control Change messages on channel 1. Buttons send value 127 o
 | Slider 8 | 7 | Master composite alpha (value-scaling takeover) |
 | Knob 1-7 | 16-22 | **Unused** |
 | Knob 8 | 23 | Texture-preview gain (value-scaling takeover) |
-| S button 1-8 | 32-39 | **LED only** — lit when strip N is audible (alpha > 0); S8 tracks master alpha |
-| M button 1-8 | 48-55 | Toggle strip pause; LED reflects pause state |
+| S button 1-8 | 32-39 | **LED only**: Showing, lit when strip N's alpha > 0; S8 tracks master alpha |
+| M button 1-8 | 48-55 | Toggle strip pause; Marking, lit while strip N runs |
 | R button 1-8 | 64-71 | **LED only** — lit when strip N exists; R8 always lit (master-alpha cue) |
 | Track ◀ / ▶ | 58 / 59 | **Unused** |
 | Cycle | 46 | **Unused** |
@@ -133,29 +133,29 @@ If strip N does not exist in the current config (index beyond the bound alpha gr
 
 Only the rightmost knob (CC 23, sitting above the master-alpha fader) is mapped: it drives the GUI's texture-preview gain (`Synth::getPreviewGainParameter()` — thumbnails and hover/probe popups) through the same value-scaling takeover as the faders, so it picks the parameter up smoothly rather than jumping it on first touch. Knobs 1-7 (CC 16-22) are ignored.
 
-### S Buttons (top row) — Strip Audible Indicator
+### S Buttons (top row): Showing
 
-The S buttons are **LED-only** — pressing them does nothing. S1-S7 are lit while the corresponding strip is **audible**: its alpha (chain or layer, the same per-message binding as the sliders) is above zero. S8 tracks the master composite alpha, mirroring the master fader's role on slider 8. A small epsilon (0.001, `kAudibleAlphaEpsilon`) guards the zero test so float dust from other writers can't flicker the LED; pulling a fader to the bottom always lands the parameter at exactly 0, so the LED reads dark.
+The S buttons are **LED-only**: pressing them does nothing. S1-S7 are lit while the corresponding strip is **showing**: its alpha (chain or layer, the same per-message binding as the sliders) is above zero. S8 tracks the master composite alpha, mirroring the master fader's role on slider 8. A small epsilon (0.001, `kAudibleAlphaEpsilon`) guards the zero test so float dust from other writers can't flicker the LED; pulling a fader to the bottom always lands the parameter at exactly 0, so the LED reads dark.
 
 | S Button | CC | LED |
 |----------|-----|-----|
 | 1-7 | 32-38 | Lit when strip N's alpha > 0 (chain or layer) |
 | 8 | 39 | Lit when the master composite alpha > 0 |
 
-Together the three rows complete the per-strip cue grammar: **R lit = the strip exists, M lit = it is parked (paused), S lit = it is audible.** A strip that is armed and waiting — present in the config but faded out — reads as R lit with M and S dark.
+Together the three rows complete the per-strip cue grammar (owner 2026-10-26: "let's label 'S' as 'Showing' and 'M' as 'Marking'"): **R lit = the strip exists, S lit = it is showing (alpha above zero), M lit = it is marking (running, not paused).** A strip that is armed and waiting, present and running but faded out, reads as R and M lit with S dark; a parked strip has M dark, and S lit too if its picture holds on screen.
 
 This grammar is the shared vocabulary of all three surfaces, not just this one:
 
-- **The GUI** draws the M and S lamps as two pips under every fader in the mixer's Groups section, reading them from the same parameters through this file's `kAudibleAlphaEpsilon`. It draws no R pip: it shows only strips that exist, so R would always be lit. On the group strips the chain name below the pips is tinted to match — amber parked, green playing, dim when armed and waiting.
+- **The GUI** draws the S and M lamps, in that order, as two pips under every fader in the mixer's Groups section, reading them from the same parameters through this file's `kAudibleAlphaEpsilon`. It draws no R pip: it shows only strips that exist, so R would always be lit. On the group strips the chain name below the pips is tinted to match: amber parked, green playing, dim when armed and waiting.
 - **The iPad** receives them bit-packed on `/layer/<i>/state` (1 = R, 2 = M, 4 = S), delta-tracked so a park or a fade reaches the surface at once rather than on the ~2 s state push, and shows M and S as the colour of each strip's pause button and name (it hides a strip that does not exist). See [`../touchosc/README.md`](../touchosc/README.md).
 
-### M Buttons (middle row) — Strip Pause Toggle
+### M Buttons (middle row): Marking, the pause toggle
 
 Pressing an M button toggles pause for the corresponding strip — `RenderSubsystem::toggleChainPause(int)` when the config authors a chains manifest, else `toggleLayerPause(int)`. The keyboard `1`-`8` shortcuts follow the same chain-vs-layer binding, so key N and M button N always point at the same strip.
 
 | M Button | CC | Function | LED |
 |----------|-----|----------|-----|
-| 1-8 | 48-55 | Toggle strip N pause (chain or layer) | Lit when strip N is paused |
+| 1-8 | 48-55 | Toggle strip N pause (chain or layer) | Lit while strip N is marking (running, not paused) |
 
 Presses on a strip that doesn't exist in the current config are ignored. LED state is polled each frame from the pause parameter, so changes from other controllers or the keyboard reflect here within one update cycle.
 
