@@ -28,11 +28,15 @@ test -d "$APP" || { echo "ERROR: build did not produce $APP"; exit 1; }
 # --- 2. Verify the build really is Developer ID signed + hardened ----------
 echo "==> [2/4] Verifying signature…"
 codesign --verify --deep --strict --verbose=2 "$APP"
-codesign -dvv "$APP" 2>&1 | grep -q "Authority=Developer ID Application" \
-  || { echo "ERROR: $APP is not Developer ID signed — check App.xcconfig"; exit 1; }
-codesign -dvv "$APP" 2>&1 | grep -q "flags=.*runtime" \
-  || { echo "ERROR: $APP is missing Hardened Runtime — check App.xcconfig"; exit 1; }
-if codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q "get-task-allow"; then
+# Read codesign's output once, then search it: under pipefail, `codesign | grep -q` fails
+# whenever grep stops reading at its first match and codesign then dies of SIGPIPE.
+SIGNATURE=$(codesign -dvv "$APP" 2>&1)
+grep -q "Authority=Developer ID Application" <<<"$SIGNATURE" \
+  || { echo "ERROR: $APP is not Developer ID signed: check App.xcconfig"; exit 1; }
+grep -q "flags=.*runtime" <<<"$SIGNATURE" \
+  || { echo "ERROR: $APP is missing Hardened Runtime: check App.xcconfig"; exit 1; }
+ENTITLEMENTS=$(codesign -d --entitlements :- "$APP" 2>/dev/null || true)
+if grep -q "get-task-allow" <<<"$ENTITLEMENTS"; then
   echo "ERROR: $APP carries com.apple.security.get-task-allow, which the notary service"
   echo "       rejects. Xcode injects it into a plain \`build\`; set"
   echo "       CODE_SIGN_INJECT_BASE_ENTITLEMENTS[config=Release] = NO in App.xcconfig."
