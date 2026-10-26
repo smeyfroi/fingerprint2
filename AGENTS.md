@@ -1,8 +1,8 @@
 # fingerprint2 (openFrameworks) – agent instructions
-Build (Makefile): `make` (Release), `make Debug`, `make clean`, `make RunRelease`, `make RunDebug`
-Build (Xcode CLI): `xcodebuild -project fingerprint2.xcodeproj -scheme "fingerprint2 Debug" -configuration Debug build`
-Build (Xcode CLI): `xcodebuild -project fingerprint2.xcodeproj -scheme "fingerprint2 Release" -configuration Release build`
-Artifacts: app bundles land in `bin/` (see `Project.xcconfig`).
+Build (Xcode CLI, the app to play): `xcodebuild -project fingerprint2.xcodeproj -scheme "fingerprint2 Release" -configuration Release build`
+Build (Xcode CLI, Debug): `xcodebuild -project fingerprint2.xcodeproj -scheme "fingerprint2 Debug" -configuration Debug build`
+Artifacts: `bin/Fingerprints.app` and `bin/FingerprintsDebug.app`. `App.xcconfig` gives them the bundle ids `com.meyfroidt.fingerprint2` (`.debug`), the icon and a Developer ID signature, so the macOS grants (Local Network for the iPad, microphone, camera) stay across rebuilds.
+Build (Makefile): `make` (Release), `make Debug`, `make clean`. It does not read `App.xcconfig`: it makes an ad-hoc signed `bin/fingerprint2.app` with the openFrameworks bundle id and icon. Use it only for a compile check, then delete it: every grid's `play-*.sh` opens the newer of `fingerprint2.app` and `Fingerprints.app`.
 Lint/Format: none configured (no `.clang-format`, `clang-tidy`, etc.).
 Tests: none in repo (no single-test runner); validate via build + manual run.
 Dependencies: add/remove addons via `addons.make` and regenerate Xcode if needed.
