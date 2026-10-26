@@ -18,6 +18,7 @@ public:
   void setForceChooseConfig(bool v) { forceChooseConfig = v; }
   void setInitialSession(std::filesystem::path path) { initialSession = std::move(path); }
   void setInitialStudio(bool enabled) { initialStudio = enabled; }
+  void setPractice(bool enabled) { practice = enabled; }
   void queueStudioSession(const std::filesystem::path& path, bool remember = true);
   std::optional<std::filesystem::path> currentSessionPath() const;
   void attachGuiWindowListeners();
@@ -54,6 +55,7 @@ private:
   std::filesystem::path initialSession;
   std::optional<StudioSessionRequest> pendingStudioSession;
   bool initialStudio { false };
+  bool practice { false };
   std::shared_ptr<ofAppBaseWindow> guiWindowPtr;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
   bool guiWindowListenersAttached { false };

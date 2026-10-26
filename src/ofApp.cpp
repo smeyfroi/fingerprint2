@@ -74,6 +74,13 @@ void ofApp::setup(){
 }
 
 void ofApp::installSynth(ResourceManager resources, bool studio) {
+  // Practice holds for every session this run opens. A calibration save still writes to the
+  // session file, so one done at a rehearsal carries into the show.
+  if (practice) {
+    resources.add(ResourceKeys::StartRecordingOnFirstWake, false);
+    resources.add(ResourceKeys::AutoSnapshotsEnabled, false);
+    ofLogNotice("fingerprint2") << "Practice: no recording on the first wake and no auto snapshots";
+  }
   synthPtr = ofxMarkSynth::Synth::create("fingerprint2", ofxMarkSynth::ModConfig {
   }, resources);
   if (synthPtr->getConfigSubsystem().getCurrentConfigPath().empty()) synthPtr->loadFirstPerformanceConfig();

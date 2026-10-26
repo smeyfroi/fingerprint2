@@ -79,10 +79,14 @@ int main(int argc, char** argv) {
 
   std::filesystem::path initialSession;
   bool initialStudio = false;
+  // --practice (play-live-practice.sh): the live session for a rehearsal, with its recording on the
+  // first wake and its auto snapshots off whatever the session says.
+  bool practice = false;
   for (int i = 1; i < argc; ++i) {
     const std::string argument = argv[i];
     if (argument == "--session" && i + 1 < argc) initialSession = argv[++i];
     else if (argument == "--studio") initialStudio = true;
+    else if (argument == "--practice") practice = true;
   }
   // init GLFW manually (since no OF window yet)
   if(!glfwInit()){
@@ -165,6 +169,10 @@ int main(int argc, char** argv) {
   
   mainSettings.title = "MarkSynth — Output";
   guiSettings.title = "MarkSynth — Controls";
+  if (practice) {
+    mainSettings.title += " (practice)";
+    guiSettings.title += " (practice)";
+  }
   auto mainWindow = ofCreateWindow(mainSettings);
   guiSettings.shareContextWith = mainWindow;
   auto guiWindow = ofCreateWindow(guiSettings);
@@ -173,6 +181,7 @@ int main(int argc, char** argv) {
   mainApp->setForceChooseConfig(forceChooseConfig);
   mainApp->setInitialSession(initialSession);
   mainApp->setInitialStudio(initialStudio);
+  mainApp->setPractice(practice);
   mainApp->setGuiWindowPtr(guiWindow);
   mainApp->attachGuiWindowListeners();
 	ofRunApp(mainWindow, mainApp);
