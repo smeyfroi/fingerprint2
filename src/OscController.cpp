@@ -760,6 +760,8 @@ void OscController::cacheInputs() {
   if (!synthPtr) return;
   for (const auto& [id, src] : synthPtr->getAudioAnalysisSources()) {
     if (!src) continue;
+    // A lane that calibrates as another (the looper's) shares that lane's trim: one fader.
+    if (!src->getChannelInfo().calibrateAs.empty()) continue;
     inputIds_.push_back(id);
     // First sight only: the rig persists across config loads, so a later load
     // must not adopt a live trim as the baseline.

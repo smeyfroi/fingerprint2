@@ -82,7 +82,7 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/grid/now` | ← | one line: quadrant · pad · page |
 | `/grid/pages` | ← | int page count, int 1-based current page, then one name per page (up to 16) |
 | `/mix/heading` | ← | `GROUPS`, whatever the strips ride |
-| `/input/<i>/gain` | ⇄ | audio source `i`'s analysis-path trim; 0..1 = −12..+12 dB, live, not saved |
+| `/input/<i>/gain` | ⇄ | audio source `i`'s analysis-path trim; 0..1 = −12..+12 dB, live, not saved. A looper lane has no slot: it takes the trim of the lane it loops |
 | `/input/<i>/reset` | → | trim back to the session file's `inputGainDb` (momentary) |
 | `/input/<i>/name` `/db` `/active` | ← | source id, `+1.5 dB` readout, 0 hides / 1 shows slot `i` (`i` = 0..3) |
 | `/input/<i>/level` | ← | post-trim analysis RMS ÷ 0.4 (what the mods hear), streamed at 5 Hz |
