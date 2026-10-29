@@ -57,9 +57,10 @@ namespace ofxMarkSynth {
 ///   /input/<i>/reset    button  -> trim back to the session file's value
 ///   /input/<i>/name|db|active (out) source id, "+1.5 dB" readout, slot shown
 ///   /input/<i>/level    (out)   -> post-trim analysis RMS, streamed with agency
-///   /loop/record        button  -> LOOP: start a loop, or close the one recording
+///   /loop/record        button  -> LOOP starts a loop, STOP LOOP closes it, NEW LOOP
+///                                   replaces it
 ///                                   (the session's 'loopOf' lane; see Looper.hpp)
-///   /loop/stop          button  -> stop the loop, or play the held one from its top
+///   /loop/stop          button  -> STOP the loop, or PLAY the held one from its top
 ///   /loop/level         fader   -> the loop's level in the musician's monitor
 ///   /loop/active        (out)   -> 1 when the session has a looper lane
 ///   /loop/state         (out)   -> int 0 empty, 1 recording, 2 looping, 3 stopped

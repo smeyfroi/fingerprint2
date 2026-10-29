@@ -1432,19 +1432,20 @@ def mutate_grid_release(xml: str) -> tuple[str, str]:
 # A fourth page for a solo musician playing a duo grid against her own loop (the
 # session's 'loopOf' lane; see ofxMarkSynth audio/Looper.hpp). Built like LIVE:
 # every widget is a clone of one of LIVE's own, with its OSC path rewritten.
-#   LOOP button   /loop/record  starts a loop, or closes the one recording
-#   STOP button   /loop/stop    stops the loop, or plays the held one from the top
+#   record button /loop/record  LOOP starts a loop, STOP LOOP closes it, NEW LOOP replaces it
+#   play button   /loop/stop    STOP silences the loop, PLAY plays it from the top
 #   level fader   /loop/level   the loop in her headphones
 #   position bar  /loop/pos     playhead (while recording: the 60 s maximum used)
 #   length label  /loop/length  "12.3 s"
-# The state lamp and the LOOP button's colour come from /loop/state and
-# /loop/active in the root script.
+# The state lamp, the record button's colour and both buttons' captions come
+# from /loop/state and /loop/active in the root script: a caption always says
+# what a press does now.
 
 LOOP_TAB_X, LOOP_TAB_W = (16, 170, 324, 478), 146   # four tabs between the 16px margins
 LOOP_REC = (0.90, 0.22, 0.22, 1)
-LOOP_HINTS = ("LOOP records. LOOP again closes the loop and plays it.",
-              "STOP silences the loop. STOP again plays it from the top.",
-              "LOOP while it plays records a new one in its place (60 s at most).")
+LOOP_HINTS = ("LOOP records. STOP LOOP closes the loop and plays it.",
+              "STOP silences the loop. PLAY plays it again from the top.",
+              "NEW LOOP records a new loop in its place (60 s at most).")
 
 
 def _build_loop(live: str) -> str:
@@ -1508,6 +1509,21 @@ def mutate_loop_page(xml: str) -> tuple[str, str]:
                  "buttons, monitor level, three hints); tabs SET / MIX / LIVE / LOOP")
 
 
+def mutate_loop_hints(xml: str) -> tuple[str, str]:
+    if not any(s.name == "loopTab" for s in index_nodes(xml)):
+        return xml, "loop-hints: no loopTab, skipped"
+    changed = 0
+    for i, text in enumerate(LOOP_HINTS):
+        span = find_node(xml, f"loopHint{i}")
+        node = n_text(span.text, text)
+        if node != span.text:
+            xml = xml[:span.start] + node + xml[span.end:]
+            changed += 1
+    if not changed:
+        return xml, "loop-hints: already current, skipped"
+    return xml, f"loop-hints: {changed} hint line(s) rewritten"
+
+
 LOOP_SCRIPT_SPLICES = (
     ("-- sharksynth root script, v3 (2026-10-02): three tabs, SET / MIX / LIVE.\n",
      "-- sharksynth root script, v3 (2026-10-02): three tabs, SET / MIX / LIVE;\n"
@@ -1520,6 +1536,7 @@ LOOP_SCRIPT_SPLICES = (
 -- the session has no looper lane. The lamp and the LOOP button share a colour.
 local loopActive, loopState = false, 0
 local LOOP_TEXT = { [0] = 'EMPTY', 'RECORDING', 'LOOPING', 'STOPPED' }
+local LOOP_REC_TEXT = { [0] = 'LOOP', 'STOP LOOP', 'NEW LOOP', 'NEW LOOP' }
 local LOOP_COLOR = { [0] = {0.34, 0.36, 0.42}, {0.90, 0.22, 0.22}, {0.36, 0.82, 0.44},
                      {1.00, 0.69, 0.19} }
 local function renderLoop()
@@ -1536,6 +1553,20 @@ local function renderLoop()
     page.children.loopState.textColor = col
   end
   if page.children.loopRecord then page.children.loopRecord.color = col end
+  -- Captions say what a press does now. The play button only acts on a loop that
+  -- exists, so it greys out while empty or recording.
+  local rec, play, live = 'LOOP', 'PLAY', false
+  if loopActive then
+    rec = LOOP_REC_TEXT[loopState] or 'LOOP'
+    play = (loopState == 2) and 'STOP' or 'PLAY'
+    live = (loopState == 2 or loopState == 3)
+  end
+  if page.children.loopRecordLabel then page.children.loopRecordLabel.values.text = rec end
+  if page.children.loopStopLabel then
+    page.children.loopStopLabel.values.text = play
+    if live then page.children.loopStopLabel.textColor = Color(1.0, 1.0, 1.0, 1.0)
+    else page.children.loopStopLabel.textColor = Color(0.40, 0.42, 0.48, 1.0) end
+  end
 end
 
 function onReceiveOSC(message, connections)
@@ -1601,6 +1632,7 @@ MUTATIONS = [
     ("grid-release", mutate_grid_release),
     ("loop-page", mutate_loop_page),
     ("loop-script", mutate_loop_script),
+    ("loop-hints", mutate_loop_hints),
 ]
 
 

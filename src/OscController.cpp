@@ -359,11 +359,11 @@ void OscController::handleMessage(const ofxOscMessage& m) {
   } else if (matchIndexed(addr, "/input/", "/gain", idx)) {
     setInputTrim(idx, (std::clamp(v, 0.0f, 1.0f) * 2.0f - 1.0f) * kInputTrimRangeDb);
   } else if (addr == "/loop/record") {
-    if (v > 0.5f) {  // momentary press: start a loop, or close the one recording
+    if (v > 0.5f) {  // momentary press: LOOP / STOP LOOP / NEW LOOP
       if (auto* looper = synthPtr->getLooper()) looper->requestRecord();
     }
   } else if (addr == "/loop/stop") {
-    if (v > 0.5f) {  // momentary press: stop the loop, or play the held one again
+    if (v > 0.5f) {  // momentary press: STOP the loop, or PLAY the held one again
       if (auto* looper = synthPtr->getLooper()) looper->requestToggle();
     }
   } else if (addr == "/loop/level") {
