@@ -415,3 +415,21 @@ pads. `check()` asserts that every pad sits exactly on its swatch, swatches draw
 underneath, no two touch targets overlap, and each quadrant frame holds its 16
 pads. The grid is no longer evenly pitched (the gutter), so the two-tab
 mutations that measured that pitch skip once `liveTab` exists.
+
+## 9. LOOP, the fourth tab (2026-10-29)
+
+`loop-page` adds `loopTab` after `liveTab` and `tab_4` / `tabLabel_4` after the
+last tab, then reframes all four tabs at 146 px (x 16, 170, 324, 478). Every
+widget is a clone of one of `liveTab`'s, with its OSC path rewritten:
+
+| Node | Clone of | OSC |
+|---|---|---|
+| `hdrLoop`, `loopState`, `loopHint0..2` | `hdrSynth` | none; the root script writes `loopState` |
+| `loopLength` | `input0/db` | `/loop/length` (text) |
+| `loopPos` | `input0/level` | `/loop/pos` |
+| `loopRecord`, `loopStop` | `input0/reset` | `/loop/record`, `/loop/stop` |
+| `loopRecordLabel`, `loopStopLabel`, `loopLevelLabel` | `input0/resetLabel` | none |
+| `loopLevel` | `input0/gain` | `/loop/level` |
+
+`loop-script` splices the LOOP branch into the v3 script (`LOOP_SCRIPT_SPLICES`);
+`v3-script` accepts either script as current, so the two never undo each other.

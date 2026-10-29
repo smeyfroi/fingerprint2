@@ -1395,7 +1395,7 @@ end
 
 def mutate_v3_script(xml: str) -> tuple[str, str]:
     lua, _, _ = get_script(xml)
-    if lua == V3_SCRIPT:
+    if lua in (V3_SCRIPT, LOOP_SCRIPT):
         return xml, "v3-script: already current, skipped"
     return set_script(xml, V3_SCRIPT), (f"v3-script: root Lua replaced ({len(lua.splitlines())} "
                                         f"-> {len(V3_SCRIPT.splitlines())} lines)")
@@ -1428,6 +1428,151 @@ def mutate_grid_release(xml: str) -> tuple[str, str]:
     return xml, f"grid-release: /grid/release on the lift added to {added} set pads"
 
 
+# ---- LOOP tab (2026-10-29, branch solo-looper) ---------------------------------
+# A fourth page for a solo musician playing a duo grid against her own loop (the
+# session's 'loopOf' lane; see ofxMarkSynth audio/Looper.hpp). Built like LIVE:
+# every widget is a clone of one of LIVE's own, with its OSC path rewritten.
+#   LOOP button   /loop/record  starts a loop, or closes the one recording
+#   STOP button   /loop/stop    stops the loop, or plays the held one from the top
+#   level fader   /loop/level   the loop in her headphones
+#   position bar  /loop/pos     playhead (while recording: the 60 s maximum used)
+#   length label  /loop/length  "12.3 s"
+# The state lamp and the LOOP button's colour come from /loop/state and
+# /loop/active in the root script.
+
+LOOP_TAB_X, LOOP_TAB_W = (16, 170, 324, 478), 146   # four tabs between the 16px margins
+LOOP_REC = (0.90, 0.22, 0.22, 1)
+LOOP_HINTS = ("LOOP records. LOOP again closes the loop and plays it.",
+              "STOP silences the loop. STOP again plays it from the top.",
+              "LOOP while it plays records a new one in its place (60 s at most).")
+
+
+def _build_loop(live: str) -> str:
+    head, kids = split_group(live)
+    k = _by_name(kids)
+    _, ikids = split_group(k["input0"])
+    ik = _by_name(ikids)
+    head = n_name(head + "<children></children></node>", "loopTab")
+    head = n_bool(n_frame(head, 0, 0, 640, V3_PAGE_H), "visible", False)
+    head = _strip_ids(head[:head.index("<children>")])
+    out = [_label(k["hdrSynth"], "hdrLoop", (12, 8, 616, 20), "LOOP")]
+    out.append(_label(k["hdrSynth"], "loopState", (16, 36, 608, 64), "EMPTY", 40))
+    length = n_osc(_strip_ids(ik["db"]), "/input/0/db", "/loop/length")
+    out.append(n_int(n_text(n_frame(n_name(length, "loopLength"), 16, 104, 608, 28), ""), "textSize", 20))
+    pos = n_osc(_strip_ids(ik["level"]), "/input/0/level", "/loop/pos")
+    out.append(n_frame(n_name(pos, "loopPos"), 16, 144, 24, 560))
+    for name, path, frame, cap, size, colour in (
+            ("loopRecord", "/loop/record", (52, 144, 372, 560), "LOOP", 48, LOOP_REC),
+            ("loopStop", "/loop/stop", (436, 144, 120, 560), "STOP", 24, None)):
+        b = n_frame(n_name(n_osc(_strip_ids(ik["reset"]), "/input/0/reset", path), name), *frame)
+        out.append(n_colour(b, "color", colour) if colour else b)
+        out.append(_label(ik["resetLabel"], name + "Label", frame, cap, size))
+    level = n_osc(_strip_ids(ik["gain"]), "/input/0/gain", "/loop/level")
+    out.append(n_frame(n_name(level, "loopLevel"), 568, 144, 56, 560))
+    out.append(_label(ik["resetLabel"], "loopLevelLabel", (560, 708, 72, 20), "level", 14))
+    for i, text in enumerate(LOOP_HINTS):
+        out.append(_label(k["hdrSynth"], f"loopHint{i}", (16, 740 + 30 * i, 608, 24), text, 14))
+    return join_group(head, out)
+
+
+def mutate_loop_page(xml: str) -> tuple[str, str]:
+    if any(s.name == "loopTab" for s in index_nodes(xml)):
+        return xml, "loop-page: loopTab already present, skipped"
+    kids = root_children(xml)
+    names = [k.name for k in kids]
+    want = list(V3_PAGES) + ["tab_1", "tabLabel_1", "tab_2", "tabLabel_2", "tab_3", "tabLabel_3"]
+    if names != want:
+        raise RuntimeError(f"loop-page: unexpected root children {names}")
+    by = {k.name: k for k in kids}
+    loop = _build_loop(by["liveTab"].text)
+
+    tab4 = n_name(_strip_ids(by["tab_3"].text), "tab_4")
+    anchor = "<conversion>INTEGER</conversion><value>3</value>"
+    if tab4.count(anchor) != 1:
+        raise RuntimeError("loop-page: tab_3's page argument not in the expected shape")
+    tab4 = tab4.replace(anchor, anchor.replace(">3<", ">4<"), 1)
+    lab4 = n_text(n_name(_strip_ids(by["tabLabel_3"].text), "tabLabel_4"), "LOOP")
+    tabs = []
+    for i, (b, lb) in enumerate(((by["tab_1"].text, by["tabLabel_1"].text),
+                                 (by["tab_2"].text, by["tabLabel_2"].text),
+                                 (by["tab_3"].text, by["tabLabel_3"].text), (tab4, lab4))):
+        f = Span(b, 0, len(b), 0).frame
+        lf = Span(lb, 0, len(lb), 0).frame
+        tabs += [n_frame(b, LOOP_TAB_X[i], f["y"], LOOP_TAB_W, f["h"]),
+                 n_frame(lb, LOOP_TAB_X[i], lf["y"], LOOP_TAB_W, lf["h"])]
+
+    i = by["liveTab"].end
+    j = kids[-1].end
+    xml = xml[:i] + loop + "".join(tabs) + xml[j:]
+    return xml, ("loop-page: LOOP (loopTab: state lamp, length, position bar, LOOP and STOP "
+                 "buttons, monitor level, three hints); tabs SET / MIX / LIVE / LOOP")
+
+
+LOOP_SCRIPT_SPLICES = (
+    ("-- sharksynth root script, v3 (2026-10-02): three tabs, SET / MIX / LIVE.\n",
+     "-- sharksynth root script, v3 (2026-10-02): three tabs, SET / MIX / LIVE;\n"
+     "-- LOOP added 2026-10-29 for a solo musician's looper.\n"),
+    ("local PAGES = {'gridTab', 'ctlTab', 'liveTab'}\n",
+     "local PAGES = {'gridTab', 'ctlTab', 'liveTab', 'loopTab'}\n"),
+    ("function onReceiveOSC(message, connections)\n",
+     """-- ---- LOOP tab --------------------------------------------------------------
+-- /loop/state: 0 empty, 1 recording, 2 looping, 3 stopped. /loop/active 0 means
+-- the session has no looper lane. The lamp and the LOOP button share a colour.
+local loopActive, loopState = false, 0
+local LOOP_TEXT = { [0] = 'EMPTY', 'RECORDING', 'LOOPING', 'STOPPED' }
+local LOOP_COLOR = { [0] = {0.34, 0.36, 0.42}, {0.90, 0.22, 0.22}, {0.36, 0.82, 0.44},
+                     {1.00, 0.69, 0.19} }
+local function renderLoop()
+  local page = self.children.loopTab
+  if not page then return end
+  local text, c = 'NO LOOPER IN THIS SESSION', LOOP_COLOR[0]
+  if loopActive then
+    text = LOOP_TEXT[loopState] or ''
+    c = LOOP_COLOR[loopState] or LOOP_COLOR[0]
+  end
+  local col = Color(c[1], c[2], c[3], 1.0)
+  if page.children.loopState then
+    page.children.loopState.values.text = text
+    page.children.loopState.textColor = col
+  end
+  if page.children.loopRecord then page.children.loopRecord.color = col end
+end
+
+function onReceiveOSC(message, connections)
+"""),
+    ("  if path == '/grid/cells' then\n",
+     """  if path == '/loop/active' or path == '/loop/state' then
+    local v = (#args >= 1) and args[1].value or 0
+    if path == '/loop/active' then loopActive = (v ~= 0) else loopState = v end
+    renderLoop()
+    return true
+  end
+  if path == '/grid/cells' then
+"""),
+)
+
+
+def _loop_script() -> str:
+    lua = V3_SCRIPT
+    for old, new in LOOP_SCRIPT_SPLICES:
+        if lua.count(old) != 1:
+            raise RuntimeError(f"loop-script: anchor not unique: {old!r}")
+        lua = lua.replace(old, new, 1)
+    return lua
+
+
+LOOP_SCRIPT = _loop_script()
+
+
+def mutate_loop_script(xml: str) -> tuple[str, str]:
+    if not any(s.name == "loopTab" for s in index_nodes(xml)):
+        return xml, "loop-script: no loopTab, skipped"
+    lua, _, _ = get_script(xml)
+    if lua == LOOP_SCRIPT:
+        return xml, "loop-script: already current, skipped"
+    return set_script(xml, LOOP_SCRIPT), "loop-script: root Lua gains the LOOP tab"
+
+
 def _is_v3(xml: str) -> bool:
     return any(s.name == "liveTab" for s in index_nodes(xml))
 
@@ -1454,6 +1599,8 @@ MUTATIONS = [
     ("v3-pages", mutate_v3_pages),
     ("v3-script", mutate_v3_script),
     ("grid-release", mutate_grid_release),
+    ("loop-page", mutate_loop_page),
+    ("loop-script", mutate_loop_script),
 ]
 
 
@@ -1576,10 +1723,12 @@ def check_v3(xml: str, notes: list[str]) -> list[str]:
     root = index_nodes(xml)[0]
     rw, rh = root.frame["w"], root.frame["h"]
     names = [s.name for s in root_children(xml)]
-    want = list(V3_PAGES) + ["tab_1", "tabLabel_1", "tab_2", "tabLabel_2", "tab_3", "tabLabel_3"]
+    has_loop = "loopTab" in names
+    page_names = list(V3_PAGES) + (["loopTab"] if has_loop else [])
+    want = page_names + [n for i in range(1, len(page_names) + 1) for n in (f"tab_{i}", f"tabLabel_{i}")]
     notes.append(f"root children: {names}" + (" -- as expected" if names == want
                                                else f" -- EXPECTED {want}"))
-    pages = [find_node(xml, n) for n in V3_PAGES]
+    pages = [find_node(xml, n) for n in page_names]
     bad = [p.name for p in pages if (p.frame["x"], p.frame["y"], p.frame["w"], p.frame["h"])
            != (0, 0, rw, V3_PAGE_H)]
     notes.append(f"pages share one rect (0,0,{rw},{V3_PAGE_H})"
@@ -1639,7 +1788,7 @@ def check_v3(xml: str, notes: list[str]) -> list[str]:
     notes.append(f"LIVE: {sum(n.startswith('agency') and n[6:].isdigit() for n in lk)} agency "
                  f"slots, {sum(n.startswith('input') for n in lk)} input strips")
 
-    tabs = [find_node(xml, n) for n in want[3:]]
+    tabs = [find_node(xml, n) for n in want[len(page_names):]]
     top = min(t.frame["y"] for t in tabs)
     base = max(t.frame["y"] + t.frame["h"] for t in tabs)
     notes.append(f"tab row y={top}..{base}"
@@ -1654,6 +1803,8 @@ def check_v3(xml: str, notes: list[str]) -> list[str]:
                  "/grid/labels", "/grid/quadrants", "/grid/now", "/grid/pages", "/mix/heading"):
         if hook not in lua:
             notes.append(f"WARNING root script lacks {hook}")
+    if has_loop and ("/loop/state" not in lua or "'loopTab'" not in lua):
+        notes.append("WARNING root script lacks the LOOP tab")
     notes.append("root script: every v3 address handled; falls through to `return false` "
                  + ("(intact)" if lua.rstrip().endswith("return false\nend") else "-- CHECK"))
     return notes

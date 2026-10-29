@@ -86,6 +86,12 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/input/<i>/reset` | → | trim back to the session file's `inputGainDb` (momentary) |
 | `/input/<i>/name` `/db` `/active` | ← | source id, `+1.5 dB` readout, 0 hides / 1 shows slot `i` (`i` = 0..3) |
 | `/input/<i>/level` | ← | post-trim analysis RMS ÷ 0.4 (what the mods hear), streamed at 5 Hz |
+| `/loop/record` | → | LOOP: start a loop, or close the one recording (momentary; the session's `loopOf` lane) |
+| `/loop/stop` | → | stop the loop, or play the held one from its top (momentary) |
+| `/loop/level` | ⇄ | the loop's level in the musician's monitor |
+| `/loop/active` | ← | 1 when the session has a looper lane |
+| `/loop/state` | ← | int 0 empty, 1 recording, 2 looping, 3 stopped, streamed at 5 Hz |
+| `/loop/length` `/loop/pos` | ← | `12.3 s`; playhead 0..1 (while recording, of the 60 s maximum), streamed at 5 Hz |
 | `/sync` | → | heartbeat / discovery (see below) |
 
 > **Eighth row — fixed.** The host has always sent all **64** grid cells (`y`=0..7,
@@ -242,14 +248,16 @@ touchosc/sharksynth.tosc`), so no backup copies are kept alongside it.
 
 ## Layout — three tabs: SET / MIX / LIVE
 
-Portrait canvas (640 × 924): three full-height pages sharing the 640 × 840 rect
-at the top, and a tab row underneath. SET is the page on load.
+Portrait canvas (640 × 924): four full-height pages sharing the 640 × 840 rect
+at the top, and a tab row underneath. SET is the page on load. (The heading
+predates LOOP, the fourth tab.)
 
 | Tab | Group | Holds |
 |---|---|---|
 | **SET** | `gridTab` | the "now" line (quadrant · pad · page) · the 8×8 set as **four framed 4×4 quadrants**, each captioned with its home pad's world, the current one framed bright · 64 named pads · a white ring on the active pad · 16 quiet page buttons in two rows, named · `HOME` outlined |
 | **MIX** | `ctlTab` | **GROUPS** — 7 strips with two-line names, taller faders, pause/R-M-S lamp, master at right · **INTENT** — 7 poles + strength |
 | **LIVE** | `liveTab` | **RESPONSE** — agency / audio / motion · **INPUTS** — a trim fader, level meter, dB readout and RESET per audio source (4 slots) · **AGENCY** — overall level and 8 controller slots, each a charge meter, fire line and a big FORCE pad |
+| **LOOP** | `loopTab` | for a solo musician on a duo grid (branch `solo-looper`): a state lamp, the loop's length, a position bar, a big **LOOP** button, **STOP**, her monitor level and three one-line hints. It needs a session with a `loopOf` lane; otherwise the lamp reads NO LOOPER IN THIS SESSION |
 
 **Why the pads look the way they do.** A momentary TouchOSC button paints its
 colour only while pressed, and the host used to send pads pre-dimmed for the
@@ -275,7 +283,7 @@ names, and gives the per-source trims a home.
 ### What to check on the iPad after sending this
 
 The Mac can check the structure (`./build_layout.py apply`'s checks) and run the
-real script against a stub (`./build_layout.py test`, 54 checks), but these are
+real script against a stub (`./build_layout.py test`, 85 checks), but these are
 TouchOSC rendering behaviours nothing here can prove:
 
 1. **Pads show their colour at rest**, with their name on them. If they are
@@ -294,4 +302,7 @@ TouchOSC rendering behaviours nothing here can prove:
    fader back, FORCE fires.
 6. **The pages underneath are deaf**, as before: on SET, press where a MIX fader
    would be; nothing should move.
+7. **LOOP** (with `play-live-loop.sh`): the lamp turns red on the first LOOP
+   press and green on the second, the bar runs, STOP turns it amber, and the
+   level fader changes what the headphones play.
 

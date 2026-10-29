@@ -178,6 +178,36 @@ is("current page text bright", SET.children.pageLabel_2.textColor.r, 1.0)
 is("other page text grey", SET.children.pageLabel_1.textColor.r, 0.50)
 is("legacy /grid/page consumed", onReceiveOSC(msg("/grid/page", 3), {}), true)
 
+print("-- LOOP tab: the fourth page and its lamp")
+local LOOP = self.children.loopTab
+if LOOP then
+  self.children.tab_4.values.x = 1
+  update()
+  is("LOOP shown", LOOP.visible, true)
+  is("SET put away for LOOP", SET.visible, false)
+  is("tab_4 lit", self.children.tab_4.color.r, 0.80)
+  self.children.tab_4.values.x = 0
+  self.children.tab_1.values.x = 1
+  update()
+  is("LOOP put away", LOOP.visible, false)
+  self.children.tab_1.values.x = 0
+  is("/loop/state consumed", onReceiveOSC(msg("/loop/state", 1), {}), true)
+  is("no looper says so", LOOP.children.loopState.values.text, "NO LOOPER IN THIS SESSION")
+  onReceiveOSC(msg("/loop/active", 1.0), {})
+  is("recording lamp", LOOP.children.loopState.values.text, "RECORDING")
+  is("recording is red", LOOP.children.loopRecord.color.r, 0.90)
+  onReceiveOSC(msg("/loop/state", 2), {})
+  is("looping lamp", LOOP.children.loopState.values.text, "LOOPING")
+  is("lamp and button agree", LOOP.children.loopState.textColor.g, LOOP.children.loopRecord.color.g)
+  onReceiveOSC(msg("/loop/state", 3), {})
+  is("stopped lamp", LOOP.children.loopState.values.text, "STOPPED")
+  onReceiveOSC(msg("/loop/state", 0), {})
+  is("empty lamp", LOOP.children.loopState.values.text, "EMPTY")
+  is("/loop/length falls through", onReceiveOSC(msg("/loop/length", "4.0 s"), {}), false)
+  is("/loop/pos falls through", onReceiveOSC(msg("/loop/pos", 0.5), {}), false)
+  is("/loop/level falls through", onReceiveOSC(msg("/loop/level", 0.5), {}), false)
+end
+
 print("-- fall-through to the widgets is intact")
 is("/layer/0/alpha falls through", onReceiveOSC(msg("/layer/0/alpha", 0.5), {}), false)
 is("/layer/0/pause falls through", onReceiveOSC(msg("/layer/0/pause", 1), {}), false)
