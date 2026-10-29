@@ -57,6 +57,14 @@ namespace ofxMarkSynth {
 ///   /input/<i>/reset    button  -> trim back to the session file's value
 ///   /input/<i>/name|db|active (out) source id, "+1.5 dB" readout, slot shown
 ///   /input/<i>/level    (out)   -> post-trim analysis RMS, streamed with agency
+///   /loop/record        button  -> LOOP: start a loop, or close the one recording
+///                                   (the session's 'loopOf' lane; see Looper.hpp)
+///   /loop/stop          button  -> stop the loop, or play the held one from its top
+///   /loop/level         fader   -> the loop's level in the musician's monitor
+///   /loop/active        (out)   -> 1 when the session has a looper lane
+///   /loop/state         (out)   -> int 0 empty, 1 recording, 2 looping, 3 stopped
+///   /loop/length        (out)   -> "12.3 s": captured so far, or the loop's length
+///   /loop/pos           (out)   -> playhead 0..1 (while recording: of the 60 s maximum)
 ///
 /// Set-pages grid surface (the SET tab; only live while the Synth has a set):
 ///   /grid/press  i i    button  -> press the cell at (x, y=0..7) if assigned
@@ -272,6 +280,8 @@ private:
   void sendInputState();
   void streamInputLevels();
   void setInputTrim(int slot, float db);
+  void sendLoopState();
+  void streamLoop();
   void streamIndicators();
   std::shared_ptr<ofxMarkSynth::AgencyControllerMod> agencyMod(int slot);
 };

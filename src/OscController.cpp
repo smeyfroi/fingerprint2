@@ -16,6 +16,7 @@
 #include "ofxMarkSynth.h"
 #include "processMods/AgencyControllerMod.hpp"
 #include "audio/IAudioAnalysisSource.hpp"
+#include "audio/Looper.hpp"
 
 const std::array<std::string, 7> OscController::kIntentNames = {
   // The 7 poles (2026-07-12: Ordered dropped, Chaotic solo last), fader order. /intent/0../6.
@@ -357,6 +358,16 @@ void OscController::handleMessage(const ofxOscMessage& m) {
     }
   } else if (matchIndexed(addr, "/input/", "/gain", idx)) {
     setInputTrim(idx, (std::clamp(v, 0.0f, 1.0f) * 2.0f - 1.0f) * kInputTrimRangeDb);
+  } else if (addr == "/loop/record") {
+    if (v > 0.5f) {  // momentary press: start a loop, or close the one recording
+      if (auto* looper = synthPtr->getLooper()) looper->requestRecord();
+    }
+  } else if (addr == "/loop/stop") {
+    if (v > 0.5f) {  // momentary press: stop the loop, or play the held one again
+      if (auto* looper = synthPtr->getLooper()) looper->requestToggle();
+    }
+  } else if (addr == "/loop/level") {
+    if (auto* looper = synthPtr->getLooper()) looper->setMonitorLevel(v);
   } else if (matchIndexed(addr, "/input/", "/reset", idx)) {
     if (v > 0.5f && idx >= 0 && idx < static_cast<int>(inputIds_.size())) {
       setInputTrim(idx, inputBaselineDb_[inputIds_[idx]]);
@@ -564,6 +575,7 @@ void OscController::sendCurrentState() {
   }
 
   sendInputState();
+  sendLoopState();
 
   // SET tab: pads, quadrants, pages (or a clear when no set).
   sendGridState();
@@ -794,6 +806,25 @@ void OscController::streamInputLevels() {
   }
 }
 
+void OscController::sendLoopState() {
+  if (!synthPtr || !senderReady) return;
+  const auto* looper = synthPtr->getLooper();
+  sendFloat("/loop/active", looper ? 1.0f : 0.0f);
+  if (looper) sendFloat("/loop/level", looper->getMonitorLevel());
+  streamLoop();
+}
+
+void OscController::streamLoop() {
+  // Rides streamIndicators' 5 Hz tick: the LOOP page's lamp, length and position bar.
+  const auto* looper = synthPtr->getLooper();
+  if (!looper) return;
+  sendInt("/loop/state", static_cast<int>(looper->getState()));
+  std::ostringstream text;
+  text << std::fixed << std::setprecision(1) << looper->getLengthSec() << " s";
+  sendString("/loop/length", text.str());
+  sendFloat("/loop/pos", looper->getPosition01());
+}
+
 void OscController::cacheAgencyMods() {
   agencyModNames_.clear();
   if (!synthPtr) return;
@@ -838,4 +869,5 @@ void OscController::streamIndicators() {
     sendFloat("/agency/" + ofToString(i) + "/armed", (charge >= 1.0f) ? 1.0f : 0.0f);
   }
   streamInputLevels();
+  streamLoop();
 }
