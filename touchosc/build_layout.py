@@ -1428,7 +1428,7 @@ def mutate_grid_release(xml: str) -> tuple[str, str]:
     return xml, f"grid-release: /grid/release on the lift added to {added} set pads"
 
 
-# ---- LOOP tab (2026-10-29, branch solo-looper) ---------------------------------
+# ---- LOOP tab (2026-10-29) ----------------------------------------------------
 # A fourth page for a solo musician playing a duo grid against her own loop (the
 # session's 'loopOf' lane; see ofxMarkSynth audio/Looper.hpp). Built like LIVE:
 # every widget is a clone of one of LIVE's own, with its OSC path rewritten.

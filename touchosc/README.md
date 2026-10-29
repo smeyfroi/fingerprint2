@@ -257,7 +257,7 @@ predates LOOP, the fourth tab.)
 | **SET** | `gridTab` | the "now" line (quadrant · pad · page) · the 8×8 set as **four framed 4×4 quadrants**, each captioned with its home pad's world, the current one framed bright · 64 named pads · a white ring on the active pad · 16 quiet page buttons in two rows, named · `HOME` outlined |
 | **MIX** | `ctlTab` | **GROUPS** — 7 strips with two-line names, taller faders, pause/R-M-S lamp, master at right · **INTENT** — 7 poles + strength |
 | **LIVE** | `liveTab` | **RESPONSE** — agency / audio / motion · **INPUTS** — a trim fader, level meter, dB readout and RESET per audio source (4 slots) · **AGENCY** — overall level and 8 controller slots, each a charge meter, fire line and a big FORCE pad |
-| **LOOP** | `loopTab` | for a solo musician on a duo grid (branch `solo-looper`): a state lamp, the loop's length, a position bar, a big record button (**LOOP** / **STOP LOOP** / **NEW LOOP**), a play button (**STOP** / **PLAY**, grey when there is nothing to play), her monitor level and three one-line hints. Each caption says what a press does now. It needs a session with a `loopOf` lane; otherwise the lamp reads NO LOOPER IN THIS SESSION |
+| **LOOP** | `loopTab` | for a solo musician on a duo grid: a state lamp, the loop's length, a position bar, a big record button (**LOOP** / **STOP LOOP** / **NEW LOOP**), a play button (**STOP** / **PLAY**, grey when there is nothing to play), her monitor level and three one-line hints. Each caption says what a press does now. It needs a session with a `loopOf` lane; otherwise the lamp reads NO LOOPER IN THIS SESSION |
 
 **Why the pads look the way they do.** A momentary TouchOSC button paints its
 colour only while pressed, and the host used to send pads pre-dimmed for the
