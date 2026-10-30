@@ -368,6 +368,8 @@ void OscController::handleMessage(const ofxOscMessage& m) {
     }
   } else if (addr == "/loop/level") {
     if (auto* looper = synthPtr->getLooper()) looper->setMonitorLevel(v);
+  } else if (addr == "/take/mark") {
+    if (v > 0.5f) synthPtr->markTake();  // momentary press: a marker chapter in the take
   } else if (matchIndexed(addr, "/input/", "/reset", idx)) {
     if (v > 0.5f && idx >= 0 && idx < static_cast<int>(inputIds_.size())) {
       setInputTrim(idx, inputBaselineDb_[inputIds_[idx]]);

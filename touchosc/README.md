@@ -86,6 +86,7 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/input/<i>/reset` | → | trim back to the session file's `inputGainDb` (momentary) |
 | `/input/<i>/name` `/db` `/active` | ← | source id, `+1.5 dB` readout, 0 hides / 1 shows slot `i` (`i` = 0..3) |
 | `/input/<i>/level` | ← | post-trim analysis RMS ÷ 0.4 (what the mods hear), streamed at 5 Hz |
+| `/take/mark` | → | drop a marker in the take being recorded: a chapter in the muxed video named for the pad playing (momentary; the Mac's Shift-K does the same). No control sends it yet |
 | `/loop/record` | → | the record button: LOOP starts a loop, STOP LOOP closes it and plays it, NEW LOOP replaces it (momentary; the session's `loopOf` lane) |
 | `/loop/stop` | → | the play button: STOP silences the loop, PLAY plays it from its top; nothing while empty or recording (momentary) |
 | `/loop/level` | ⇄ | the loop's level in the musician's monitor |
