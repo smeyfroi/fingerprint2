@@ -10,12 +10,6 @@
 // screen at this fraction of its width; the GUI gets the remainder on the left.
 const float MAIN_WINDOW_WIDTH_FRACTION = 0.3f;
 
-// Set to 1 to compile in the single-screen windowed layout unconditionally —
-// the build-time equivalent of holding Option at launch, for tuning stretches
-// with frequent relaunches where MarkSynth shares one screen with the editor.
-// Leave 0 for gigs; the Option key still works as a per-launch override.
-#define FORCE_SINGLE_SCREEN 1
-
 namespace {
 
 ofGLFWWindowSettings createWindowSettings(glm::vec2 position, glm::vec2 size, bool fullscreen) {
@@ -109,14 +103,14 @@ int main(int argc, char** argv) {
     monitorPositions[i] = {(float)x, (float)y};
   }
   
-  // Hold Option/Alt at launch to force the single-screen windowed layout even
-  // when a second monitor is connected (parallels Shift-to-rechoose-config).
-  // FORCE_SINGLE_SCREEN short-circuits the key check at build time.
-  const bool forceSingleScreen = FORCE_SINGLE_SCREEN || isOptionKeyHeldAtLaunch();
+  // A studio launch (play-recorded.sh, --studio) tunes beside the editor on one screen; a live
+  // launch (play-live*.sh) takes both screens when there are two. Hold Option/Alt at launch to
+  // force the single-screen windowed layout anyway (parallels Shift-to-rechoose-config).
+  const bool optionHeld = isOptionKeyHeldAtLaunch();
+  const bool forceSingleScreen = initialStudio || optionHeld;
   if (forceSingleScreen) {
-    ofLogNotice() << (FORCE_SINGLE_SCREEN
-                          ? "FORCE_SINGLE_SCREEN compiled in: single-screen mode"
-                          : "Option held at launch: forcing single-screen mode");
+    ofLogNotice() << (optionHeld ? "Option held at launch: forcing single-screen mode"
+                                 : "Studio launch: single-screen mode");
   }
 
   // Hold Control at launch to swap which display gets the main visuals vs the
