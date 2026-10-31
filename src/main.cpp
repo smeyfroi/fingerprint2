@@ -4,6 +4,8 @@
 #include "ofApp.h"
 #include "ofAppGLFWWindow.h"
 #include <GLFW/glfw3.h>
+#define GLFW_EXPOSE_NATIVE_COCOA
+#include <GLFW/glfw3native.h>
 #include <ApplicationServices/ApplicationServices.h>
 
 // Single-screen (windowed) layout: the main visuals take the right edge of the
@@ -38,11 +40,21 @@ bool isOptionKeyHeldAtLaunch() {
           & kCGEventFlagMaskAlternate) != 0;
 }
 
+// The laptop's own screen, where the GUI belongs (owner 2026-10-31: "the main should always be
+// my laptop and the extended display is the audience display"), or -1 on a Mac with none. Found
+// by hardware: which screen macOS makes primary (GLFW monitor 0) follows the menu bar and can
+// change between gigs.
+int builtInMonitorIndex(GLFWmonitor** monitors, int count) {
+  for (int i = 0; i < count; ++i) {
+    if (CGDisplayIsBuiltin(glfwGetCocoaMonitor(monitors[i]))) return i;
+  }
+  return -1;
+}
+
 // Returns true if either Control key is physically held right now. Read the same
 // OS-level way as the Option check above. Used as a launch-time toggle to swap
-// which physical display shows the main visuals vs the GUI: the screen macOS
-// treats as primary (GLFW monitor 0) can flip between gigs, which otherwise
-// lands the GUI on the projector instead of the laptop.
+// which physical display shows the main visuals vs the GUI, for a set-up where
+// the visuals belong on the laptop's screen.
 bool isControlKeyHeldAtLaunch() {
   return (CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState)
           & kCGEventFlagMaskControl) != 0;
@@ -98,7 +110,8 @@ int main(int argc, char** argv) {
     glfwGetMonitorPos(monitors[i], &x, &y);
     ofLogNotice() << "Monitor " << i
                   << ": " << mode->width << "x" << mode->height
-                  << " at position " << x << "," << y;
+                  << " at position " << x << "," << y
+                  << (CGDisplayIsBuiltin(glfwGetCocoaMonitor(monitors[i])) ? " (built-in)" : "");
     monitorSizes[i] = {(float)mode->width, (float)mode->height};
     monitorPositions[i] = {(float)x, (float)y};
   }
@@ -114,8 +127,7 @@ int main(int argc, char** argv) {
   }
 
   // Hold Control at launch to swap which display gets the main visuals vs the
-  // GUI, for when macOS has elected the projector (rather than the laptop) as
-  // the primary monitor. Only meaningful with multiple monitors.
+  // GUI. Only meaningful with multiple monitors.
   const bool swapDisplays = isControlKeyHeldAtLaunch();
   if (swapDisplays) {
     ofLogNotice() << "Control held at launch: swapping main/gui displays";
@@ -128,8 +140,11 @@ int main(int argc, char** argv) {
     ofLogNotice() << "Shift held at launch: choosing session config";
   }
 
-  int mainMonitorId = 0;
-  int guiMonitorId = count > 1 ? 1 : 0;
+  // The GUI on the laptop's own screen and the visuals on the other, the audience's. A Mac with no
+  // built-in screen among them puts the GUI on the primary, monitor 0.
+  const int builtInMonitorId = builtInMonitorIndex(monitors, count);
+  int guiMonitorId = builtInMonitorId >= 0 ? builtInMonitorId : 0;
+  int mainMonitorId = count > 1 ? (guiMonitorId == 0 ? 1 : 0) : 0;
 
   if (swapDisplays && count > 1) {
     std::swap(mainMonitorId, guiMonitorId);
@@ -147,9 +162,9 @@ int main(int argc, char** argv) {
     // Single-screen windowed layout for tuning: GUI on the left 0.7 of the
     // screen, main visuals on the right 0.3 flush to the screen's right edge.
     // MAIN keeps a normal 16:9 aspect (the gig projector / recording shape)
-    // rather than stretching to the full screen height.
-    const glm::vec2 screenPos = count > 0 ? monitorPositions[0] : glm::vec2 { 0.0f, 0.0f };
-    const glm::vec2 screenSize = count > 0 ? monitorSizes[0] : glm::vec2 { 1440.0f, 900.0f };
+    // rather than stretching to the full screen height. It sits on the GUI's screen, the laptop's.
+    const glm::vec2 screenPos = count > 0 ? monitorPositions[guiMonitorId] : glm::vec2 { 0.0f, 0.0f };
+    const glm::vec2 screenSize = count > 0 ? monitorSizes[guiMonitorId] : glm::vec2 { 1440.0f, 900.0f };
     const float mainWidth = screenSize.x * MAIN_WINDOW_WIDTH_FRACTION;
     const float mainHeight = mainWidth * 9.0f / 16.0f;
     const float guiWidth = screenSize.x - mainWidth;
