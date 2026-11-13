@@ -218,6 +218,58 @@ if LOOP then
   is("/loop/level falls through", onReceiveOSC(msg("/loop/level", 0.5), {}), false)
 end
 
+print("-- PRINTS tab: the fingerprint desk")
+local PRINTS = self.children.printsTab
+if PRINTS then
+  self.children.tab_5.values.x = 1
+  update()
+  is("PRINTS shown", PRINTS.visible, true)
+  is("SET put away for PRINTS", SET.visible, false)
+  is("tab_5 lit", self.children.tab_5.color.r, 0.80)
+  self.children.tab_5.values.x = 0
+  self.children.tab_1.values.x = 1
+  update()
+  is("PRINTS put away", PRINTS.visible, false)
+  self.children.tab_1.values.x = 0
+  -- slots come and go with what the session loaded
+  is("/fingerprint/3/active consumed", onReceiveOSC(msg("/fingerprint/3/active", 0.0), {}), true)
+  is("an empty slot is put away", PRINTS.children.print3.visible, false)
+  onReceiveOSC(msg("/fingerprint/3/active", 1.0), {})
+  is("a loaded slot is shown", PRINTS.children.print3.visible, true)
+  is("/fingerprint/0/name falls through", onReceiveOSC(msg("/fingerprint/0/name", "sand-line"), {}), false)
+  is("/fingerprint/0/length falls through", onReceiveOSC(msg("/fingerprint/0/length", "6.9 s"), {}), false)
+  is("/fingerprint/0/playing falls through", onReceiveOSC(msg("/fingerprint/0/playing", 0.4), {}), false)
+  is("/fingerprint/status falls through", onReceiveOSC(msg("/fingerprint/status", "3 LOADED"), {}), false)
+  is("/fingerprint/size falls through", onReceiveOSC(msg("/fingerprint/size", 0.5), {}), false)
+  is("/fingerprint/opacity falls through", onReceiveOSC(msg("/fingerprint/opacity", 0.5), {}), false)
+  -- the carrier row: AUTO chosen, three layers, one of them the only one that shows
+  is("/fingerprint/carriers consumed", onReceiveOSC(msg("/fingerprint/carriers", 0,
+     "AUTO", "ground", "line-fluid", "line-smear", "", "", "", "", 1, 2, 2, 1, 0, 0, 0, 0), {}), true)
+  is("AUTO is the chosen button", PRINTS.children.carrier_0.color.r, 0.80)
+  is("AUTO reads bright", PRINTS.children.carrierLabel_0.textColor.r, 1.0)
+  is("a layer is named", PRINTS.children.carrierLabel_3.values.text, "line-smear")
+  is("a layer that shows is grey until chosen", PRINTS.children.carrierLabel_3.textColor.r, 0.50)
+  is("a hidden layer is amber", PRINTS.children.carrierLabel_2.textColor.g, 0.69)
+  is("a button with no layer is put away", PRINTS.children.carrier_4.visible, false)
+  is("its name goes with it", PRINTS.children.carrierLabel_4.visible, false)
+  is("a one-line name sits mid button", PRINTS.children.carrierLabel_3.frame.y, 450)
+  onReceiveOSC(msg("/fingerprint/carriers", 3,
+     "AUTO", "ground", "line-fluid", "voice-2\nfluid", "", "", "", "", 1, 2, 2, 1, 0, 0, 0, 0), {})
+  is("the chosen layer's button is bright", PRINTS.children.carrier_3.color.r, 0.80)
+  is("AUTO is no longer chosen", PRINTS.children.carrier_0.color.r, 0.20)
+  is("a two-line name splits", PRINTS.children.carrierLabel_3.values.text, "voice-2")
+  is("onto its second line", PRINTS.children.carrierLabel2_3.values.text, "fluid")
+  is("and takes the upper line", PRINTS.children.carrierLabel_3.frame.y, 440)
+  -- the place: the ring on the cell chosen, none where it was drawn
+  is("/fingerprint/place consumed", onReceiveOSC(msg("/fingerprint/place", 7), {}), true)
+  is("the ring shows on a cell", PRINTS.children.placeRing.visible, true)
+  is("the ring sits on that cell", PRINTS.children.placeRing.frame.x, PRINTS.children.place_7.frame.x - 3)
+  is("WHERE IT WAS DRAWN is grey while a place holds", PRINTS.children.asDrawnLabel.textColor.r, 0.50)
+  onReceiveOSC(msg("/fingerprint/place", -1), {})
+  is("no ring where it was drawn", PRINTS.children.placeRing.visible, false)
+  is("WHERE IT WAS DRAWN reads bright", PRINTS.children.asDrawnLabel.textColor.r, 1.0)
+end
+
 print("-- fall-through to the widgets is intact")
 is("/layer/0/alpha falls through", onReceiveOSC(msg("/layer/0/alpha", 0.5), {}), false)
 is("/layer/0/pause falls through", onReceiveOSC(msg("/layer/0/pause", 1), {}), false)

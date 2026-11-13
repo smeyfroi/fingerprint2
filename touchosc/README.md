@@ -22,6 +22,7 @@ so the next pass does not start from scratch.
 ./build_layout.py apply --dry-run   # ...and show the diff without writing
 ./build_layout.py inventory     # every widget: type / path / frame / OSC binding
 ./build_layout.py test          # run the layout's own Lua against a stub TouchOSC
+./build_layout.py preview printsTab   # an SVG picture of one page: frames, kinds, text
 ```
 
 Then re-send the layout to the iPad from the TouchOSC editor (see **Picking up a
@@ -94,6 +95,17 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/loop/active` | ← | 1 when the session has a looper lane |
 | `/loop/state` | ← | int 0 empty, 1 recording, 2 looping, 3 stopped, streamed at 5 Hz |
 | `/loop/length` `/loop/pos` | ← | `12.3 s`; playhead 0..1 (while recording, of the 60 s maximum), streamed at 5 Hz |
+| `/fingerprint/<i>/fire` | → | fire the fingerprint in slot `i` (0..11) with the settings of the desk (momentary) |
+| `/fingerprint/stop` | → | stop the fingerprints that play (momentary). The ink on the carrier stays |
+| `/fingerprint/size` `/fingerprint/opacity` | ⇄ | the size (0..1 = the least size..its own size) and the strength of the ink |
+| `/fingerprint/carrier` | → | one int: `0` AUTO, `k` the `k`-th drawn layer of the world that plays |
+| `/fingerprint/place` | → | one int: a cell of the 5 × 5 square over the canvas, row-major from the top left. Two floats in place of the int are `x` and `y` as fractions of the canvas |
+| `/fingerprint/asdrawn` | → | back to the place where the marks were made (momentary) |
+| `/fingerprint/<i>/active` `/name` `/length` | ← | 0 hides / 1 shows slot `i`, its name, `6.9 s` |
+| `/fingerprint/<i>/playing` | ← | how far through it is, 0..1, sent at 5 Hz when it changes; 0 when it does not play |
+| `/fingerprint/carriers` | ← | ONE msg: int chosen (`0` AUTO), then 8 names (`AUTO` first, empty for no layer, two lines joined by `\n`), then 8 int32 (`0` no layer, `1` shows, `2` hidden). Sent when it changes |
+| `/fingerprint/place` | ← | int: the cell chosen, `-1` for where it was drawn. Sent when it changes |
+| `/fingerprint/status` | ← | one line: `3 LOADED`, `2 PLAYING`, `ASLEEP: A PRESS WAITS FOR THE WAKE` or `NO FINGERPRINTS IN THIS SESSION` |
 | `/sync` | → | heartbeat / discovery (see below) |
 
 > **Eighth row — fixed.** The host has always sent all **64** grid cells (`y`=0..7,
@@ -252,7 +264,7 @@ touchosc/sharksynth.tosc`), so no backup copies are kept alongside it.
 
 Portrait canvas (640 × 924): four full-height pages sharing the 640 × 840 rect
 at the top, and a tab row underneath. SET is the page on load. (The heading
-predates LOOP, the fourth tab.)
+predates LOOP and PRINTS, the fourth and fifth tabs.)
 
 | Tab | Group | Holds |
 |---|---|---|
@@ -260,6 +272,7 @@ predates LOOP, the fourth tab.)
 | **MIX** | `ctlTab` | **GROUPS** — 7 strips with two-line names, taller faders, pause/R-M-S lamp, master at right · **INTENT** — 7 poles + strength |
 | **LIVE** | `liveTab` | **RESPONSE** — agency / audio / motion · **INPUTS** — a trim fader, level meter, dB readout and RESET per audio source (4 slots) · **AGENCY** — overall level and 8 controller slots, each a charge meter, fire line and a big FORCE pad |
 | **LOOP** | `loopTab` | for a solo musician on a duo grid: a state lamp, the loop's length, a position bar, a big record button (**LOOP** / **STOP LOOP** / **NEW LOOP**), a play button (**STOP** / **PLAY**, grey when there is nothing to play), her monitor level and three one-line hints. Each caption says what a press does now. It needs a session with a `loopOf` lane; otherwise the lamp reads NO LOOPER IN THIS SESSION |
+| **PRINTS** | `printsTab` | the fingerprint desk (ofxMarkSynth `docs/dev/fingerprints.md`): a status line, 12 fingerprint slots (a fire button with the name and the length on it, and a progress bar), the carrier row (**AUTO** and up to 7 drawn layers; the chosen one bright, a hidden layer amber), a 5 × 5 square to pick the place on the canvas with a ring on the chosen cell, **WHERE IT WAS DRAWN**, a size fader, an opacity fader and **STOP ALL**. The settings are the same settings as the `Fingerprints` section of the GUI. It needs a session with a `fingerprints` folder |
 
 **Why the pads look the way they do.** A momentary TouchOSC button paints its
 colour only while pressed, and the host used to send pads pre-dimmed for the
@@ -285,7 +298,7 @@ names, and gives the per-source trims a home.
 ### What to check on the iPad after sending this
 
 The Mac can check the structure (`./build_layout.py apply`'s checks) and run the
-real script against a stub (`./build_layout.py test`, 95 checks), but these are
+real script against a stub (`./build_layout.py test`, 128 checks), but these are
 TouchOSC rendering behaviours nothing here can prove:
 
 1. **Pads show their colour at rest**, with their name on them. If they are
@@ -307,4 +320,15 @@ TouchOSC rendering behaviours nothing here can prove:
 7. **LOOP** (with `play-live-loop.sh`): the lamp turns red on LOOP and green on
    STOP LOOP, the captions change with it, the bar runs, STOP turns it amber,
    and the level fader changes what the headphones play.
+8. **PRINTS** (with a session that names a `fingerprints` folder):
+   - Each loaded fingerprint shows one button with its name and its length.
+     The other slots are hidden.
+   - A press of a button plays the fingerprint. The bar at the left of the
+     button rises while it plays.
+   - The carrier row shows AUTO and the drawn layers of the world. A press
+     makes that button bright. A hidden layer has an amber name.
+   - A press of a cell of the square puts the ring on that cell. WHERE IT WAS
+     DRAWN removes the ring.
+   - The names sit on their buttons and a press goes through the name to the
+     button.
 

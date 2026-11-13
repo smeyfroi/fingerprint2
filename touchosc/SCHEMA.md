@@ -433,3 +433,41 @@ widget is a clone of one of `liveTab`'s, with its OSC path rewritten:
 
 `loop-script` splices the LOOP branch into the v3 script (`LOOP_SCRIPT_SPLICES`);
 `v3-script` accepts either script as current, so the two never undo each other.
+
+## 10. PRINTS, the fifth tab (2026-11-13)
+
+`prints-page` adds `printsTab` after `loopTab` and `tab_5` / `tabLabel_5` after the
+last tab. It then reframes the 5 tabs at 116 px (x 16, 139, 262, 385, 508). Each
+widget is a clone of a widget that the file already has, with its OSC path rewritten:
+
+| Node | Clone of | OSC |
+|---|---|---|
+| `hdrPrints`, `hdrCarrier`, `hdrPlace`, `hdrInk`, `printsHint` | `hdrSynth` | none |
+| `printsStatus` | `input0/db` | `/fingerprint/status` (text) |
+| `print<i>` (`i` = 0..11) | `input0`'s group head | none; the root script shows and hides it |
+| `printPlaying_<i>` | `input0/level` | `/fingerprint/<i>/playing` |
+| `printFire_<i>` | `input0/reset` | `/fingerprint/<i>/fire` |
+| `printName_<i>`, `printLength_<i>` | `input0/name`, `input0/db` | `/fingerprint/<i>/name`, `/fingerprint/<i>/length` (text) |
+| `carrier_<k>` (`k` = 0..7) | `page_1` | `/fingerprint/carrier` + the constant int `k` |
+| `carrierLabel_<k>`, `carrierLabel2_<k>` | `pageLabel_1` | none; the root script writes them |
+| `placeFrame` | `qframe_0` | none |
+| `place_<n>` (`n` = 0..24) | `page_1` | `/fingerprint/place` + the constant int `n` |
+| `placeRing` | `padRing` | none; the root script moves it |
+| `asDrawn`, `printStop` | `input0/reset` | `/fingerprint/asdrawn`, `/fingerprint/stop` |
+| `asDrawnLabel`, `printStopLabel`, `printSizeLabel`, `printOpacityLabel` | `input0/resetLabel` | none |
+| `printSize`, `printOpacity` | `input0/gain` | `/fingerprint/size`, `/fingerprint/opacity` |
+
+The widgets of a slot carry the slot number in their names. A name that repeats
+across the 12 slots is a new duplicate name, and `check` refuses new duplicate names.
+
+`prints-script` splices the PRINTS branches into the LOOP script
+(`PRINTS_SCRIPT_SPLICES`). `v3-script` and `loop-script` accept the PRINTS script as
+current, so the 3 script mutations do not undo each other.
+
+The carrier buttons and the place cells are page buttons with another path and another
+constant argument. A page button sends its path and one constant int on a press, and
+this file already proves that shape.
+
+`preview <page>` writes an SVG of one page: each frame, the kind of each widget and
+the authored text. A dashed outline is a hidden node. Text in angle brackets is a label
+that the host fills.

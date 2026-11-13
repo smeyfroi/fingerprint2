@@ -1395,7 +1395,7 @@ end
 
 def mutate_v3_script(xml: str) -> tuple[str, str]:
     lua, _, _ = get_script(xml)
-    if lua in (V3_SCRIPT, LOOP_SCRIPT):
+    if lua in (V3_SCRIPT, LOOP_SCRIPT, PRINTS_SCRIPT):
         return xml, "v3-script: already current, skipped"
     return set_script(xml, V3_SCRIPT), (f"v3-script: root Lua replaced ({len(lua.splitlines())} "
                                         f"-> {len(V3_SCRIPT.splitlines())} lines)")
@@ -1599,9 +1599,272 @@ def mutate_loop_script(xml: str) -> tuple[str, str]:
     if not any(s.name == "loopTab" for s in index_nodes(xml)):
         return xml, "loop-script: no loopTab, skipped"
     lua, _, _ = get_script(xml)
-    if lua == LOOP_SCRIPT:
+    if lua in (LOOP_SCRIPT, PRINTS_SCRIPT):
         return xml, "loop-script: already current, skipped"
     return set_script(xml, LOOP_SCRIPT), "loop-script: root Lua gains the LOOP tab"
+
+
+# --------------------------------------------------------------------------- #
+# PRINTS, the fifth tab (2026-11-13): the fingerprint desk
+# --------------------------------------------------------------------------- #
+# The artist plays marks from the past into the world now playing (ofxMarkSynth
+# docs/dev/fingerprints.md). The tab is the GUI's Fingerprints section again, on
+# the same settings the engine holds for both:
+#   12 slots      /fingerprint/<i>/fire      a press fires that fingerprint
+#                 /fingerprint/<i>/name, /length, /playing, /active   from the host
+#   carrier row   /fingerprint/carrier k     0 AUTO, k the k-th drawn layer of the world
+#   place square  /fingerprint/place n       a cell of 5 x 5 over the canvas, row-major
+#   WHERE IT WAS DRAWN   /fingerprint/asdrawn
+#   size, opacity /fingerprint/size, /fingerprint/opacity
+#   STOP ALL      /fingerprint/stop
+# The carrier row's names and lamps come from /fingerprint/carriers, the ring on
+# the place square from /fingerprint/place, both in the root script. Every widget
+# is a clone of one the file already has.
+
+PRINTS_TAB_X, PRINTS_TAB_W = (16, 139, 262, 385, 508), 116   # five tabs between the 16px margins
+PRINT_SLOTS, PRINT_COLS = 12, 4
+CARRIER_SLOTS = 8
+PLACE_GRID = 5
+PRINT_AMBER = (1.0, 0.69, 0.19, 1)
+PRINT_DIM = (0.2, 0.21, 0.26, 1)
+PRINT_FIRE = (0.20, 0.55, 0.60, 1)   # the fire buttons: a colour no other tab uses for a press
+
+
+def _const_int_button(page_btn: str, name: str, frame, path: str, value: int) -> str:
+    """A press button that sends `path value`: a page button with its path and
+    its one constant argument rewritten."""
+    b = n_osc(n_name(_strip_ids(page_btn), name), "/grid/page", path)
+    anchor = "<conversion>INTEGER</conversion><value>1</value>"
+    if b.count(anchor) != 1:
+        raise RuntimeError("prints-page: page_1's argument not in the expected shape")
+    b = b.replace(anchor, anchor.replace(">1<", f">{value}<"), 1)
+    return n_bool(n_colour(n_frame(b, *frame), "color", PRINT_DIM), "visible", True)
+
+
+def _print_slot(i: int, input0: str) -> str:
+    """One fingerprint: a progress bar, a fire button, its name and its length."""
+    head, kids = split_group(_strip_ids(input0))
+    k = _by_name(kids)
+    col, row = i % PRINT_COLS, i // PRINT_COLS
+    head = n_frame(n_name(head + "<children></children></node>", f"print{i}"),
+                   16 + 154 * col, 60 + 116 * row, 146, 108)
+    head = head[:head.index("<children>")]
+    base = f"/fingerprint/{i}"
+    # Named by slot: a name that repeats across the slots could not be found by name.
+    playing = n_name(n_osc(k["level"], "/input/0/level", base + "/playing"), f"printPlaying_{i}")
+    playing = n_frame(playing, 0, 0, 10, 108)
+    fire = n_frame(n_name(n_osc(k["reset"], "/input/0/reset", base + "/fire"), f"printFire_{i}"), 14, 0, 132, 108)
+    fire = n_colour(fire, "color", PRINT_FIRE)
+    name = n_name(n_osc(k["name"], "/input/0/name", base + "/name"), f"printName_{i}")
+    name = n_int(n_text(n_frame(name, 16, 30, 128, 24), ""), "textSize", 15)
+    length = n_name(n_osc(k["db"], "/input/0/db", base + "/length"), f"printLength_{i}")
+    length = n_int(n_text(n_frame(length, 16, 58, 128, 18), ""), "textSize", 12)
+    return join_group(head, [playing, fire, name, length])
+
+
+def _build_prints(live: str, grid: str) -> str:
+    head, kids = split_group(live)
+    k = _by_name(kids)
+    _, ikids = split_group(k["input0"])
+    ik = _by_name(ikids)
+    _, gkids = split_group(grid)
+    g = _by_name(gkids)
+    head = n_name(head + "<children></children></node>", "printsTab")
+    head = n_bool(n_frame(head, 0, 0, 640, V3_PAGE_H), "visible", False)
+    head = _strip_ids(head[:head.index("<children>")])
+
+    out = [_label(k["hdrSynth"], "hdrPrints", (12, 8, 616, 20), "FINGERPRINTS")]
+    status = n_osc(_strip_ids(ik["db"]), "/input/0/db", "/fingerprint/status")
+    out.append(n_int(n_text(n_frame(n_name(status, "printsStatus"), 16, 30, 608, 24), ""), "textSize", 16))
+    for i in range(PRINT_SLOTS):
+        out.append(_print_slot(i, k["input0"]))
+
+    out.append(_label(k["hdrSynth"], "hdrCarrier", (12, 410, 616, 20), "CARRIER: THE LAYER THAT TAKES THE INK"))
+    for c in range(CARRIER_SLOTS):
+        frame = (16 + 76 * c, 434, 72, 52)
+        out.append(_const_int_button(g["page_1"], f"carrier_{c}", frame, "/fingerprint/carrier", c))
+    for c in range(CARRIER_SLOTS):   # the names sit ON the buttons, so they draw after them
+        x = 16 + 76 * c
+        out.append(n_bool(_label(g["pageLabel_1"], f"carrierLabel_{c}", (x, 440, 72, 20), "AUTO" if c == 0 else "", 11),
+                          "visible", True))
+        out.append(n_bool(_label(g["pageLabel_1"], f"carrierLabel2_{c}", (x, 460, 72, 20), "", 11), "visible", True))
+
+    out.append(_label(k["hdrSynth"], "hdrPlace", (12, 496, 304, 20), "PLACE ON THE CANVAS"))
+    out.append(n_bool(n_frame(n_name(_strip_ids(g["qframe_0"]), "placeFrame"), 14, 518, 304, 264), "visible", True))
+    for n in range(PLACE_GRID * PLACE_GRID):
+        col, row = n % PLACE_GRID, n // PLACE_GRID
+        out.append(_const_int_button(g["page_1"], f"place_{n}", (18 + 60 * col, 522 + 52 * row, 56, 48),
+                                     "/fingerprint/place", n))
+    out.append(n_bool(n_frame(n_name(_strip_ids(g["padRing"]), "placeRing"), 15, 519, 62, 54), "visible", False))
+    drawn = (16, 790, 300, 42)
+    out.append(n_colour(n_frame(n_name(n_osc(_strip_ids(ik["reset"]), "/input/0/reset", "/fingerprint/asdrawn"),
+                                       "asDrawn"), *drawn), "color", PRINT_DIM))
+    out.append(_label(ik["resetLabel"], "asDrawnLabel", drawn, "WHERE IT WAS DRAWN", 14))
+
+    out.append(_label(k["hdrSynth"], "hdrInk", (332, 496, 292, 20), "SIZE AND OPACITY"))
+    for name, path, x, cap in (("printSize", "/fingerprint/size", 340, "size"),
+                               ("printOpacity", "/fingerprint/opacity", 424, "opacity")):
+        fader = n_osc(_strip_ids(ik["gain"]), "/input/0/gain", path)
+        out.append(n_frame(n_name(fader, name), x, 522, 60, 232))
+        out.append(_label(ik["resetLabel"], name + "Label", (x - 12, 758, 84, 20), cap, 14))
+    stop = (508, 522, 116, 232)
+    out.append(n_colour(n_frame(n_name(n_osc(_strip_ids(ik["reset"]), "/input/0/reset", "/fingerprint/stop"),
+                                       "printStop"), *stop), "color", PRINT_AMBER))
+    out.append(_label(ik["resetLabel"], "printStopLabel", stop, "STOP ALL", 18))
+    out.append(_label(k["hdrSynth"], "printsHint", (332, 790, 292, 42), "A PRESS FIRES WITH WHAT IS SET HERE", 12))
+    return join_group(head, out)
+
+
+def mutate_prints_page(xml: str) -> tuple[str, str]:
+    if any(s.name == "printsTab" for s in index_nodes(xml)):
+        return xml, "prints-page: printsTab already present, skipped"
+    kids = root_children(xml)
+    names = [k.name for k in kids]
+    want = list(V3_PAGES) + ["loopTab"] + [n for i in range(1, 5) for n in (f"tab_{i}", f"tabLabel_{i}")]
+    if names != want:
+        raise RuntimeError(f"prints-page: unexpected root children {names}")
+    by = {k.name: k for k in kids}
+    prints = _build_prints(by["liveTab"].text, by["gridTab"].text)
+
+    tab5 = n_name(_strip_ids(by["tab_4"].text), "tab_5")
+    anchor = "<conversion>INTEGER</conversion><value>4</value>"
+    if tab5.count(anchor) != 1:
+        raise RuntimeError("prints-page: tab_4's page argument not in the expected shape")
+    tab5 = tab5.replace(anchor, anchor.replace(">4<", ">5<"), 1)
+    lab5 = n_text(n_name(_strip_ids(by["tabLabel_4"].text), "tabLabel_5"), "PRINTS")
+    pairs = [(by[f"tab_{i}"].text, by[f"tabLabel_{i}"].text) for i in range(1, 5)] + [(tab5, lab5)]
+    tabs = []
+    for i, (b, lb) in enumerate(pairs):
+        f = Span(b, 0, len(b), 0).frame
+        lf = Span(lb, 0, len(lb), 0).frame
+        tabs += [n_frame(b, PRINTS_TAB_X[i], f["y"], PRINTS_TAB_W, f["h"]),
+                 n_frame(lb, PRINTS_TAB_X[i], lf["y"], PRINTS_TAB_W, lf["h"])]
+
+    i = by["loopTab"].end
+    j = kids[-1].end
+    xml = xml[:i] + prints + "".join(tabs) + xml[j:]
+    return xml, (f"prints-page: PRINTS (printsTab: {PRINT_SLOTS} fingerprint slots, the carrier row, the place "
+                 "square, size, opacity, STOP ALL); tabs SET / MIX / LIVE / LOOP / PRINTS")
+
+
+PRINTS_SCRIPT_SPLICES = (
+    ("-- LOOP added 2026-10-29 for a solo musician's looper.\n",
+     "-- LOOP added 2026-10-29 for a solo musician's looper; PRINTS added 2026-11-13,\n"
+     "-- the fingerprint desk.\n"),
+    ("local PAGES = {'gridTab', 'ctlTab', 'liveTab', 'loopTab'}\n",
+     "local PAGES = {'gridTab', 'ctlTab', 'liveTab', 'loopTab', 'printsTab'}\n"),
+    ("function onReceiveOSC(message, connections)\n",
+     """-- ---- PRINTS tab ------------------------------------------------------------
+-- The fingerprint desk. /fingerprint/carriers: the chosen slot (0 AUTO), then 8
+-- names and 8 states (0 no layer, 1 shows, 2 hidden). The chosen one is bright;
+-- a hidden layer is amber, because ink laid on it waits for its fader.
+local function renderCarriers(chosen, names, states)
+  local page = self.children.printsTab
+  if not page then return end
+  for k = 0, 7 do
+    local btn = page.children['carrier_' .. k]
+    local l1 = page.children['carrierLabel_' .. k]
+    local l2 = page.children['carrierLabel2_' .. k]
+    local name = names[k + 1] or ''
+    local state = states[k + 1] or 0
+    local shown = (state ~= 0)
+    local a, b = name:match('^(.-)\\n(.*)$')
+    local c
+    if state == 2 then c = Color(1.00, 0.69, 0.19, 1.0)
+    elseif k == chosen then c = Color(1.0, 1.0, 1.0, 1.0)
+    else c = Color(0.50, 0.52, 0.58, 1.0) end
+    if btn then
+      btn.visible = shown
+      if k == chosen then btn.color = Color(0.80, 0.84, 0.92, 1.0)
+      else btn.color = Color(0.20, 0.21, 0.26, 1.0) end
+    end
+    if l1 then
+      l1.visible = shown
+      l1.values.text = a or name
+      l1.textColor = c
+      -- one line sits in the middle of the button, two lines share it
+      if b then l1.frame.y = 440 else l1.frame.y = 450 end
+    end
+    if l2 then
+      l2.visible = shown
+      l2.values.text = b or ''
+      l2.textColor = c
+    end
+  end
+end
+
+-- /fingerprint/place: the cell chosen in the 5 x 5 square over the canvas, or
+-- -1 for where the marks were made. The ring sits on the cell; WHERE IT WAS
+-- DRAWN reads bright while it holds.
+local function renderPlace(cell)
+  local page = self.children.printsTab
+  if not page then return end
+  local ring = page.children.placeRing
+  local target = nil
+  if cell >= 0 then target = page.children['place_' .. cell] end
+  if ring then
+    if target then
+      ring.frame.x = target.frame.x - 3
+      ring.frame.y = target.frame.y - 3
+      ring.frame.w = target.frame.w + 6
+      ring.frame.h = target.frame.h + 6
+    end
+    ring.visible = (target ~= nil)
+  end
+  local drawn = page.children.asDrawnLabel
+  if drawn then
+    if target then drawn.textColor = Color(0.50, 0.52, 0.58, 1.0)
+    else drawn.textColor = Color(1.0, 1.0, 1.0, 1.0) end
+  end
+end
+
+function onReceiveOSC(message, connections)
+"""),
+    ("  if path == '/loop/active' or path == '/loop/state' then\n",
+     """  local fp = path:match('^/fingerprint/(%d+)/active$')
+  if fp then
+    local slot = onPage('printsTab', 'print' .. fp)
+    if slot then slot.visible = (#args >= 1) and (args[1].value ~= 0) or false end
+    return true
+  end
+  if path == '/fingerprint/carriers' then
+    local chosen = (#args >= 1) and args[1].value or 0
+    local names, states = {}, {}
+    for k = 1, 8 do
+      names[k] = (args[k + 1] and args[k + 1].value) or ''
+      states[k] = (args[k + 9] and args[k + 9].value) or 0
+    end
+    renderCarriers(chosen, names, states)
+    return true
+  end
+  if path == '/fingerprint/place' then
+    renderPlace((#args >= 1) and args[1].value or -1)
+    return true
+  end
+  if path == '/loop/active' or path == '/loop/state' then
+"""),
+)
+
+
+def _prints_script() -> str:
+    lua = LOOP_SCRIPT
+    for old, new in PRINTS_SCRIPT_SPLICES:
+        if lua.count(old) != 1:
+            raise RuntimeError(f"prints-script: anchor not unique: {old!r}")
+        lua = lua.replace(old, new, 1)
+    return lua
+
+
+PRINTS_SCRIPT = _prints_script()
+
+
+def mutate_prints_script(xml: str) -> tuple[str, str]:
+    if not any(s.name == "printsTab" for s in index_nodes(xml)):
+        return xml, "prints-script: no printsTab, skipped"
+    lua, _, _ = get_script(xml)
+    if lua == PRINTS_SCRIPT:
+        return xml, "prints-script: already current, skipped"
+    return set_script(xml, PRINTS_SCRIPT), "prints-script: root Lua gains the PRINTS tab"
 
 
 def _is_v3(xml: str) -> bool:
@@ -1633,6 +1896,8 @@ MUTATIONS = [
     ("loop-page", mutate_loop_page),
     ("loop-script", mutate_loop_script),
     ("loop-hints", mutate_loop_hints),
+    ("prints-page", mutate_prints_page),
+    ("prints-script", mutate_prints_script),
 ]
 
 
@@ -1756,7 +2021,8 @@ def check_v3(xml: str, notes: list[str]) -> list[str]:
     rw, rh = root.frame["w"], root.frame["h"]
     names = [s.name for s in root_children(xml)]
     has_loop = "loopTab" in names
-    page_names = list(V3_PAGES) + (["loopTab"] if has_loop else [])
+    has_prints = "printsTab" in names
+    page_names = list(V3_PAGES) + (["loopTab"] if has_loop else []) + (["printsTab"] if has_prints else [])
     want = page_names + [n for i in range(1, len(page_names) + 1) for n in (f"tab_{i}", f"tabLabel_{i}")]
     notes.append(f"root children: {names}" + (" -- as expected" if names == want
                                                else f" -- EXPECTED {want}"))
@@ -1837,6 +2103,27 @@ def check_v3(xml: str, notes: list[str]) -> list[str]:
             notes.append(f"WARNING root script lacks {hook}")
     if has_loop and ("/loop/state" not in lua or "'loopTab'" not in lua):
         notes.append("WARNING root script lacks the LOOP tab")
+    if has_prints:
+        prints = find_node(xml, "printsTab")
+        pk = {s.name: s for s in direct_children(xml, prints)}
+        slots = [n for n in pk if re.fullmatch(r"print\d+", n)]
+        carriers = [n for n in pk if re.fullmatch(r"carrier_\d", n)]
+        places = [n for n in pk if re.fullmatch(r"place_\d+", n)]
+        notes.append(f"PRINTS: {len(slots)}/{PRINT_SLOTS} fingerprint slots, {len(carriers)}/{CARRIER_SLOTS} carrier "
+                     f"buttons, {len(places)}/{PLACE_GRID * PLACE_GRID} place cells")
+        touch = [pk[n] for n in pk if n.startswith(("print", "carrier_", "place_")) and pk[n].type in ("BUTTON", "GROUP", "FADER")]
+        touch += [pk[n] for n in ("asDrawn",) if n in pk]
+        boxes = [(s.name, s.frame["x"], s.frame["y"], s.frame["x"] + s.frame["w"],
+                  s.frame["y"] + s.frame["h"]) for s in touch]
+        clashes = [f"{p[0]}/{q[0]}" for i, p in enumerate(boxes) for q in boxes[i + 1:]
+                   if p[1] < q[3] and q[1] < p[3] and p[2] < q[4] and q[2] < p[4]]
+        notes.append(f"no two of the {len(touch)} PRINTS touch targets overlap" if not clashes
+                     else f"WARNING PRINTS touch targets overlap: {clashes[:6]}")
+        order = [s.name for s in direct_children(xml, prints)]
+        under = all(order.index(f"carrier_{c}") < order.index(f"carrierLabel_{c}") for c in range(CARRIER_SLOTS))
+        notes.append("carrier names draw over their buttons" if under else "WARNING a carrier name draws under its button")
+        if "/fingerprint/carriers" not in lua or "'printsTab'" not in lua:
+            notes.append("WARNING root script lacks the PRINTS tab")
     notes.append("root script: every v3 address handled; falls through to `return false` "
                  + ("(intact)" if lua.rstrip().endswith("return false\nend") else "-- CHECK"))
     return notes
@@ -1993,6 +2280,84 @@ def cmd_inventory(args) -> int:
     return 0
 
 
+def cmd_preview(args) -> int:
+    """A picture of one page as an SVG: every widget's frame, its kind and its
+    authored text. TouchOSC draws the real thing; this shows where things sit, so a
+    page can be read on the Mac before it is sent to the iPad."""
+    xml = read_xml(Path(args.file))
+    root = ET.fromstring(xml).find("node")
+
+    def prop(node, key):
+        for pr in node.find("properties").findall("property"):
+            if pr.find("key").text == key:
+                v = pr.find("value")
+                return {c.tag: c.text for c in v} if len(list(v)) else v.text
+        return None
+
+    def kids(node):
+        ch = node.find("children")
+        return ch.findall("node") if ch is not None else []
+
+    page = next((k for k in kids(root) if prop(k, "name") == args.page), None)
+    if page is None:
+        print(f"no page called {args.page}; pages: {[prop(k, 'name') for k in kids(root) if k.get('type') == 'GROUP']}")
+        return 1
+    width = int(prop(root, "frame")["w"])
+    # Square, the page in the middle: the thumbnailers that turn an SVG into a PNG crop to a square.
+    side = max(width, V3_PAGE_H)
+    left = (side - width) // 2
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{side}" height="{side}" '
+           f'viewBox="{-left} 0 {side} {side}" font-family="Helvetica, Arial, sans-serif">',
+           f'<rect x="{-left}" width="{side}" height="{side}" fill="#000000"/>',
+           f'<rect width="{width}" height="{V3_PAGE_H}" fill="#111216"/>']
+    stroke = {"BUTTON": "#8f96a8", "FADER": "#e0a030", "LABEL": "none", "GROUP": "none"}
+
+    def colour(c, fallback):
+        if not c:
+            return fallback
+        return "#%02x%02x%02x" % tuple(int(round(float(c[k]) * 255)) for k in "rgb")
+
+    def draw(node, ox, oy):
+        f = prop(node, "frame")
+        x, y, w, h = ox + int(f["x"]), oy + int(f["y"]), int(f["w"]), int(f["h"])
+        kind = node.get("type")
+        shown = prop(node, "visible") == "1"
+        dash = "" if shown else ' stroke-dasharray="3 3" opacity="0.45"'
+        if kind == "GROUP":
+            for k in kids(node):
+                draw(k, x, y)
+            return
+        if kind == "LABEL":
+            if prop(node, "outline") == "1":
+                out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="none" '
+                           f'stroke="{colour(prop(node, "color"), "#ffffff")}"{dash}/>')
+            text = ""
+            for v in node.find("values").findall("value"):
+                if v.findtext("key") == "text":
+                    text = v.findtext("default") or ""
+            if not text and node.find("messages") is not None:
+                text = "<" + (prop(node, "name") or "") + ">"   # filled by the host
+            size = int(prop(node, "textSize") or 12)
+            if text:
+                out.append(f'<text x="{x + w / 2}" y="{y + h / 2 + size * 0.35}" font-size="{size}" text-anchor="middle" '
+                           f'fill="{colour(prop(node, "textColor"), "#cccccc")}"{dash}>{escape(text)}</text>')
+            return
+        fill = colour(prop(node, "color"), "#333333")
+        out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="{fill}" fill-opacity="0.35" '
+                   f'stroke="{stroke.get(kind, "#888888")}"{dash}/>')
+        if kind == "FADER":
+            out.append(f'<text x="{x + w / 2}" y="{y + h - 6}" font-size="9" text-anchor="middle" fill="#e0a030">'
+                       f'{"fader" if prop(node, "interactive") == "1" else "meter"}</text>')
+
+    for k in kids(page):
+        draw(k, 0, 0)
+    out.append("</svg>")
+    target = Path(args.out or (HERE / f"preview-{args.page}.svg"))
+    target.write_text("\n".join(out))
+    print(f"wrote {target}")
+    return 0
+
+
 def cmd_diff(args) -> int:
     print(structural_diff(read_xml(Path(args.a)), read_xml(Path(args.b))))
     return 0
@@ -2098,6 +2463,11 @@ def main(argv=None) -> int:
     s = add("diff", cmd_diff)
     s.add_argument("a")
     s.add_argument("b")
+
+    s = add("preview", cmd_preview)
+    s.add_argument("page")
+    s.add_argument("--file", default=str(DEFAULT_TOSC))
+    s.add_argument("-o", "--out")
 
     args = p.parse_args(argv)
     return args.fn(args)
