@@ -18,7 +18,10 @@
 #     dies at launch: "Library not loaded: @loader_path/../Frameworks/Syphon.framework".
 #   * It overwrites Project.xcconfig, which holds the product name, bundle id and
 #     version (see addons/ofxMarkSynth/docs/dev/fingerprint2-release-build.md).
-# Both files are restored from git below, so commit them before running this.
+#   * It rewrites the two shared schemes to build "fingerprint2.app". The product is
+#     Fingerprints.app (App.xcconfig), and a scheme that names another product cannot
+#     launch it from Xcode.
+# These files are restored from git below, so commit them before running this.
 #
 # Usage: ./refresh-xcode-project.sh [--build]
 #   --build also runs the Debug scheme through xcodebuild and checks the bundle. That
@@ -30,13 +33,14 @@ cd "$(dirname "$0")"
 OF_ROOT=${OF_ROOT:-$(cd ../../.. && pwd)}
 PG="$OF_ROOT/projectGenerator/projectGenerator.app/Contents/Resources/app/app/projectGenerator"
 PROJECT=fingerprint2.xcodeproj/project.pbxproj
-RESTORE=(Makefile Project.xcconfig)
+SCHEMES=fingerprint2.xcodeproj/xcshareddata/xcschemes
+RESTORE=(Makefile Project.xcconfig "$SCHEMES/fingerprint2 Debug.xcscheme" "$SCHEMES/fingerprint2 Release.xcscheme")
 
 [ -x "$PG" ] || { echo "no projectGenerator at $PG"; exit 1; }
 
 # The files this restores from git must have nothing uncommitted, or it would throw it away.
-dirty=$(git status --porcelain -- "${RESTORE[@]}" | awk '{print $2}')
-[ -z "$dirty" ] || { echo "commit or revert these first (this script restores them): $dirty"; exit 1; }
+dirty=$(git status --porcelain -- "${RESTORE[@]}" | cut -c4-)
+[ -z "$dirty" ] || { echo "commit or revert these first (this script restores them):"; echo "$dirty"; exit 1; }
 
 # Every run rewrites the project's internal identifiers, so a regeneration that changed
 # no file still shows as thousands of changed lines. Compare the file names it lists, and
