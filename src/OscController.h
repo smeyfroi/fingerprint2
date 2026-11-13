@@ -183,6 +183,9 @@ public:
   void onSynthWillUnload();
 
   bool isListening() const { return listening; }
+  // Off for a launch that must leave the surface's port alone and take no moves from it
+  // (--no-osc): a take replayed or a fingerprint captured while the rig may be in use beside it.
+  void setEnabled(bool on) { enabled = on; }
 
 private:
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
@@ -192,6 +195,8 @@ private:
 
   ofxOscReceiver receiver;
   OscSendThread  sender;
+  bool enabled     = true;
+  bool disabledLogged = false;
   bool listening   = false;
   bool senderReady = false;
   std::string remoteHost;   // learned from the first inbound packet

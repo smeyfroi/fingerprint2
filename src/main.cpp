@@ -88,11 +88,16 @@ int main(int argc, char** argv) {
   // --practice (play-live-practice.sh): the live session for a rehearsal, with its recording on the
   // first wake and its auto snapshots off whatever the session says.
   bool practice = false;
+  // --no-osc: the iPad's port is not bound and nothing is echoed. For a launch that runs by
+  // itself beside the rig (a take replayed, a fingerprint captured): it cannot take the port the
+  // live app needs, and a touch on the iPad cannot reach it.
+  bool osc = true;
   for (int i = 1; i < argc; ++i) {
     const std::string argument = argv[i];
     if (argument == "--session" && i + 1 < argc) initialSession = argv[++i];
     else if (argument == "--studio") initialStudio = true;
     else if (argument == "--practice") practice = true;
+    else if (argument == "--no-osc") osc = false;
   }
   // init GLFW manually (since no OF window yet)
   if(!glfwInit()){
@@ -191,6 +196,7 @@ int main(int argc, char** argv) {
   mainApp->setInitialSession(initialSession);
   mainApp->setInitialStudio(initialStudio);
   mainApp->setPractice(practice);
+  mainApp->setOscEnabled(osc);
   mainApp->setGuiWindowPtr(guiWindow);
   mainApp->attachGuiWindowListeners();
 	ofRunApp(mainWindow, mainApp);

@@ -19,6 +19,7 @@ public:
   void setInitialSession(std::filesystem::path path) { initialSession = std::move(path); }
   void setInitialStudio(bool enabled) { initialStudio = enabled; }
   void setPractice(bool enabled) { practice = enabled; }
+  void setOscEnabled(bool enabled) { oscController.setEnabled(enabled); }
   void queueStudioSession(const std::filesystem::path& path, bool remember = true);
   std::optional<std::filesystem::path> currentSessionPath() const;
   void attachGuiWindowListeners();

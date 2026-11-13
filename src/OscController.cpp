@@ -77,6 +77,12 @@ void OscController::exit() {
 }
 
 void OscController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synth) {
+  if (!enabled) {
+    // --no-osc: no socket is bound and no synth is held, so every other entry is a no-op.
+    if (!disabledLogged) ofLogNotice("OscController") << "OSC is off for this launch (--no-osc)";
+    disabledLogged = true;
+    return;
+  }
   synthPtr = synth;
   cacheAgencyMods();
   cacheInputs();
