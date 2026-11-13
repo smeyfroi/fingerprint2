@@ -67,6 +67,25 @@ namespace ofxMarkSynth {
 ///   /loop/length        (out)   -> "12.3 s": captured so far, or the loop's length
 ///   /loop/pos           (out)   -> playhead 0..1 (while recording: of the 60 s maximum)
 ///
+/// Fingerprints (the PRINTS tab; the artist's desk, see ofxMarkSynth docs/dev/fingerprints.md).
+/// The settings are the desk's, shared with the GUI's Fingerprints section:
+///   /fingerprint/<i>/fire   button -> fire the fingerprint in slot i with the desk's settings
+///   /fingerprint/stop       button -> stop the ones playing
+///   /fingerprint/size       fader  -> its size, 0..1 on the wire = the least size..its own size
+///   /fingerprint/opacity    fader  -> how strong its ink is laid
+///   /fingerprint/carrier i  button -> 0 auto, k the k-th drawn layer of the world now playing
+///   /fingerprint/place i    button -> a cell of the 5 x 5 square over the canvas, row-major from
+///                                   the top left; under 0, where it was drawn. Two floats in
+///                                   place of the int are x and y as fractions of the canvas
+///   /fingerprint/asdrawn    button -> back to where it was drawn
+///   /fingerprint/<i>/active|name|length (out) slot shown, its name, "6.9 s"
+///   /fingerprint/<i>/playing (out)  -> how far through it is, 0..1; 0 when it is not playing
+///   /fingerprint/carriers   (out)   -> ONE msg: int chosen (0 auto), then 8 names ("AUTO"
+///                                   first, "" for no layer), then 8 ints (0 none, 1 shows,
+///                                   2 hidden)
+///   /fingerprint/place      (out)   -> int: the cell chosen, -1 where it was drawn
+///   /fingerprint/status     (out)   -> one line: how many are loaded or playing, or asleep
+///
 /// Set-pages grid surface (the SET tab; only live while the Synth has a set):
 ///   /grid/press  i i    button  -> press the cell at (x, y=0..7) if assigned
 ///   /grid/release i i   button  -> the finger lifts: held 400 ms applies the cell,
@@ -104,6 +123,9 @@ public:
   static constexpr int kSurfaceLayers = 7;   // layer strips on the surface (hardware-bounded)
   static constexpr int kAgencySlots   = 8;   // agency-controller slots (LIVE tab, 4x2)
   static constexpr int kInputSlots    = 4;   // audio-source trims on the LIVE tab
+  static constexpr int kFingerprintSlots = 12;  // fingerprint buttons on the PRINTS tab (4 x 3)
+  static constexpr int kCarrierSlots  = 8;   // AUTO and up to 7 drawn layers
+  static constexpr int kPlaceGrid     = 5;   // the place square is this many cells a side
   static constexpr float kInputTrimRangeDb = 12.0f;  // fader spans +/- this
   // The level meter's full scale: the top of the RMS window the calibrated
   // configs map (AudioDataSource MaxRms ~0.4), so a full meter = "as loud as
@@ -186,6 +208,9 @@ public:
   // Off for a launch that must leave the surface's port alone and take no moves from it
   // (--no-osc): a take replayed or a fingerprint captured while the rig may be in use beside it.
   void setEnabled(bool on) { enabled = on; }
+  // Other ports than the surface's, before the first synth loads (--osc-ports): for a launch
+  // that takes OSC from a test client while the iPad keeps its own.
+  void setPorts(int receive, int send) { receivePort_ = receive; sendPort_ = send; }
 
 private:
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
@@ -196,6 +221,8 @@ private:
   ofxOscReceiver receiver;
   OscSendThread  sender;
   bool enabled     = true;
+  int receivePort_ = kReceivePort;
+  int sendPort_    = kSendPort;
   bool disabledLogged = false;
   bool listening   = false;
   bool senderReady = false;
@@ -288,6 +315,16 @@ private:
   void setInputTrim(int slot, float db);
   void sendLoopState();
   void streamLoop();
+  // The fingerprint desk. A press or a fader moves the desk in the engine; the lamps (carrier
+  // row, place cell, status line) are tracked here and pushed when they change, so a move made
+  // in the GUI reaches the surface too, and no fader is echoed under a finger.
+  void handleFingerprint(const ofxOscMessage& m);
+  void sendFingerprintState();
+  void streamFingerprints();
+  std::string lastCarriers_;
+  int lastPlaceCell_ = -2;        // -2: nothing sent yet (-1 is "where it was drawn")
+  std::string lastFingerprintStatus_;
+  std::array<float, kFingerprintSlots> lastPlaying_ {};
   void streamIndicators();
   std::shared_ptr<ofxMarkSynth::AgencyControllerMod> agencyMod(int slot);
 };

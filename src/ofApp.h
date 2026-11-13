@@ -20,6 +20,7 @@ public:
   void setInitialStudio(bool enabled) { initialStudio = enabled; }
   void setPractice(bool enabled) { practice = enabled; }
   void setOscEnabled(bool enabled) { oscController.setEnabled(enabled); }
+  void setOscPorts(int receive, int send) { oscController.setPorts(receive, send); }
   void queueStudioSession(const std::filesystem::path& path, bool remember = true);
   std::optional<std::filesystem::path> currentSessionPath() const;
   void attachGuiWindowListeners();

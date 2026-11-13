@@ -17,6 +17,8 @@
 #include "processMods/AgencyControllerMod.hpp"
 #include "audio/IAudioAnalysisSource.hpp"
 #include "audio/Looper.hpp"
+#include "fingerprint/FingerprintPlayer.hpp"
+#include "gui/surfaces/calibrate/SynthLive.hpp"
 
 const std::array<std::string, 7> OscController::kIntentNames = {
   // The 7 poles (2026-07-12: Ordered dropped, Chaotic solo last), fader order. /intent/0../6.
@@ -110,12 +112,12 @@ void OscController::onSynthWillUnload() {
 
 bool OscController::startReceiver() {
   if (listening) return true;
-  if (receiver.setup(kReceivePort)) {
+  if (receiver.setup(receivePort_)) {
     listening = true;
-    ofLogNotice("OscController") << "Listening for OSC on UDP " << kReceivePort;
+    ofLogNotice("OscController") << "Listening for OSC on UDP " << receivePort_;
   } else {
     ofLogWarning("OscController") << "Could not bind OSC receive port "
-                                  << kReceivePort << " (already in use?)";
+                                  << receivePort_ << " (already in use?)";
   }
   return listening;
 }
@@ -123,9 +125,9 @@ bool OscController::startReceiver() {
 void OscController::ensureSender(const std::string& host) {
   // The send thread resolves and connects; anything that goes wrong there
   // comes back through takeLogLines() in update().
-  sender.setTarget(host, kSendPort);
+  sender.setTarget(host, sendPort_);
   senderReady = true;
-  ofLogNotice("OscController") << "Echoing OSC state to " << host << ":" << kSendPort;
+  ofLogNotice("OscController") << "Echoing OSC state to " << host << ":" << sendPort_;
 }
 
 int OscController::pollIncoming() {
@@ -349,6 +351,12 @@ void OscController::handleMessage(const ofxOscMessage& m) {
     return;
   }
 
+  // The fingerprint desk: its buttons carry a constant int or nothing, its faders a float.
+  if (addr.compare(0, 13, "/fingerprint/") == 0) {
+    handleFingerprint(m);
+    return;
+  }
+
   if (m.getNumArgs() < 1) return;
   const float v = m.getArgAsFloat(0);  // surface sends all values as float 0..1
   int idx = 0;
@@ -394,6 +402,55 @@ void OscController::handleMessage(const ofxOscMessage& m) {
       setInputTrim(idx, inputBaselineDb_[inputIds_[idx]]);
       sendInputState();  // snap the fader back; the finger is off it
     }
+  }
+}
+
+// The desk the PRINTS tab plays (ofxMarkSynth gui/panels/FingerprintDeskView.hpp is the same
+// desk in the GUI): every move lands on the settings the engine holds for both.
+void OscController::handleFingerprint(const ofxOscMessage& m) {
+  auto* player = synthPtr->getFingerprintPlayer();
+  if (!player) return;
+  const std::string& addr = m.getAddress();
+  const float v = m.getNumArgs() >= 1 ? m.getArgAsFloat(0) : 1.0f;   // a bare press counts as down
+  auto& placement = player->deskPlacement();
+  const float least = ofxMarkSynth::fingerprint::MIN_SCALE;
+  int idx = 0;
+
+  if (matchIndexed(addr, "/fingerprint/", "/fire", idx)) {
+    if (v <= 0.5f) return;   // momentary press
+    const auto prints = player->list();
+    if (idx < 0 || idx >= static_cast<int>(prints.size())) return;
+    synthPtr->fireFingerprintFromDesk(prints[static_cast<std::size_t>(idx)].name);
+  } else if (addr == "/fingerprint/stop") {
+    if (v > 0.5f) player->stopAll();
+  } else if (addr == "/fingerprint/size") {
+    placement.scale = least + std::clamp(v, 0.0f, 1.0f) * (1.0f - least);
+  } else if (addr == "/fingerprint/opacity") {
+    placement.opacity = std::clamp(v, 0.0f, 1.0f);
+  } else if (addr == "/fingerprint/carrier") {
+    if (m.getNumArgs() < 1) return;
+    const int k = m.getArgAsInt32(0);
+    const auto carriers = synthPtr->getFingerprintCarriers();
+    if (k <= 0) {
+      synthPtr->setFingerprintDeskCarrier({});
+    } else if (k <= static_cast<int>(carriers.size())) {
+      synthPtr->setFingerprintDeskCarrier(carriers[static_cast<std::size_t>(k - 1)].name);
+    }
+  } else if (addr == "/fingerprint/place") {
+    if (m.getNumArgs() >= 2) {
+      placement.x = std::clamp(m.getArgAsFloat(0), 0.0f, 1.0f);
+      placement.y = std::clamp(m.getArgAsFloat(1), 0.0f, 1.0f);
+    } else if (m.getNumArgs() == 1) {
+      const int cell = m.getArgAsInt32(0);
+      if (cell < 0 || cell >= kPlaceGrid * kPlaceGrid) {
+        placement.x = placement.y = -1.0f;
+      } else {
+        placement.x = (static_cast<float>(cell % kPlaceGrid) + 0.5f) / kPlaceGrid;
+        placement.y = (static_cast<float>(cell / kPlaceGrid) + 0.5f) / kPlaceGrid;
+      }
+    }
+  } else if (addr == "/fingerprint/asdrawn") {
+    if (v > 0.5f) placement.x = placement.y = -1.0f;
   }
 }
 
@@ -597,6 +654,7 @@ void OscController::sendCurrentState() {
 
   sendInputState();
   sendLoopState();
+  sendFingerprintState();
 
   // SET tab: pads, quadrants, pages (or a clear when no set).
   sendGridState();
@@ -848,6 +906,114 @@ void OscController::streamLoop() {
   sendFloat("/loop/pos", looper->getPosition01());
 }
 
+void OscController::sendFingerprintState() {
+  if (!synthPtr || !senderReady) return;
+  auto* player = synthPtr->getFingerprintPlayer();
+  if (!player) return;
+  const auto prints = player->list();
+  for (int i = 0; i < kFingerprintSlots; ++i) {
+    const std::string base = "/fingerprint/" + ofToString(i);
+    const bool has = i < static_cast<int>(prints.size());
+    sendFloat(base + "/active", has ? 1.0f : 0.0f);
+    if (!has) continue;
+    const auto& print = prints[static_cast<std::size_t>(i)];
+    sendString(base + "/name", asciiOnly(print.name));
+    std::ostringstream length;
+    length << std::fixed << std::setprecision(1) << print.seconds << " s";
+    sendString(base + "/length", length.str());
+  }
+  const auto& placement = player->deskPlacement();
+  const float least = ofxMarkSynth::fingerprint::MIN_SCALE;
+  sendFloat("/fingerprint/size", std::clamp((placement.scale - least) / (1.0f - least), 0.0f, 1.0f));
+  sendFloat("/fingerprint/opacity", std::clamp(placement.opacity, 0.0f, 1.0f));
+  // A full push sends every lamp again, changed or not.
+  lastCarriers_.clear();
+  lastPlaceCell_ = -2;
+  lastFingerprintStatus_.clear();
+  lastPlaying_.fill(-1.0f);
+  streamFingerprints();
+}
+
+void OscController::streamFingerprints() {
+  // Rides streamIndicators' 5 Hz tick: the progress of what is playing, and each lamp when it changes.
+  auto* player = synthPtr->getFingerprintPlayer();
+  if (!player) return;
+  const auto prints = player->list();
+  const auto playing = player->nowPlaying();
+  const int shown = std::min(static_cast<int>(prints.size()), kFingerprintSlots);
+  for (int i = 0; i < shown; ++i) {
+    // Fired twice, the bar follows the one fired last: the least far through.
+    float progress = 0.0f;
+    bool any = false;
+    for (const auto& one : playing) {
+      if (one.name != prints[static_cast<std::size_t>(i)].name) continue;
+      progress = any ? std::min(progress, one.progress) : one.progress;
+      any = true;
+    }
+    if (any) progress = std::max(progress, 0.02f);   // a bar that has just begun still shows
+    if (progress == lastPlaying_[static_cast<std::size_t>(i)]) continue;
+    lastPlaying_[static_cast<std::size_t>(i)] = progress;
+    sendFloat("/fingerprint/" + ofToString(i) + "/playing", progress);
+  }
+
+  // The carrier row: AUTO and the drawn layers of the world now playing, the one chosen, and
+  // whether ink laid on each is seen now.
+  const auto carriers = synthPtr->getFingerprintCarriers();
+  const std::string chosen = synthPtr->getFingerprintDeskCarrier();
+  int chosenSlot = 0;
+  std::array<std::string, kCarrierSlots> names;
+  std::array<int, kCarrierSlots> states {};
+  names[0] = "AUTO";
+  states[0] = 1;
+  for (int k = 1; k < kCarrierSlots && k <= static_cast<int>(carriers.size()); ++k) {
+    const auto& carrier = carriers[static_cast<std::size_t>(k - 1)];
+    names[static_cast<std::size_t>(k)] = wrapTwoLines(carrier.name, kStripNameLineChars);
+    states[static_cast<std::size_t>(k)] = carrier.alpha >= ofxMarkSynth::Synth::FINGERPRINT_CARRIER_SHOWS ? 1 : 2;
+    if (carrier.name == chosen) chosenSlot = k;
+  }
+  std::string key = ofToString(chosenSlot);
+  for (int k = 0; k < kCarrierSlots; ++k) {
+    key += "|" + names[static_cast<std::size_t>(k)] + ":" + ofToString(states[static_cast<std::size_t>(k)]);
+  }
+  if (key != lastCarriers_) {
+    lastCarriers_ = key;
+    ofxOscMessage message;
+    message.setAddress("/fingerprint/carriers");
+    message.addInt32Arg(chosenSlot);
+    for (const auto& name : names) message.addStringArg(name);
+    for (const int state : states) message.addInt32Arg(state);
+    send(message);
+  }
+
+  // The place: the cell of the square nearest the place set, or -1 where it was drawn.
+  const auto& placement = player->deskPlacement();
+  int cell = -1;
+  if (placement.x >= 0.0f && placement.y >= 0.0f) {
+    const int column = std::clamp(static_cast<int>(placement.x * kPlaceGrid), 0, kPlaceGrid - 1);
+    const int row = std::clamp(static_cast<int>(placement.y * kPlaceGrid), 0, kPlaceGrid - 1);
+    cell = row * kPlaceGrid + column;
+  }
+  if (cell != lastPlaceCell_) {
+    lastPlaceCell_ = cell;
+    sendInt("/fingerprint/place", cell);
+  }
+
+  std::string status;
+  if (prints.empty()) {
+    status = "NO FINGERPRINTS IN THIS SESSION";
+  } else if (!ofxMarkSynth::calibrate::synthIsLive(*synthPtr)) {
+    status = "ASLEEP: A PRESS WAITS FOR THE WAKE";
+  } else if (!playing.empty()) {
+    status = ofToString(playing.size()) + " PLAYING";
+  } else {
+    status = ofToString(prints.size()) + " LOADED";
+  }
+  if (status != lastFingerprintStatus_) {
+    lastFingerprintStatus_ = status;
+    sendString("/fingerprint/status", status);
+  }
+}
+
 void OscController::cacheAgencyMods() {
   agencyModNames_.clear();
   if (!synthPtr) return;
@@ -893,4 +1059,5 @@ void OscController::streamIndicators() {
   }
   streamInputLevels();
   streamLoop();
+  streamFingerprints();
 }

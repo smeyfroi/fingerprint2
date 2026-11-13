@@ -1,4 +1,5 @@
 #include <csignal>
+#include <cstdlib>
 
 #include "ofMain.h"
 #include "ofApp.h"
@@ -92,12 +93,20 @@ int main(int argc, char** argv) {
   // itself beside the rig (a take replayed, a fingerprint captured): it cannot take the port the
   // live app needs, and a touch on the iPad cannot reach it.
   bool osc = true;
+  // --osc-ports IN OUT: OSC on other ports than the iPad's 8000 and 9000, for a launch that a
+  // test client drives while the surface keeps its own.
+  int oscReceivePort = 0;
+  int oscSendPort = 0;
   for (int i = 1; i < argc; ++i) {
     const std::string argument = argv[i];
     if (argument == "--session" && i + 1 < argc) initialSession = argv[++i];
     else if (argument == "--studio") initialStudio = true;
     else if (argument == "--practice") practice = true;
     else if (argument == "--no-osc") osc = false;
+    else if (argument == "--osc-ports" && i + 2 < argc) {
+      oscReceivePort = std::atoi(argv[++i]);
+      oscSendPort = std::atoi(argv[++i]);
+    }
   }
   // init GLFW manually (since no OF window yet)
   if(!glfwInit()){
@@ -197,6 +206,7 @@ int main(int argc, char** argv) {
   mainApp->setInitialStudio(initialStudio);
   mainApp->setPractice(practice);
   mainApp->setOscEnabled(osc);
+  if (oscReceivePort > 0 && oscSendPort > 0) mainApp->setOscPorts(oscReceivePort, oscSendPort);
   mainApp->setGuiWindowPtr(guiWindow);
   mainApp->attachGuiWindowListeners();
 	ofRunApp(mainWindow, mainApp);
