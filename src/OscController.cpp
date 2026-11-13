@@ -330,6 +330,19 @@ void OscController::handleMessage(const ofxOscMessage& m) {
     return;
   }
 
+  // Live Calibration's steps pressed from a surface, by name: "/calibrate/press room" starts the
+  // room capture, "music" starts the music capture and stops it, "gains" and "save" follow
+  // (Synth::pressCalibrationStep lists them). The GUI shows Live Calibration.
+  if (addr == "/calibrate/press") {
+    if (m.getNumArgs() >= 1 && m.getArgType(0) == OFXOSC_TYPE_STRING) {
+      const std::string step = m.getArgAsString(0);
+      if (!synthPtr->pressCalibrationStep(step)) {
+        ofLogWarning("OscController") << "/calibrate/press: no step called '" << step << "'";
+      }
+    }
+    return;
+  }
+
   if (m.getNumArgs() < 1) return;
   const float v = m.getArgAsFloat(0);  // surface sends all values as float 0..1
   int idx = 0;
