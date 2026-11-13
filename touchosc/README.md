@@ -101,7 +101,7 @@ controllers. Every interactive widget is **Send + Receive**, feedback off.
 | `/fingerprint/carrier` | → | one int: `0` AUTO, `k` the `k`-th drawn layer of the world that plays |
 | `/fingerprint/place` | → | one int: a cell of the 5 × 5 square over the canvas, row-major from the top left. Two floats in place of the int are `x` and `y` as fractions of the canvas |
 | `/fingerprint/asdrawn` | → | back to the place where the marks were made (momentary) |
-| `/fingerprint/<i>/active` `/name` `/length` | ← | 0 hides / 1 shows slot `i`, its name, `6.9 s` |
+| `/fingerprint/<i>/active` `/name` `/length` | ← | 0 hides / 1 shows slot `i`, its name, `6.9 s`. `8.0 s erases` is a fingerprint that takes ink away |
 | `/fingerprint/<i>/playing` | ← | how far through it is, 0..1, sent at 5 Hz when it changes; 0 when it does not play |
 | `/fingerprint/carriers` | ← | ONE msg: int chosen (`0` AUTO), then 8 names (`AUTO` first, empty for no layer, two lines joined by `\n`), then 8 int32 (`0` no layer, `1` shows, `2` hidden). Sent when it changes |
 | `/fingerprint/place` | ← | int: the cell chosen, `-1` for where it was drawn. Sent when it changes |

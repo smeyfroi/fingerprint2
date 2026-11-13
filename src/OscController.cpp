@@ -919,7 +919,7 @@ void OscController::sendFingerprintState() {
     const auto& print = prints[static_cast<std::size_t>(i)];
     sendString(base + "/name", asciiOnly(print.name));
     std::ostringstream length;
-    length << std::fixed << std::setprecision(1) << print.seconds << " s";
+    length << std::fixed << std::setprecision(1) << print.seconds << (print.carves ? " s erases" : " s");
     sendString(base + "/length", length.str());
   }
   const auto& placement = player->deskPlacement();
