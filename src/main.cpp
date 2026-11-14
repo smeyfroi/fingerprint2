@@ -93,6 +93,11 @@ int main(int argc, char** argv) {
   // itself beside the rig (a take replayed, a fingerprint captured): it cannot take the port the
   // live app needs, and a touch on the iPad cannot reach it.
   bool osc = true;
+  // --no-midi: the MIDI controllers are left alone: no port is opened and no lamp is set. For a
+  // launch that runs by itself beside the rig, as --no-osc is: the copy that captures a
+  // fingerprint must not take the APC, the nanoKONTROL2 or the Launch Control from the app
+  // that the performer plays.
+  bool midi = true;
   // --osc-ports IN OUT: OSC on other ports than the iPad's 8000 and 9000, for a launch that a
   // test client drives while the surface keeps its own.
   int oscReceivePort = 0;
@@ -106,6 +111,7 @@ int main(int argc, char** argv) {
     else if (argument == "--studio") initialStudio = true;
     else if (argument == "--practice") practice = true;
     else if (argument == "--no-osc") osc = false;
+    else if (argument == "--no-midi") midi = false;
     else if (argument == "--one-window") oneWindow = true;
     else if (argument == "--osc-ports" && i + 2 < argc) {
       oscReceivePort = std::atoi(argv[++i]);
@@ -211,6 +217,7 @@ int main(int argc, char** argv) {
   mainApp->setInitialStudio(initialStudio);
   mainApp->setPractice(practice);
   mainApp->setOscEnabled(osc);
+  mainApp->setMidiEnabled(midi);
   if (oscReceivePort > 0 && oscSendPort > 0) mainApp->setOscPorts(oscReceivePort, oscSendPort);
   mainApp->setGuiWindowPtr(guiWindow);
   mainApp->attachGuiWindowListeners();

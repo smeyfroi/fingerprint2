@@ -162,9 +162,11 @@ void ofApp::onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e) {
 }
 
 void ofApp::onSynthDidLoad(ofxMarkSynth::Synth::ConfigLoadedEvent& e) {
-  midiController.onSynthDidLoad(synthPtr);
-  apcMiniController.onSynthDidLoad(synthPtr);
-  nanoKontrolController.onSynthDidLoad(synthPtr);
+  if (midiEnabled) {
+    midiController.onSynthDidLoad(synthPtr);
+    apcMiniController.onSynthDidLoad(synthPtr);
+    nanoKontrolController.onSynthDidLoad(synthPtr);
+  }
   oscController.onSynthDidLoad(synthPtr);
 }
 
@@ -180,9 +182,11 @@ void ofApp::update(){
   }
 
   synthPtr->update();
-  midiController.update();
-  apcMiniController.update();
-  nanoKontrolController.update();
+  if (midiEnabled) {
+    midiController.update();
+    apcMiniController.update();
+    nanoKontrolController.update();
+  }
   oscController.update();
 
   // The health lamps of the GUI: which controllers answer.

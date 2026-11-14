@@ -20,6 +20,7 @@ public:
   void setInitialStudio(bool enabled) { initialStudio = enabled; }
   void setPractice(bool enabled) { practice = enabled; }
   void setOscEnabled(bool enabled) { oscController.setEnabled(enabled); }
+  void setMidiEnabled(bool enabled) { midiEnabled = enabled; }
   void setOscPorts(int receive, int send) { oscController.setPorts(receive, send); }
   void queueStudioSession(const std::filesystem::path& path, bool remember = true);
   std::optional<std::filesystem::path> currentSessionPath() const;
@@ -58,6 +59,8 @@ private:
   std::optional<StudioSessionRequest> pendingStudioSession;
   bool initialStudio { false };
   bool practice { false };
+  // False for a launch with --no-midi: the controllers open no port and set no lamp.
+  bool midiEnabled { true };
   std::shared_ptr<ofAppBaseWindow> guiWindowPtr;
   std::shared_ptr<ofxMarkSynth::Synth> synthPtr;
   bool guiWindowListenersAttached { false };
