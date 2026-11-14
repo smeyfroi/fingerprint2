@@ -97,12 +97,16 @@ int main(int argc, char** argv) {
   // test client drives while the surface keeps its own.
   int oscReceivePort = 0;
   int oscSendPort = 0;
+  // --one-window: on one screen, the Controls window takes the whole screen and the Output
+  // window stays behind it. The Perform tab then has its full size, and shows the output itself.
+  bool oneWindow = false;
   for (int i = 1; i < argc; ++i) {
     const std::string argument = argv[i];
     if (argument == "--session" && i + 1 < argc) initialSession = argv[++i];
     else if (argument == "--studio") initialStudio = true;
     else if (argument == "--practice") practice = true;
     else if (argument == "--no-osc") osc = false;
+    else if (argument == "--one-window") oneWindow = true;
     else if (argument == "--osc-ports" && i + 2 < argc) {
       oscReceivePort = std::atoi(argv[++i]);
       oscSendPort = std::atoi(argv[++i]);
@@ -181,8 +185,9 @@ int main(int argc, char** argv) {
     const glm::vec2 screenSize = count > 0 ? monitorSizes[guiMonitorId] : glm::vec2 { 1440.0f, 900.0f };
     const float mainWidth = screenSize.x * MAIN_WINDOW_WIDTH_FRACTION;
     const float mainHeight = mainWidth * 9.0f / 16.0f;
-    const float guiWidth = screenSize.x - mainWidth;
-    mainSettings = createWindowSettings({ screenPos.x + guiWidth, screenPos.y },
+    const float guiWidth = oneWindow ? screenSize.x : screenSize.x - mainWidth;
+    // With --one-window the Output window keeps its place and size, behind the Controls window.
+    mainSettings = createWindowSettings({ screenPos.x + screenSize.x - mainWidth, screenPos.y },
                                         { mainWidth, mainHeight },
                                         false);
     guiSettings = createWindowSettings({ screenPos.x, screenPos.y },
