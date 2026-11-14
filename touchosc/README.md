@@ -332,3 +332,8 @@ TouchOSC rendering behaviours nothing here can prove:
    - The names sit on their buttons and a press goes through the name to the
      button.
 
+## Another surface: Open Stage Control
+
+[`open-stage-control-assessment.md`](open-stage-control-assessment.md) is an assessment of a
+swap to Open Stage Control, written on 14 November 2026. It maps each message, tab and script
+function of this layout to that tool. Nothing in it is built.
