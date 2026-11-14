@@ -184,6 +184,12 @@ void ofApp::update(){
   apcMiniController.update();
   nanoKontrolController.update();
   oscController.update();
+
+  // The health lamps of the GUI: which controllers answer.
+  synthPtr->setControllerStatus("APC", apcMiniController.isConnected());
+  synthPtr->setControllerStatus("NANO", nanoKontrolController.isConnected());
+  synthPtr->setControllerStatus("XL3", midiController.isConnected());
+  synthPtr->setControllerStatus("IPAD", oscController.hasSurface());
 }
 
 //--------------------------------------------------------------

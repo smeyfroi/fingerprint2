@@ -205,6 +205,8 @@ public:
   void onSynthWillUnload();
 
   bool isListening() const { return listening; }
+  // True once a surface (the iPad) has sent a packet, so the app knows where to answer.
+  bool hasSurface() const { return senderReady; }
   // Off for a launch that must leave the surface's port alone and take no moves from it
   // (--no-osc): a take replayed or a fingerprint captured while the rig may be in use beside it.
   void setEnabled(bool on) { enabled = on; }
