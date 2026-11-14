@@ -221,6 +221,9 @@ int main(int argc, char** argv) {
   if (oscReceivePort > 0 && oscSendPort > 0) mainApp->setOscPorts(oscReceivePort, oscSendPort);
   mainApp->setGuiWindowPtr(guiWindow);
   mainApp->attachGuiWindowListeners();
+  // Cmd-Q quits, from the app's menu. Esc does not (owner 2026-11-14): it is the key that
+  // leaves a text field or a popup of the GUI, and openFrameworks would end the show on it.
+  ofSetEscapeQuitsApp(false);
 	ofRunApp(mainWindow, mainApp);
 
 	ofRunMainLoop();
