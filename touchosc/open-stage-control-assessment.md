@@ -250,3 +250,62 @@ Widget counts are from `build_layout.py inventory` today.
 | Whether `\n` in a `text` value or a button `label` breaks the line | Names |
 | Whether a Home Screen page on the iPad reconnects after sleep as Safari does. One forum report of a stale cache with a Home Screen bookmark (F-4142, December 2025) | Shows |
 | How the client behaves when the session file changes under `--load`. Fragment files update the page when they change (R D-frag) | The update workflow |
+
+## 11. The health of the project, and the alternatives
+
+Researched on 14 November 2026, after the owner asked: "is the project currently maintained
+etc? it's not going to disappear? are there any better alternatives?" Each fact was read at
+its source unless it has the mark (I), for inferred. Nothing was installed or run.
+
+### Open Stage Control
+
+| Subject | Fact |
+|---|---|
+| Age and rhythm | First commit in April 2014, first release in March 2016. Releases in each year since 2016: 46, 33, 69, 34, 39, 37, 39, 12, 6, 24, 7. The dip is 2023 and 2024 |
+| Who writes it | One person wrote 98% of 6,449 commits. He says: "I only develop on my free time". Patreon brings EUR 67.51 a month from 15 members. No roadmap was found |
+| Community | In 3 months: 112 forum posts by 21 people. The maintainer answers in a median of 0.6 hours. 4 issues are open of 820 |
+| Use on stage | The grandMA3 lighting manual documents it. Forum users name a school theatre and stage shows |
+| Why it left GitHub | For a host that "cares for privacy and freedom and doesn't promote AI". The forum refuses posts that an AI wrote |
+| Self-contained | Yes. The Node package of 1.31.2 is 4.1 MB, has no native code and loads local files only |
+| Old releases | Packages before 1.29.8 are gone from GitHub and from the site. The source is on Framagit and in Software Heritage. There is no active fork |
+| What breaks first | Safari on iPadOS. iOS 26 broke the connection until 26.4. WebKit bug 308073, a LAN WebSocket that hangs after Safari resumes, is open |
+
+Verdict: the risk of losing what is installed is low. Keep the 1.31.2 package and a Node
+installer. The risk that fixes stop is medium: one maintainer in his spare time, no successor
+and no paid support. The likely failure in 3 to 5 years is an iPadOS update, and that failure
+hits every surface that is a web page.
+
+### Alternatives
+
+| Route | A picture on a control | Faders under several fingers | Layout from a script | Link |
+|---|---|---|---|---|
+| Lemur 5.9.0 for iPad (MIDI Kinetics, 2 November 2026, USD 99.99) | PNG as base64 inside the project. A script draws one by name. New pictures need a project sync (I) | Native | XML | OSC by Wi-Fi or USB |
+| OSC/PILOT for iPad 1.15.5 (free; desktop USD 49.99) | An image widget whose file path an OSC message changes. An NDI video widget | "Multi-Touch fully supported" | JSON | OSC by UDP |
+| MobMuPlat 1.84 (2019, free) | A live `image <path>`. The file must be on the iPad | Not confirmed | JSON | OSC by UDP |
+| Mira 1.2.18 for Max (2020, USD 9.99) | The `fpic` object, fed by Max (I) | Not confirmed | A Max patcher (I) | Wi-Fi or USB, with Max as the bridge (I) |
+| Chataigne 1.10.4 dashboard (free, GPL-3.0) | A background image and a Syphon texture streamed to the page. Picture buttons not confirmed | Not confirmed | Not confirmed | A browser and a WebSocket |
+| Bitfocus Companion 5.1.3 (free, MIT) with Stream Deck keys | An image library filled by hand. OSC and HTTP set text and colours only | None | JSON or YAML | USB to the keys, or web buttons |
+| Stream Deck driven by the instrument itself | A 96 px JPEG on each key of the XL. Elgato publishes the USB protocol | None: keys only | The instrument draws it (I) | USB |
+| Sidecar, Duet, Luna: the iPad as a display of the app's own window | The app's own picture | A tap is a click and a drag is a scroll. Finger touch in Sidecar needs macOS 27 | The app draws it | USB |
+| A web page that the instrument serves | Any picture or live frame (I) | To be written (I) | To be written | HTTP and a WebSocket. The same Safari risk (I) |
+
+TouchOSC 1.5.4 still has no image control.
+
+Ranking for this use:
+
+1. Open Stage Control, with its version pinned, headless. It is the one route that meets each
+   need on paper. Its risks are Safari on iPadOS and the feel of the faders, which nobody has
+   measured.
+2. Lemur. It has native faders, OSC over USB and a vendor with 3 releases since August 2026.
+   Its pictures travel inside the project, so each session needs a sync (I). It has no live
+   picture and its source is closed.
+3. TouchOSC as it is, with Stream Deck keys for the pictures. Nothing that works today
+   changes, and the link is a wire. The pictures leave the iPad. Not seen working.
+
+No route is clearly better than Open Stage Control. Try Lemur if the faders in a browser
+disappoint.
+
+Not confirmed: whether iPadOS 26.4 or 27 cures WebKit bug 308073; whether an OSC message can
+choose the picture that Lemur draws; where a file must be on an iPad for OSC/PILOT; a wired
+IP link for the web routes.
+
