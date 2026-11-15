@@ -94,6 +94,9 @@ void ofApp::installSynth(ResourceManager resources, bool studio) {
   ofAddListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad); // before configureGui
   synthPtr->configureGui(guiWindowPtr);
   if (studio) synthPtr->showStudio();
+  if (!initialTab.empty() && !synthPtr->showTab(initialTab)) {
+    ofLogWarning("ofApp") << "--tab " << initialTab << ": the Controls window has no tab of that name";
+  }
 }
 
 void ofApp::queueStudioSession(const std::filesystem::path& path, bool remember) {

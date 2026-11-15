@@ -18,6 +18,7 @@ public:
   void setForceChooseConfig(bool v) { forceChooseConfig = v; }
   void setInitialSession(std::filesystem::path path) { initialSession = std::move(path); }
   void setInitialStudio(bool enabled) { initialStudio = enabled; }
+  void setInitialTab(std::string name) { initialTab = std::move(name); }
   void setPractice(bool enabled) { practice = enabled; }
   void setOscEnabled(bool enabled) { oscController.setEnabled(enabled); }
   void setMidiEnabled(bool enabled) { midiEnabled = enabled; }
@@ -58,6 +59,7 @@ private:
   std::filesystem::path initialSession;
   std::optional<StudioSessionRequest> pendingStudioSession;
   bool initialStudio { false };
+  std::string initialTab;   // --tab: the tab that the launch opens on
   bool practice { false };
   // False for a launch with --no-midi: the controllers open no port and set no lamp.
   bool midiEnabled { true };

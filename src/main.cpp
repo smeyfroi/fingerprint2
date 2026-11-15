@@ -105,6 +105,9 @@ int main(int argc, char** argv) {
   // --one-window: on one screen, the Controls window takes the whole screen and the Output
   // window stays behind it. The Perform tab then has its full size, and shows the output itself.
   bool oneWindow = false;
+  // --tab NAME: the tab of the Controls window that the launch opens on, by its label
+  // ("patch", "live-calibration"). Without it: Perform, or Studio for a studio launch.
+  std::string initialTab;
   for (int i = 1; i < argc; ++i) {
     const std::string argument = argv[i];
     if (argument == "--session" && i + 1 < argc) initialSession = argv[++i];
@@ -113,6 +116,7 @@ int main(int argc, char** argv) {
     else if (argument == "--no-osc") osc = false;
     else if (argument == "--no-midi") midi = false;
     else if (argument == "--one-window") oneWindow = true;
+    else if (argument == "--tab" && i + 1 < argc) initialTab = argv[++i];
     else if (argument == "--osc-ports" && i + 2 < argc) {
       oscReceivePort = std::atoi(argv[++i]);
       oscSendPort = std::atoi(argv[++i]);
@@ -215,6 +219,7 @@ int main(int argc, char** argv) {
   mainApp->setForceChooseConfig(forceChooseConfig);
   mainApp->setInitialSession(initialSession);
   mainApp->setInitialStudio(initialStudio);
+  mainApp->setInitialTab(initialTab);
   mainApp->setPractice(practice);
   mainApp->setOscEnabled(osc);
   mainApp->setMidiEnabled(midi);
