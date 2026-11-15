@@ -40,32 +40,37 @@ class MidiController : public ofxMidiListener {
   static constexpr const char* kDeviceNameLong = "launch control xl";
 
   // === LED Color Constants ===
-  // Feedback and utility colors
-  static constexpr LedColor kButtonPressedColor = {127, 127, 127}; // White (momentary press)
   static constexpr LedColor kOffColor = {0, 0, 0};
 
-  // Intent indicator colors (top row): the 8 poles are 4 bipolar pairs and each
-  // pair shares a hue — the SAME axis hues as the GUI's Intents panel (presence
-  // coral, motion cyan, order violet, memory green), so hardware and screen read
-  // as one vocabulary. Indexed by pole/2; dim = armed but master strength at 0.
-  static constexpr std::array<LedColor, 4> kAxisBrightIntentColors {{
-    {127, 60, 45},   // presence: coral
-    {45, 100, 127},  // motion:   cyan
-    {95, 65, 127},   // order:    violet
-    {55, 110, 70},   // memory:   green
+  // The device has the 2 greys of the GUI's faders, and no hue. The colour scheme of the GUI
+  // (ofxMarkSynth docs/dev/perform-surface-design.md, section 18) keeps its hues for a state
+  // and for an input: a value that a fader holds has no colour, and 2 sets of faders take
+  // turns in 2 greys. The owner, 15 November 2026: "let's change the midi device to use
+  // different greys so everything matches". An LED shows a grey as a level of white, so the
+  // 2 greys are 2 levels of the cool white of the GUI's fader. One rule for every LED here:
+  // a pair shares a grey, and the pair beside it has the other one. Index: pair % 2.
+
+  // Intent indicators (top row), as the INTENT bars of the Perform tab (IntentView.hpp):
+  // poles 1-2 and 5-6 in the first grey, poles 3-4 and 7 in the second, and the master
+  // strength (button 8) in the first. Bright = the pole is up and the master strength is up.
+  // Dim = the pole is armed and has no effect now.
+  static constexpr std::array<LedColor, 2> kPairBrightIntentColors {{
+    {30, 33, 38},      // the first grey, FaderFill
+    {108, 114, 127},   // the second grey, FaderFillLight
   }};
-  static constexpr std::array<LedColor, 4> kAxisDimIntentColors {{
-    {10, 5, 4},
-    {4, 8, 10},
-    {8, 5, 10},
-    {4, 9, 6},
+  static constexpr std::array<LedColor, 2> kPairDimIntentColors {{
+    {4, 4, 5},
+    {8, 8, 9},
   }};
 
-  // Encoder colors
-  static constexpr LedColor kBlueEncoderColor = {0, 0, 32};      // Blue (encoders 2, 10)
-  static constexpr LedColor kCyanEncoderColor = {0, 32, 32};    // Cyan (encoders 3, 11)
-  static constexpr LedColor kPurpleEncoderColor = {32, 0, 64};   // Purple (encoders 4, 12, 14)
-  static constexpr LedColor kMagentaEncoderColor = {64, 0, 64}; // Magenta (encoders 5, 13, 15)
+  // Encoders that nudge a range of the audio analysis. Columns 3-4 (pitch, RMS) have the
+  // first grey and columns 5-6 (the timbre ranges) the second. In a pair the left encoder
+  // is the low end of the range and the right one the high end. An encoder is lit lower
+  // than a button, as it was.
+  static constexpr std::array<LedColor, 2> kPairEncoderColors {{
+    {11, 12, 14},
+    {38, 41, 46},
+  }};
 
   // === Button CC Constants ===
   // Top row function buttons (CC 37-44 on channel 1) - used as intent indicator LEDs

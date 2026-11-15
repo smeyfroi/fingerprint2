@@ -386,22 +386,23 @@ void MidiController::updateIntentIndicatorLeds() {
 
       float masterStrength = intentParameters.getFloat(masterIndex).get();
 
-      // The 7 pole LEDs (buttons 1-7) mirror the poles in their axis-pair hue
-      // (same hues as the GUI Intents panel); brightness gated by master strength
-      // (dim = poles armed but strength at zero). Button 8 = the master itself.
+      // The 7 pole LEDs (buttons 1-7) mirror the poles in the grey of their pair, as the
+      // INTENT bars of the Perform tab; brightness gated by master strength (dim = poles
+      // armed but strength at zero). Button 8 = the master itself.
       for (size_t i = 0; i < masterIndex; ++i) {
         float value = intentParameters.getFloat(i).get();
-        const LedColor& bright = kAxisBrightIntentColors[(i / 2) % 4];
-        const LedColor& dim = kAxisDimIntentColors[(i / 2) % 4];
+        const LedColor& bright = kPairBrightIntentColors[(i / 2) % 2];
+        const LedColor& dim = kPairDimIntentColors[(i / 2) % 2];
         if (masterStrength <= kIntentEpsilon) {
           desiredColors[i] = dim;
         } else {
           desiredColors[i] = (value > kIntentEpsilon) ? bright : dim;
         }
       }
-      // Master strength on the 8th LED (amber, gated by its own level).
+      // Master strength on the 8th LED, in the first grey as its bar on the Perform tab,
+      // gated by its own level.
       desiredColors[masterIndex] = (masterStrength > kIntentEpsilon)
-          ? LedColor{127, 90, 0} : LedColor{8, 6, 0};
+          ? kPairBrightIntentColors[0] : kPairDimIntentColors[0];
     }
   }
 
@@ -435,20 +436,20 @@ void MidiController::setupInitialLeds() {
   // Row 1 (encoders 1-8): indices 0-7 in addon terminology
   leds->setEncoderLED(1, kOffColor);              // Encoder 0 - unused (moved to APC fader 1)
   leds->setEncoderLED(2, kOffColor);              // Encoder 1 - unused
-  leds->setEncoderLED(3, kBlueEncoderColor);      // Encoder 2 - blue
-  leds->setEncoderLED(4, kCyanEncoderColor);      // Encoder 3 - cyan
-  leds->setEncoderLED(5, kPurpleEncoderColor);    // Encoder 4 - purple
-  leds->setEncoderLED(6, kMagentaEncoderColor);   // Encoder 5 - magenta
+  leds->setEncoderLED(3, kPairEncoderColors[0]);  // Encoder 2 - MinPitch, first grey
+  leds->setEncoderLED(4, kPairEncoderColors[0]);  // Encoder 3 - PitchOctaves, first grey
+  leds->setEncoderLED(5, kPairEncoderColors[1]);  // Encoder 4 - MinSpectralCentroid, second grey
+  leds->setEncoderLED(6, kPairEncoderColors[1]);  // Encoder 5 - MaxSpectralCentroid, second grey
   leds->setEncoderLED(7, kOffColor);              // Encoder 6 - unused
   leds->setEncoderLED(8, kOffColor);              // Encoder 7 - unused
 
   // Row 2 (encoders 9-16): indices 8-15 in addon terminology
   leds->setEncoderLED(9, kOffColor);              // Encoder 8 - unused (moved to APC fader 2)
   leds->setEncoderLED(10, kOffColor);             // Encoder 9 - unused
-  leds->setEncoderLED(11, kBlueEncoderColor);     // Encoder 10 - blue
-  leds->setEncoderLED(12, kCyanEncoderColor);     // Encoder 11 - cyan
-  leds->setEncoderLED(13, kPurpleEncoderColor);   // Encoder 12 - purple
-  leds->setEncoderLED(14, kMagentaEncoderColor);  // Encoder 13 - magenta
+  leds->setEncoderLED(11, kPairEncoderColors[0]); // Encoder 10 - MinRms, first grey
+  leds->setEncoderLED(12, kPairEncoderColors[0]); // Encoder 11 - MaxRms, first grey
+  leds->setEncoderLED(13, kPairEncoderColors[1]); // Encoder 12 - MinSpectralCrest, second grey
+  leds->setEncoderLED(14, kPairEncoderColors[1]); // Encoder 13 - MaxSpectralCrest, second grey
   leds->setEncoderLED(15, kOffColor);             // Encoder 14 - unused
   leds->setEncoderLED(16, kOffColor);             // Encoder 15 - unused
 
@@ -457,8 +458,8 @@ void MidiController::setupInitialLeds() {
     leds->setEncoderLED(i, kOffColor);
   }
   // Encoder 16 (video response) moved to APC fader 3 — leave dark.
-  leds->setEncoderLED(21, kPurpleEncoderColor);  // Encoder 20 - purple
-  leds->setEncoderLED(22, kMagentaEncoderColor); // Encoder 21 - magenta
+  leds->setEncoderLED(21, kPairEncoderColors[1]); // Encoder 20 - MinZeroCrossingRate, second grey
+  leds->setEncoderLED(22, kPairEncoderColors[1]); // Encoder 21 - MaxZeroCrossingRate, second grey
 }
 
 void MidiController::onSynthDidLoad(const std::shared_ptr<ofxMarkSynth::Synth>& synthPtr) {

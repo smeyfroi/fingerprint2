@@ -24,10 +24,11 @@ These buttons are **LED indicators only** (button presses do nothing):
 | 8 | Master intent strength |
 
 LED behavior:
-- Buttons 1-7 light in their **axis-pair hue** — the same hues as the GUI's Intents panel (presence coral, motion cyan, order violet, memory green), one hue per bipolar pair
+- The device shows no hue. It has the 2 greys of the faders of the GUI, as 2 levels of a cool white. A pair shares a grey, and the pair beside it has the other grey.
+- Buttons 1-2 and 5-6 have the first grey. Buttons 3-4 and 7 have the second grey. The INTENT bars of the Perform tab take turns in the same order.
 - **Bright** = pole value > 0.0 and master strength > 0.0
 - **Dim** = pole armed but value == 0.0, or master strength == 0.0
-- Button 8 is the master itself: **amber** when master strength > 0.0, dim amber at zero
+- Button 8 is the master itself: the first grey when master strength > 0.0, the dim first grey at zero
 - **Off** = no intent parameters loaded
 
 ---
@@ -114,24 +115,27 @@ Shows briefly when controls are used:
 
 ## LED Colors
 
+The device has no hue since 15 November 2026. The colour scheme of the GUI keeps its hues for a state and for an input, and a value that a fader holds has no colour. The device follows that scheme: see section 18 of `perform-surface-design.md` in ofxMarkSynth. The values are in `src/MidiController.h`: `kPairBrightIntentColors`, `kPairDimIntentColors` and `kPairEncoderColors`.
+
 ### Button LEDs
 | State | Color |
 |-------|-------|
-| Bottom row (9-16) | Off — retired, see above |
-| Intent pole > 0.0 (master > 0.0) | Bright axis hue (coral / cyan / violet / green) |
-| Intent pole == 0.0, or master == 0.0 | Dim axis hue |
-| Master strength (button 8) | Amber (dim at zero) |
-| Button Pressed | White |
+| Bottom row (9-16) | Off. The row is retired, see above |
+| Intent pole > 0.0 (master > 0.0) | The bright grey of its pair: first grey for buttons 1-2 and 5-6, second grey for buttons 3-4 and 7 |
+| Intent pole == 0.0, or master == 0.0 | The dim grey of its pair |
+| Master strength (button 8) | The first grey, dim at zero |
 | No intent parameters | Off |
 
 ### Encoder LEDs
 | Encoder | Color |
 |---------|-------|
-| Pitch (3-4) | Blue / Cyan |
-| Spectral (5-6, 13-14) | Purple / Magenta |
-| RMS (11-12) | Blue / Cyan |
-| Zero Crossing (21-22) | Purple / Magenta |
+| Pitch (3-4) | First grey |
+| RMS (11-12) | First grey |
+| Spectral (5-6, 13-14) | Second grey |
+| Zero Crossing (21-22) | Second grey |
 | Unused | Off |
+
+In a pair the left encoder sets the low end of the range and the right encoder sets the high end. Pitch is the exception: encoder 3 sets where the reading starts and encoder 4 sets how many octaves it spans.
 
 ---
 
