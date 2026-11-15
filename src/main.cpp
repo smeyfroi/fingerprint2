@@ -102,11 +102,17 @@ int main(int argc, char** argv) {
   // test client drives while the surface keeps its own.
   int oscReceivePort = 0;
   int oscSendPort = 0;
-  // --one-window: on one screen, the Controls window takes the whole screen and the Output
-  // window stays behind it. The Perform tab then has its full size, and shows the output itself.
-  bool oneWindow = false;
+  // On one screen the Controls window takes the whole screen and the Output window stays behind
+  // it: the Perform tab then has its full size, and shows the output itself in PICTURE. That is
+  // the layout of a studio launch and of any launch on a Mac with one screen (the owner,
+  // 15 November 2026: Studio is Perform with the notebook showing).
+  // --two-windows: the layout before that day. The Controls window has the left 70% of the
+  // screen and the Output window sits at its top right.
+  // --one-window: accepted and not needed: it was the flag for the layout that is now usual.
+  bool oneWindow = true;
   // --tab NAME: the tab of the Controls window that the launch opens on, by its label
-  // ("patch", "live-calibration"). Without it: Perform, or Studio for a studio launch.
+  // ("patch", "live-calibration"). Without it: Perform. A studio launch opens Perform with
+  // the notebook showing, and so does --tab studio.
   // After a colon come steps to press, for a check with nobody at the Mac: steps of the tab
   // ("patch:drawer") and steps of a made-up pointer ("perform:wait=4000,click=587x27"). See
   // Gui::showTab and gui/PointerScript.hpp in ofxMarkSynth.
@@ -123,6 +129,7 @@ int main(int argc, char** argv) {
     else if (argument == "--no-osc") osc = false;
     else if (argument == "--no-midi") midi = false;
     else if (argument == "--one-window") oneWindow = true;
+    else if (argument == "--two-windows") oneWindow = false;
     else if (argument == "--tab" && i + 1 < argc) initialTab = argv[++i];
     else if (argument == "--fingerprints" && i + 1 < argc) fingerprintsFolder = argv[++i];
     else if (argument == "--osc-ports" && i + 2 < argc) {
@@ -152,7 +159,7 @@ int main(int argc, char** argv) {
     monitorPositions[i] = {(float)x, (float)y};
   }
   
-  // A studio launch (play-recorded.sh, --studio) tunes beside the editor on one screen; a live
+  // A studio launch (play-recorded.sh, --studio) stays on one screen, the laptop's; a live
   // launch (play-live*.sh) takes both screens when there are two. Hold Option/Alt at launch to
   // force the single-screen windowed layout anyway (parallels Shift-to-rechoose-config).
   const bool optionHeld = isOptionKeyHeldAtLaunch();
@@ -195,16 +202,17 @@ int main(int argc, char** argv) {
                                        monitorSizes[guiMonitorId],
                                        true);
   } else {
-    // Single-screen windowed layout for tuning: GUI on the left 0.7 of the
-    // screen, main visuals on the right 0.3 flush to the screen's right edge.
-    // MAIN keeps a normal 16:9 aspect (the gig projector / recording shape)
-    // rather than stretching to the full screen height. It sits on the GUI's screen, the laptop's.
+    // Single-screen layout. The Controls window has the whole screen and the Output window is
+    // behind it, at the right 0.3 of the screen and flush to its right edge. With --two-windows
+    // the Controls window has the left 0.7 and both show. The Output window keeps a normal 16:9
+    // aspect (the gig projector / recording shape) rather than stretching to the full screen
+    // height. It sits on the GUI's screen, the laptop's.
     const glm::vec2 screenPos = count > 0 ? monitorPositions[guiMonitorId] : glm::vec2 { 0.0f, 0.0f };
     const glm::vec2 screenSize = count > 0 ? monitorSizes[guiMonitorId] : glm::vec2 { 1440.0f, 900.0f };
     const float mainWidth = screenSize.x * MAIN_WINDOW_WIDTH_FRACTION;
     const float mainHeight = mainWidth * 9.0f / 16.0f;
     const float guiWidth = oneWindow ? screenSize.x : screenSize.x - mainWidth;
-    // With --one-window the Output window keeps its place and size, behind the Controls window.
+    // The Output window keeps its place and size in both layouts.
     mainSettings = createWindowSettings({ screenPos.x + screenSize.x - mainWidth, screenPos.y },
                                         { mainWidth, mainHeight },
                                         false);
