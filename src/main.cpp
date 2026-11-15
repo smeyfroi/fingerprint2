@@ -107,6 +107,9 @@ int main(int argc, char** argv) {
   bool oneWindow = false;
   // --tab NAME: the tab of the Controls window that the launch opens on, by its label
   // ("patch", "live-calibration"). Without it: Perform, or Studio for a studio launch.
+  // After a colon come steps to press, for a check with nobody at the Mac: steps of the tab
+  // ("patch:drawer") and steps of a made-up pointer ("perform:wait=4000,click=587x27"). See
+  // Gui::showTab and gui/PointerScript.hpp in ofxMarkSynth.
   std::string initialTab;
   // --fingerprints DIR: the folder of fingerprints for every session of this launch, in place
   // of the "fingerprints" key of the session file. For a session that names no folder: a play
