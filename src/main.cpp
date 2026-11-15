@@ -108,6 +108,10 @@ int main(int argc, char** argv) {
   // --tab NAME: the tab of the Controls window that the launch opens on, by its label
   // ("patch", "live-calibration"). Without it: Perform, or Studio for a studio launch.
   std::string initialTab;
+  // --fingerprints DIR: the folder of fingerprints for every session of this launch, in place
+  // of the "fingerprints" key of the session file. For a session that names no folder: a play
+  // script passes its extra arguments on, so `./play-recorded.sh --fingerprints DIR` works.
+  std::filesystem::path fingerprintsFolder;
   for (int i = 1; i < argc; ++i) {
     const std::string argument = argv[i];
     if (argument == "--session" && i + 1 < argc) initialSession = argv[++i];
@@ -117,6 +121,7 @@ int main(int argc, char** argv) {
     else if (argument == "--no-midi") midi = false;
     else if (argument == "--one-window") oneWindow = true;
     else if (argument == "--tab" && i + 1 < argc) initialTab = argv[++i];
+    else if (argument == "--fingerprints" && i + 1 < argc) fingerprintsFolder = argv[++i];
     else if (argument == "--osc-ports" && i + 2 < argc) {
       oscReceivePort = std::atoi(argv[++i]);
       oscSendPort = std::atoi(argv[++i]);
@@ -220,6 +225,7 @@ int main(int argc, char** argv) {
   mainApp->setInitialSession(initialSession);
   mainApp->setInitialStudio(initialStudio);
   mainApp->setInitialTab(initialTab);
+  mainApp->setFingerprintsFolder(fingerprintsFolder);
   mainApp->setPractice(practice);
   mainApp->setOscEnabled(osc);
   mainApp->setMidiEnabled(midi);

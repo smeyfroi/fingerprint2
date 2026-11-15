@@ -81,6 +81,11 @@ void ofApp::installSynth(ResourceManager resources, bool studio) {
     resources.add(ResourceKeys::AutoSnapshotsEnabled, false);
     ofLogNotice("fingerprint2") << "Practice: no recording on the first wake and no auto snapshots";
   }
+  // --fingerprints holds for every session this run opens, as --practice does.
+  if (!fingerprintsFolder.empty()) {
+    resources.add(ResourceKeys::Fingerprints, std::filesystem::absolute(fingerprintsFolder));
+    ofLogNotice("fingerprint2") << "Fingerprints from " << std::filesystem::absolute(fingerprintsFolder);
+  }
   synthPtr = ofxMarkSynth::Synth::create("fingerprint2", ofxMarkSynth::ModConfig {
   }, resources);
   if (synthPtr->getConfigSubsystem().getCurrentConfigPath().empty()) synthPtr->loadFirstPerformanceConfig();
