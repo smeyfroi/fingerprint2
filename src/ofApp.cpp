@@ -58,6 +58,21 @@ void ofApp::setup(){
   ofSetBackgroundColor(0);
   TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_BOTTOM_LEFT);
 
+  if (!initialLaunch.launchFile.empty()) {
+    ComposedLaunch launch;
+    try {
+      launch = composeLaunch(initialLaunch);
+    } catch (const std::exception& error) {
+      hardExitWithAlert(std::string("Could not compose the launch: ") + error.what());
+    }
+    currentLaunch = LaunchSelection { launch.launchFile, launch.gridName, initialLaunch.rig };
+    applySessionRuntimeSettings(launch.session.json);
+    installSynth(buildResourceManagerFromLaunch(launch), initialStudio || launch.kind == "studio");
+    if (launch.kind == "performance") {   // a Finder launch reopens the performance
+      saveLastSessionConfigPath(getSessionConfigPointerFilePath("fingerprint2", "lastSessionConfig.json"), launch.launchFile);
+    }
+    return;
+  }
   if (!initialSession.empty()) {
     const SessionConfig session { std::filesystem::absolute(initialSession), ofLoadJson(initialSession) };
     applySessionRuntimeSettings(session.json);
@@ -95,6 +110,7 @@ void ofApp::installSynth(ResourceManager resources, bool studio) {
   synthPtr->onStudioSessionRequested = [this](const std::filesystem::path& path) {
     queueStudioSession(path);
   };
+  synthPtr->onLaunchGridRequested = [this](const std::string& grid) { pendingLaunchGrid = grid; };
   ofAddListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload); // before configureGui
   ofAddListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad); // before configureGui
   synthPtr->configureGui(guiWindowPtr);
@@ -102,6 +118,7 @@ void ofApp::installSynth(ResourceManager resources, bool studio) {
   if (!initialTab.empty() && !synthPtr->showTab(initialTab)) {
     ofLogWarning("ofApp") << "--tab " << initialTab << ": the Controls window has no tab of that name";
   }
+  initialTab.clear();   // once per launch: a reload (another grid, a Studio session) must not replay its steps
 }
 
 void ofApp::queueStudioSession(const std::filesystem::path& path, bool remember) {
@@ -134,6 +151,7 @@ void ofApp::openStudioSession(const std::filesystem::path& path, bool remember) 
     replaced = true;
     applySessionRuntimeSettings(next.json);
     installSynth(std::move(resources), true);
+    currentLaunch.reset();   // a session file now plays, not the launch
     if (remember) {
       saveLastSessionConfigPath(getSessionConfigPointerFilePath("fingerprint2", "lastSessionConfig.json"), next.path);
     }
@@ -162,6 +180,49 @@ void ofApp::openStudioSession(const std::filesystem::path& path, bool remember) 
   }
 }
 
+void ofApp::openLaunchGrid(const std::string& grid) {
+  if (!synthPtr || !currentLaunch || synthPtr->getRuntimeSubsystem().isRecording()) return;
+  const LaunchSelection previous = *currentLaunch;
+  const bool studio = initialStudio;
+  auto tearDown = [this] {
+    ofRemoveListener(synthPtr->configWillUnloadEvent, this, &ofApp::onSynthWillUnload);
+    ofRemoveListener(synthPtr->configDidLoadEvent, this, &ofApp::onSynthDidLoad);
+    midiController.onSynthWillUnload();
+    apcMiniController.onSynthWillUnload();
+    nanoKontrolController.onSynthWillUnload();
+    oscController.onSynthWillUnload();
+    synthPtr->shutdown();
+    synthPtr.reset();
+  };
+  bool replaced = false;
+  try {
+    const ComposedLaunch launch = composeLaunch({ previous.launchFile, grid, previous.rig });
+    auto resources = buildResourceManagerFromLaunch(launch);   // validate before teardown
+    tearDown();
+    replaced = true;
+    applySessionRuntimeSettings(launch.session.json);
+    installSynth(std::move(resources), studio || launch.kind == "studio");
+    currentLaunch = LaunchSelection { launch.launchFile, launch.gridName, previous.rig };
+    ofLogNotice("fingerprint2") << "Grid " << launch.gridName << " of " << launch.launchFile.string();
+  } catch (const std::exception& error) {
+    ofLogError("fingerprint2") << "Could not play the grid " << grid << ": " << error.what();
+    try {
+      if (replaced) {
+        if (synthPtr) tearDown();
+        const ComposedLaunch back = composeLaunch(previous);
+        applySessionRuntimeSettings(back.session.json);
+        installSynth(buildResourceManagerFromLaunch(back), studio || back.kind == "studio");
+      } else {
+        // Nothing was torn down; the binding the failed build set must be the playing launch's again.
+        (void)buildResourceManagerFromLaunch(composeLaunch(previous));
+      }
+    } catch (const std::exception& restoreError) {
+      ofLogError("fingerprint2") << "Could not restore the grid " << previous.grid << ": " << restoreError.what();
+    }
+    ofSystemAlertDialog("Could not play the grid " + grid + ". See the log for details.");
+  }
+}
+
 void ofApp::onSynthWillUnload(ofxMarkSynth::Synth::ConfigUnloadEvent& e) {
   midiController.onSynthWillUnload();
   apcMiniController.onSynthWillUnload();
@@ -184,6 +245,11 @@ void ofApp::update(){
     const auto request = *pendingStudioSession;
     pendingStudioSession.reset();
     openStudioSession(request.path, request.remember);
+  }
+  if (pendingLaunchGrid && !isShuttingDown) {
+    const std::string grid = *pendingLaunchGrid;
+    pendingLaunchGrid.reset();
+    openLaunchGrid(grid);
   }
   if (!synthPtr || isShuttingDown) {
     return;

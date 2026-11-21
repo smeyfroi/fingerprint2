@@ -9,6 +9,7 @@
 #include "NanoKontrol2Controller.h"
 #include "OscController.h"
 #include "ofxMarkSynth.h"
+#include "config/session/LaunchComposer.hpp"
 
 class ofApp : public ofBaseApp {
 
@@ -17,6 +18,7 @@ public:
   void setGuiWindowPtr(std::shared_ptr<ofAppBaseWindow> windowPtr) { guiWindowPtr = windowPtr; }
   void setForceChooseConfig(bool v) { forceChooseConfig = v; }
   void setInitialSession(std::filesystem::path path) { initialSession = std::move(path); }
+  void setInitialLaunch(ofxMarkSynth::LaunchSelection selection) { initialLaunch = std::move(selection); }
   void setInitialStudio(bool enabled) { initialStudio = enabled; }
   void setInitialTab(std::string name) { initialTab = std::move(name); }
   void setFingerprintsFolder(std::filesystem::path folder) { fingerprintsFolder = std::move(folder); }
@@ -53,6 +55,11 @@ public:
 private:
   void installSynth(ofxMarkSynth::ResourceManager resources, bool studio);
   void openStudioSession(const std::filesystem::path& path, bool remember);
+  // Play another grid of the launch: the Synth is rebuilt, the rig's inputs and the launch stay.
+  void openLaunchGrid(const std::string& grid);
+  ofxMarkSynth::LaunchSelection initialLaunch;
+  std::optional<ofxMarkSynth::LaunchSelection> currentLaunch;   // the launch that plays, if any
+  std::optional<std::string> pendingLaunchGrid;
   struct StudioSessionRequest {
     std::filesystem::path path;
     bool remember;

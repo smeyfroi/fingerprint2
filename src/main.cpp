@@ -121,9 +121,18 @@ int main(int argc, char** argv) {
   // of the "fingerprints" key of the session file. For a session that names no folder: a play
   // script passes its extra arguments on, so `./play-recorded.sh --fingerprints DIR` works.
   std::filesystem::path fingerprintsFolder;
+  // --launch FILE [--grid NAME] [--rig NAME]: a performance.json or studio.json (or the folder that
+  // holds one), the grid to play first and, for the Studio, the rig (ofxMarkSynth LaunchComposer).
+  // A Studio launch is a studio launch, as --studio is.
+  std::filesystem::path launchFile;
+  std::string launchGrid;
+  std::string launchRig;
   for (int i = 1; i < argc; ++i) {
     const std::string argument = argv[i];
     if (argument == "--session" && i + 1 < argc) initialSession = argv[++i];
+    else if (argument == "--launch" && i + 1 < argc) launchFile = argv[++i];
+    else if (argument == "--grid" && i + 1 < argc) launchGrid = argv[++i];
+    else if (argument == "--rig" && i + 1 < argc) launchRig = argv[++i];
     else if (argument == "--studio") initialStudio = true;
     else if (argument == "--practice") practice = true;
     else if (argument == "--no-osc") osc = false;
@@ -163,6 +172,12 @@ int main(int argc, char** argv) {
   // launch (play-live*.sh) takes both screens when there are two. Hold Option/Alt at launch to
   // force the single-screen windowed layout anyway (parallels Shift-to-rechoose-config).
   const bool optionHeld = isOptionKeyHeldAtLaunch();
+  if (!launchFile.empty()) {
+    try {
+      const ofJson launch = ofLoadJson(ofxMarkSynth::launchFileIn(launchFile));
+      if (launch.value("kind", "") == "studio") initialStudio = true;
+    } catch (const std::exception&) {}   // the composer says what is wrong once the app sets up
+  }
   const bool forceSingleScreen = initialStudio || optionHeld;
   if (forceSingleScreen) {
     ofLogNotice() << (optionHeld ? "Option held at launch: forcing single-screen mode"
@@ -234,6 +249,7 @@ int main(int argc, char** argv) {
   auto mainApp = std::make_shared<ofApp>();
   mainApp->setForceChooseConfig(forceChooseConfig);
   mainApp->setInitialSession(initialSession);
+  mainApp->setInitialLaunch({ launchFile, launchGrid, launchRig });
   mainApp->setInitialStudio(initialStudio);
   mainApp->setInitialTab(initialTab);
   mainApp->setFingerprintsFolder(fingerprintsFolder);

@@ -351,6 +351,22 @@ void OscController::handleMessage(const ofxOscMessage& m) {
     return;
   }
 
+  // A launch's grids (LaunchComposer.hpp): "/grid/previous" and "/grid/next" step through them,
+  // "/grid/select <name>" plays one. A button's release (a value of 0) does nothing; none moves
+  // while a take records.
+  if (addr == "/grid/previous" || addr == "/grid/next" || addr == "/grid/select") {
+    if (addr == "/grid/select") {
+      if (m.getNumArgs() >= 1 && m.getArgType(0) == OFXOSC_TYPE_STRING) {
+        const std::string grid = m.getArgAsString(0);
+        if (!synthPtr->requestLaunchGrid(grid)) ofLogWarning("OscController") << "/grid/select: cannot play '" << grid << "' now";
+      }
+      return;
+    }
+    if (m.getNumArgs() >= 1 && m.getArgAsFloat(0) <= 0.5f) return;
+    synthPtr->stepLaunchGrid(addr == "/grid/next" ? 1 : -1);
+    return;
+  }
+
   // The fingerprint desk: its buttons carry a constant int or nothing, its faders a float.
   if (addr.compare(0, 13, "/fingerprint/") == 0) {
     handleFingerprint(m);
