@@ -1,5 +1,5 @@
 -- Fingerprints Launcher: play a performance, or a Studio grid, without a terminal window.
--- Double-click: choose from the performances and the Studio grids. Drop a performance folder,
+-- Double-click: choose from the performances and the Studio grids; a Studio grid then takes a rig. Drop a performance folder,
 -- a performance.json or a studio.json on it: play that. It opens Fingerprints.app by its bundle id
 -- with --launch (ofxMarkSynth LaunchComposer). Built by build-launcher.sh.
 
@@ -51,6 +51,29 @@ for f in d.get('gridFolders',[]):
 		end if
 	end repeat
 	set extra to ""
+	-- The Studio joins a grid and a rig at launch: the rigs of studio.json's rigFolders, its default first.
+	if chosen starts with "Studio: " then
+		set rigs to paragraphs of (do shell script "/usr/bin/python3 -c " & quoted form of ("import json,os,sys
+p=sys.argv[1]; d=json.load(open(p)); here=os.path.dirname(p)
+first=os.path.normpath(os.path.join(here,os.path.expanduser(d.get('rig',''))))
+found=[first] if os.path.isfile(first) else []
+for f in d.get('rigFolders',[]):
+  r=os.path.normpath(os.path.join(here,os.path.expanduser(f)))
+  if os.path.isdir(r):
+    for n in sorted(os.listdir(r)):
+      q=os.path.join(r,n)
+      if n.endswith('.json') and q not in found: found.append(q)
+print(chr(10).join(found))") & " " & quoted form of studioFile)
+		set rigNames to {}
+		repeat with rigPath in rigs
+			set rigNames to rigNames & {(do shell script "basename " & quoted form of (rigPath as text) & " .json")}
+		end repeat
+		set pickedRig to choose from list rigNames with title "Fingerprints" with prompt "Play " & (text 9 thru -1 of chosen) & " through the rig:" default items {item 1 of rigNames} OK button name "Play"
+		if pickedRig is false then return
+		repeat with i from 1 to count of rigNames
+			if item i of rigNames is (item 1 of pickedRig) then set extra to " --rig " & quoted form of (item i of rigs as text)
+		end repeat
+	end if
 	if chosen starts with "Performance: " then
 		set mode to button returned of (display dialog "Play " & (text 14 thru -1 of chosen) & " for the show, or as a practice (no take on the first wake, no auto drawings)?" buttons {"Cancel", "Practice", "Show"} default button "Show" with title "Fingerprints")
 		if mode is "Practice" then set extra to " --practice"
