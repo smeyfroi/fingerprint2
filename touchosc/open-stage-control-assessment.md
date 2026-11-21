@@ -2,6 +2,11 @@
 
 Written on 14 November 2026. An assessment. Nothing here is built, installed or run.
 
+Expanded on 16 November 2026: section 11 now compares the wider iPad market, distinguishes
+bundled artwork from runtime thumbnail delivery, and reassesses maintenance risk. Its
+recommendations supersede the original alternatives ranking. Sections 1–10 remain the
+Open Stage Control implementation assessment, not a tested migration plan.
+
 ## Summary
 
 The owner asked on 14 November 2026 how difficult a swap of the iPad surface to Open Stage
@@ -72,7 +77,7 @@ Documentation pages are under `https://openstagecontrol.ammd.net/docs/`. Source 
 |---|---|
 | Version 1.31.2, released on 8 November 2026. 8 releases in the 12 months before it | R API |
 | Licence GPL-3.0 | R S-pkg |
-| One maintainer wrote 1,945 of the commits. 15 contributors in all | R API |
+| The contributor API is heavily dominated by one maintainer. Its author records are not a count of independent maintainers; see the fresh check in section 11 | R API |
 | The repository moved from GitHub to Framagit in December 2025 | R API, D-log 1.29.9 |
 | `AI_POLICY.md` in the repository says: "Anything AI-related is strictly prohibited from this project." | R S-pkg |
 | Three parts: a server, a launcher and a client. The client is a web application that the server serves | R D-intro |
@@ -251,61 +256,313 @@ Widget counts are from `build_layout.py inventory` today.
 | Whether a Home Screen page on the iPad reconnects after sleep as Safari does. One forum report of a stale cache with a Home Screen bookmark (F-4142, December 2025) | Shows |
 | How the client behaves when the session file changes under `--load`. Fragment files update the page when they change (R D-frag) | The update workflow |
 
-## 11. The health of the project, and the alternatives
+## 11. Deeper iPad alternatives review — 16 November 2026
 
-Researched on 14 November 2026, after the owner asked: "is the project currently maintained
-etc? it's not going to disappear? are there any better alternatives?" Each fact was read at
-its source unless it has the mark (I), for inferred. Nothing was installed or run.
+This review covers a replacement for the whole surface and an image-pad-only addition.
+It uses vendor manuals, release records, public source repositories and Apple's public
+UK App Store lookup API. No candidate was installed or tested on an iPad. A documented
+feature is not evidence of acceptable performance with this instrument.
 
-### Open Stage Control
+**Conclusion:** Open Stage Control remains the strongest documented match for the whole
+surface with changing thumbnails. There are more credible iPad options than the earlier
+ranking showed: **Lemur, OSC/PILOT, Ctrl for iPad, Ctrl Suite with Ctrl Player, and Companion's
+web surface**. None has yet demonstrated both our entire workflow and clearly stronger
+maintenance continuity. Companion offers the clearest broader ecosystem for image buttons;
+Lemur is the first native performance surface to test; Ctrl Suite is the additional commercial
+system worth evaluating if vendor support is a priority. These are assessment judgments.
 
-| Subject | Fact |
-|---|---|
-| Age and rhythm | First commit in April 2014, first release in March 2016. Releases in each year since 2016: 46, 33, 69, 34, 39, 37, 39, 12, 6, 24, 7. The dip is 2023 and 2024 |
-| Who writes it | One person wrote 98% of 6,449 commits. He says: "I only develop on my free time". Patreon brings EUR 67.51 a month from 15 members. No roadmap was found |
-| Community | In 3 months: 112 forum posts by 21 people. The maintainer answers in a median of 0.6 hours. 4 issues are open of 820 |
-| Use on stage | The grandMA3 lighting manual documents it. Forum users name a school theatre and stage shows |
-| Why it left GitHub | For a host that "cares for privacy and freedom and doesn't promote AI". The forum refuses posts that an AI wrote |
-| Self-contained | Yes. The Node package of 1.31.2 is 4.1 MB, has no native code and loads local files only |
-| Old releases | Packages before 1.29.8 are gone from GitHub and from the site. The source is on Framagit and in Software Heritage. There is no active fork |
-| What breaks first | Safari on iPadOS. iOS 26 broke the connection until 26.4. WebKit bug 308073, a LAN WebSocket that hangs after Safari resumes, is open |
+### 11.1 What counts as image support here
 
-Verdict: the risk of losing what is installed is low. Keep the 1.31.2 package and a Node
-installer. The risk that fixes stop is medium: one maintainer in his spare time, no successor
-and no paid support. The likely failure in 3 to 5 years is an iPadOS update, and that failure
-hits every surface that is a web page.
+There are three different capabilities:
 
-### Alternatives
+1. **Bundled artwork:** ship pad pictures with a layout before playing.
+2. **Runtime selection:** choose among pictures already available to the controller when
+   the grid page changes.
+3. **Runtime delivery:** display a newly created or changed picture from the Mac without
+   opening an editor, transferring a new project or interrupting performance.
 
-| Route | A picture on a control | Faders under several fingers | Layout from a script | Link |
+The first capability alone solves illustrated preset buttons. For our evolving grids and
+fingerprints, the third is the useful target. A slow canvas preview is a separate, optional
+requirement; full video streaming should not be required just to deliver thumbnails.
+
+The current surface also needs independent pad-down and pad-up messages: a short press
+previews a cell and a 400 ms hold applies it. It needs several simultaneous faders, incoming
+names/colours/visibility, 64-value grid messages, page changes, and recovery after sleep or
+an app restart. These requirements come from [our OSC contract](README.md), not product
+marketing. A picture widget and an OSC-send checkbox do not establish a replacement.
+
+### 11.2 Comparison
+
+“Unverified” means no sufficient documented path was established, not that the feature is
+impossible. Native means an installed iPad app; it does not by itself establish the internal
+rendering technology or performance. Sources and qualifications follow the table.
+
+| Option | iPad route | Image delivery from the Mac | Full-surface fit | Maintenance assessment |
 |---|---|---|---|---|
-| Lemur 5.9.0 for iPad (MIDI Kinetics, 2 November 2026, USD 99.99) | PNG as base64 inside the project. A script draws one by name. New pictures need a project sync (I) | Native | XML | OSC by Wi-Fi or USB |
-| OSC/PILOT for iPad 1.15.5 (free; desktop USD 49.99) | An image widget whose file path an OSC message changes. An NDI video widget | "Multi-Touch fully supported" | JSON | OSC by UDP |
-| MobMuPlat 1.84 (2019, free) | A live `image <path>`. The file must be on the iPad | Not confirmed | JSON | OSC by UDP |
-| Mira 1.2.18 for Max (2020, USD 9.99) | The `fpic` object, fed by Max (I) | Not confirmed | A Max patcher (I) | Wi-Fi or USB, with Max as the bridge (I) |
-| Chataigne 1.10.4 dashboard (free, GPL-3.0) | A background image and a Syphon texture streamed to the page. Picture buttons not confirmed | Not confirmed | Not confirmed | A browser and a WebSocket |
-| Bitfocus Companion 5.1.3 (free, MIT) with Stream Deck keys | An image library filled by hand. OSC and HTTP set text and colours only | None | JSON or YAML | USB to the keys, or web buttons |
-| Stream Deck driven by the instrument itself | A 96 px JPEG on each key of the XL. Elgato publishes the USB protocol | None: keys only | The instrument draws it (I) | USB |
-| Sidecar, Duet, Luna: the iPad as a display of the app's own window | The app's own picture | A tap is a click and a drag is a scroll. Finger touch in Sidecar needs macOS 27 | The app draws it | USB |
-| A web page that the instrument serves | Any picture or live frame (I) | To be written (I) | To be written | HTTP and a WebSocket. The same Safari risk (I) |
+| Open Stage Control | Browser; server on Mac | Documented file/URL/base64 images and reload | Closest documented fit; custom module handles our state messages | Active but concentrated in one maintainer; source and runtime can be retained |
+| Lemur, MIDI Kinetics version | Native; direct OSC, with vendor-documented wired option | Project images documented; runtime arrival of new files unverified | Strong scripting and multitouch; most promising native candidate | Active commercial revival; engineering redundancy not established |
+| OSC/PILOT v1 | Native; desktop editor | Embedded images and runtime file-path control; iPad file access/URL loading unverified | Strong controls; adapter needed for our compound state and distinct press/release addresses | Recent updates; staffing unknown; closed source |
+| OSCPilot v2 | Native Player; desktop editor | Artwork documented; runtime replacement unverified | General OSC input/feedback and v1 feature parity unverified | Newly shipped Player; account-based desktop activation adds a dependency |
+| Ctrl for iPad | Native, including editor | Button/background images; remote image replacement unverified | OSC APIs and controls; our bulk state and generated-layout workflow need validation | Maintained commercial app; small company, unknown product-specific staffing |
+| Ctrl Suite + Ctrl Player | Native Player; Engine on Mac | Managed image assets; arbitrary new-thumbnail ingestion unverified | Processes can adapt OSC and control appearance; substantial integration layer | Commercial services and named company leadership; no proven support SLA |
+| Bitfocus Companion | Browser; Companion on Mac | Generic HTTP module fetches and polls image URLs | Good image-pad surface; documented web UI is a button grid, not a free-form mixer | Broader open-source ecosystem; community support, not a commercial SLA |
+| Mira + Max | Native; Max on Mac | Max's supported `fpic` image object; changing-image workload needs testing | Can adapt protocol in Max; adds another runtime | Established vendor, but native app last updated in 2020 |
+| Touch Portal + OSC integration | Native client; desktop service | Custom/dynamic icons are possible through its ecosystem | OSC, feedback, image updates and simultaneous faders need an end-to-end proof | More than one component/vendor to maintain; not a demonstrated risk reduction |
+| Custom web or native surface | Our software | We can design the required delivery path | Exact fit is possible, but every behaviour becomes our responsibility | Reduces dependence on a controller vendor; transfers maintenance to us |
 
-TouchOSC 1.5.4 still has no image control.
+### 11.3 Open Stage Control: active, but the concentration is real
 
-Ranking for this use:
+A fresh [Framagit releases API](https://framagit.org/api/v4/projects/jean-emmanuel%2Fopen-stage-control/releases?per_page=3)
+check returned **1.31.2, 8 November 2026**, preceded by 1.31.1 on 30 August and 1.31.0 on
+24 August. This is current maintenance, not an abandoned project.
 
-1. Open Stage Control, with its version pinned, headless. It is the one route that meets each
-   need on paper. Its risks are Safari on iPadOS and the feel of the faders, which nobody has
-   measured.
-2. Lemur. It has native faders, OSC over USB and a vendor with 3 releases since August 2026.
-   Its pictures travel inside the project, so each session needs a sync (I). It has no live
-   picture and its source is closed.
-3. TouchOSC as it is, with Stream Deck keys for the pictures. Nothing that works today
-   changes, and the link is a wire. The pictures leave the iPad. Not seen working.
+The [contributors endpoint](https://framagit.org/api/v4/projects/jean-emmanuel%2Fopen-stage-control/repository/contributors?per_page=100)
+returned 15 author records representing 2,000 commits. Three records named `jean-emmanuel`
+accounted for 1,967, or **98.35% of that returned population**. This is not a full-history
+commit count or 15 independent maintainers. It supports the concentration concern without
+repeating the previous assessment's inconsistent counts.
 
-No route is clearly better than Open Stage Control. Try Lemur if the faders in a browser
-disappoint.
+Its [image properties](https://openstagecontrol.ammd.net/docs/widgets/properties-reference/)
+explicitly support URLs, base64, local paths, caching control and reload. The
+[architecture](https://openstagecontrol.ammd.net/docs/getting-started/introduction/) puts
+OSC handling and file serving on the Mac and the interface in the browser. That makes new
+Mac-generated pictures a natural part of the design. The exact migration remains in
+sections 3–10.
 
-Not confirmed: whether iPadOS 26.4 or 27 cures WebKit bug 308073; whether an OSC message can
-choose the picture that Lemur draws; where a file must be on an iPad for OSC/PILOT; a wired
-IP link for the web routes.
+There are two distinct continuity risks:
 
+- **Obtaining and starting a known version:** retaining the release package, source,
+  compatible runtime, session and custom module gives us substantial control.
+- **Future compatibility fixes:** retaining those files does not freeze iPadOS, Safari or
+  macOS. If the maintainer stops, we would need to fix problems, engage someone who can,
+  or migrate. An available source tree makes this possible, not cost-free.
+
+The previous statement that a Safari failure necessarily affects every browser surface was
+too broad. [WebKit issue 308073](https://bugs.webkit.org/show_bug.cgi?id=308073), still marked
+NEW when checked, reports a local WebSocket reconnect failure after backgrounding Safari
+26.3, while other browsers on the same device worked. That is a reason to test Safari,
+Home Screen mode and another browser on our actual iPad. It is not proof that current
+versions all fail, or that all web controllers share precisely the same fault.
+
+**Judgment:** pinning and retaining Open Stage Control is a reasonable deployment strategy,
+but it does not remove the single-maintainer risk. Avoid a large private fork initially;
+keep instrument-specific adaptation in our module and keep the host protocol independent.
+
+### 11.4 Lemur: the strongest native performance candidate
+
+The current MIDI Kinetics product is distinct from the discontinued Liine release. The
+vendor's [November 2026 transition statement](https://www.midikinetics.com/announcement/lemur-rerelease/)
+confirms ongoing development and a separate purchase for the new product. Its
+[changelog](https://github.com/MIDIKinetics/LemurChangelog) documents 5.8 in August and 5.9
+in November. Apple's live lookup confirmed iPad **5.9.0, released 2 November 2026**; the
+cached store page was older.
+
+The [product documentation](https://www.midikinetics.com/lemur/) establishes an Image widget,
+multitouch Canvas, scripting, arrays, dynamic properties and XML projects. The
+[store description](https://apps.apple.com/gb/app/lemur/id6739544164) also describes MIDI/OSC
+connectivity over Wi-Fi or USB via the desktop software. These are valuable capabilities
+for our interface and a wired performance setup.
+
+However, adding images to a project does not establish loading a new thumbnail from the
+Mac at runtime. No documented URL/file ingestion API for that workflow was verified. The
+earlier “no live picture” verdict was too categorical; the accurate result is **unverified**.
+Likewise, its specific base64/Canvas image-selection claim should not be treated as a tested
+integration.
+
+**Best use:** a complete native surface if thumbnails can be prepared and transferred with
+each set. For evolving fingerprint images, prove new-image delivery before porting the
+five tabs. Commercial ownership and recent releases are positive signals; neither the
+public pages nor a company name establish multiple engineers able to maintain Lemur.
+
+### 11.5 OSC/PILOT: distinguish v1 from the new v2
+
+**v1 is a credible candidate that deserved more attention.** Its
+[manual](https://oscpilot.com/pages/docs) documents PNG/JPEG images embedded in `.plt` files,
+`/OSCpilot/FilePath` for runtime image changes, custom input/output arguments, momentary
+buttons and a repeat interval usable for a heartbeat. That is useful for this instrument.
+The unresolved issue is where a runtime image path resolves on an iPad, how new files get
+there, and whether a URL is accepted. A Mac pathname sent over OSC is not file transfer.
+
+The [release notes](https://forum.oscpilot.com/t/osc-pilot-release-notes-change-log/98) show
+2026 fixes including an image memory leak and an OSC receive problem on macOS. Apple's live
+lookup confirmed iPad **1.15.5, 31 August 2026**. The
+[iPad release history](https://apps.apple.com/gb/app/osc-pilot/id1616363234) explicitly includes
+working NDI support. NDI could serve a live preview, but using video for dozens of still
+pads would add complexity; that is an engineering judgment, not a measured limitation.
+
+**v2 is a separate evaluation.** The [new product page](https://untitledaudiosyndicate.com/oscpilot)
+shows a USD 39.99 desktop editor and a free iPad/iPhone Player. Apple's live lookup found
+Player **1.1, 13 November 2026**. The [v2 guide](https://untitledaudiosyndicate.com/oscpilot/guide/content/index.html)
+documents `.op2` layouts, PNG/SVG artwork, touch-through decorative images, OSC output and
+Syndicate-specific feedback. It does not establish the arbitrary OSC receive/property API
+we need. Do not assume that v1's runtime image command or NDI support exists in v2.
+
+The same guide says desktop offline operation lasts while the signed activation remains
+valid; the product page mentions signing in again for renewal. The validity period and
+behaviour after expiry need clarification. This is an operational dependency even though
+the purchase is described as one-time. Player itself is advertised as requiring no account.
+
+**Judgment:** test v1 alongside Lemur if native controls are preferred. Track v2, but its
+newness and missing published feedback details make it premature to rank above either.
+No evidence of a substantially larger engineering team was established for either version.
+
+### 11.6 ON LX: two additional commercial iPad options
+
+**Ctrl for iPad** is a self-contained app with editing on the device. Its
+[store listing](https://apps.apple.com/gb/app/ctrl-for-ipad/id1247514528) describes custom
+images, sliders and OSC, with a five-minute output limit in the free trial. Apple's live
+lookup found **2.6.0, 30 October 2026**; the indexed page still displayed 2.5.1. The UK
+listing showed a £99.99 Pro purchase; verify the required image feature tier in-app before
+buying, as the [historical release notes](https://docs.onlx.ltd/ctrl-for-ipad/getting-started/release-notes)
+associate button images with Pro.
+
+Its [button OSC API](https://docs.onlx.ltd/ctrl-for-ipad/controls/buttons/push-button)
+documents enable, theme, label and flash changes. This does not establish remote image
+replacement. The older web manual lags the app, so missing documentation is a question to
+resolve, not proof that current 2.6 cannot do it. Also verify that a generated workspace can
+be imported reliably and that incoming state updates never execute outgoing actions.
+
+**Ctrl Suite + Ctrl Player** is different: Designer creates the layout, an Engine runs on
+the Mac, and Player displays it on the iPad. The
+[system manual](https://docs.onlx.ltd/ctrl-suite) documents this architecture. The
+[button reference](https://docs.onlx.ltd/ctrl-suite/ctrl-designer/nodes/interfaces/components/interaction/button)
+has normal/selected images, separate press/release commands and links to remotely changing
+appearance through Processes. The [Media Hub](https://docs.onlx.ltd/ctrl-suite/ctrl-designer/introduction-to-the-user-interface/media-hub)
+manages and replaces shared image assets. None of these alone proves unattended ingestion
+of newly generated Mac thumbnails during playback.
+
+[ON LX](https://onlx.ltd/about/) describes a company operating since 2013, names two leaders,
+and offers integration and development services. This gives a commercial route for a
+supported integration. It does not establish product-specific maintainer redundancy or a
+contractual response time. [Suite licensing](https://onlx.ltd/ctrl-suite/) separates Core
+from Pro, includes a Player and limited entities, and includes 12 months of updates;
+Inputs and Processes are listed under Pro. Our feedback adapter likely needs Pro: that is
+an inference to check, not a price quote. Native Player **2.4.2, 20 July 2026** was confirmed
+through Apple.
+
+**Judgment:** Ctrl Suite is the most relevant newly found commercial system to investigate
+when support matters more than a lightweight setup. Ask for a working demonstration of our
+thumbnail flow and OSC feedback before committing to a licence or integration work.
+
+### 11.7 Companion: a significant correction, particularly for pads
+
+The earlier assessment said images had to be loaded by hand. That missed the
+[Generic HTTP module's Image from URL feedback](https://github.com/bitfocus/companion-module-generic-http/blob/master/companion/HELP.md):
+it fetches an image, fits it to a button, supports variables in the URL and provides a
+configurable polling interval. We can therefore serve thumbnails from the Mac and have
+Companion update them without a project transfer. This describes a supported mechanism;
+our 64-pad workload remains untested.
+
+The [Generic OSC module](https://github.com/bitfocus/companion-module-generic-osc/blob/master/companion/HELP.md)
+supports multi-argument messages and received-message feedback. Its
+[tablet web interface](https://companion.free/user-guide/beta/interactive-buttons/web-buttons/)
+is documented as a button view. The current beta guide warns that Web Buttons is not a
+Surface and cannot follow page changes configured on buttons. Choose and test the right
+view/version rather than assuming our page navigation maps directly. There is no documented
+free-form bank of continuous touch faders in that view.
+
+Maintenance is broader than Open Stage Control's visible author concentration: Companion
+has an established [open-source project](https://github.com/bitfocus/companion) and integration
+ecosystem. But its [own documentation](https://companion.free/user-guide/beta/) calls it
+community driven. [Bitfocus](https://bitfocus.io/about/) distinguishes that from its commercial
+Buttons product with paid support and full-time development. Do not equate free Companion
+with a support contract.
+
+**Judgment:** shortlist Companion if the immediate requirement is image pads, with the mixer
+on another surface. For the whole five-tab instrument, the button-grid model remains a
+substantial compromise. A split surface also needs host routing work: our host currently
+learns one remote address, so independent `/sync` senders can displace one another
+(`src/OscController.cpp`, `pollIncoming()`). Use a deliberate relay or add multiple targets;
+do not simply start both and assume feedback reaches both.
+
+### 11.8 Other options screened
+
+| Option | Findings and reason not to prioritise |
+|---|---|
+| Mira + Max | [Mira supports `fpic` and multitouch](https://cycling74.com/products/mira), and the [native app](https://apps.apple.com/us/app/mira-controller/id649586480) supports USB on Mac. Apple still reports 1.2.18 from 29 October 2020. A larger vendor is not evidence of recent maintenance of this particular client. Worth considering if Max is already part of the setup, otherwise it adds a runtime and a patch to maintain. |
+| Touch Portal | [Official site](https://touchportal.com/) supports iOS/desktop use and points to third-party plugins. An [OSC plugin exists](https://byreinier.com/), as does a [Dynamic Icons plugin](https://github.com/spdermn02/TouchPortal-Dynamic-Icons). Mac compatibility, bidirectional bulk state, image refresh and simultaneous fader feel were not established as one working solution. It moves some risk into plugins. |
+| Chataigne | [Core](https://github.com/benkuper/Chataigne) supports OSC and browser dashboards. The [web dashboard](https://github.com/manuelmitasch/chataigne-web-dashboard) is a separate project. Useful where Chataigne already routes a show, but no evidence collected establishes a stronger maintenance arrangement or a better thumbnail/multitouch fit than Open Stage Control. |
+| MobMuPlat | [Official project](https://danieliglesia.com/mobmuplat/) supports images, OSC and JSON layouts, using Pure Data; its source is available. It is an additional programming environment, not an established improvement in commercial support or image distribution. |
+| DeviceJockey | [Current site](https://devicejockey.de/) offers iPad/iPhone/Mac via TestFlight. Its [Companion guide](https://devicejockey.de/companion/) describes images, sliders and OSC feedback. The [team page](https://devicejockey.de/about/) describes supporters around the creator. Interesting watchlist candidate, but beta distribution and unproven continuity do not solve this concern now. |
+| Jockey OSC & MIDI | [Current listing](https://apps.apple.com/us/app/jockey-osc-midi/id1553621603) documents two-way OSC, editable controls and recent releases by an individual developer. Arbitrary pad images were not established. Distinct from DeviceJockey. |
+| MetaGrid Pro | Its [integration overview](https://metagrid.app/integrations/) focuses on MIDI and desktop automation. The [vendor's OSC statement](https://forum.metagrid.app/t/applescript-javascript-osc/976) describes a planned release cycle. No sufficiently documented shipped generic OSC/thumbnail workflow was verified; a roadmap promise does not qualify it. |
+| TouchOSC itself | The [current control reference](https://hexler.net/touchosc/manual/controls) still has no image control. Retain it as the known working fallback. |
+
+MIDI-only surfaces, remote desktop products and dedicated mixer/DAW remotes do not directly
+replace this arbitrary OSC protocol. They may be parts of a different design, but adding
+bridges or emulating mouse input does not by itself solve our requirements.
+
+### 11.9 What “better supported” should mean in this decision
+
+| Evidence | What it establishes | What it does not establish |
+|---|---|---|
+| Recent release and relevant bug fixes | Someone is maintaining the product now | That someone else can take over |
+| Company, support inbox, active community | Routes for help | Guaranteed response time or resolution |
+| Source, build instructions, saved packages | A possible recovery or continuation path | That maintaining a fork is cheap |
+| Perpetual purchase | Commercial licence model | Indefinite activation-server access or OS compatibility |
+| Native iPad app | A different deployment route from Safari | Freedom from iPadOS regressions or App Store dependency |
+
+For this project, continuity is best improved by keeping the host's control/state contract
+separate from the chosen surface, using ordinary thumbnail files with stable identities,
+and retaining a known working TouchOSC path. For runtime image delivery, prefer versioned
+image URLs or filenames so that a replacement image cannot silently stay in a cache.
+These are proposed design choices, not changes made by this assessment.
+
+A custom web surface would let us own that delivery path and keep the dependency set small.
+It would still need proper multitouch, touch cancellation, state reconciliation and iPad
+browser testing. A custom native surface trades those browser issues for iOS development
+and distribution work. Either is a defensible long-term choice if we want to own this part
+of the instrument, but neither is a ready-made, better-supported product.
+
+### 11.10 Recommended evaluation order and decision gates
+
+1. **Test Open Stage Control as the functional baseline.** Extend the proposed PRINTS spike
+   with a representative image grid and several faders. Do not commit to the full port on
+   the strength of a static screenshot.
+2. **Test Lemur as the native alternative.** Establish whether prepared images are enough.
+   If new images during playing are required, prove that path first. Test OSC/PILOT v1 next
+   if it offers a workable image path or NDI preview that Lemur cannot.
+3. **Evaluate Ctrl Suite for a supported commercial implementation.** Require a demonstration
+   of live thumbnail ingestion, our OSC feedback and independent touches, plus clear
+   licence, offline-operation and support terms. Ctrl for iPad may be enough for prepared sets.
+4. **Use Companion as the image-pad option** if splitting pads from faders is acceptable.
+   It merits a real test, not exclusion on image support. Include routing and page behaviour.
+5. **Keep OSCPilot v2 on the shortlist conditionally.** Confirm general incoming OSC,
+   runtime images and offline activation before treating it as a v1 replacement.
+
+Use the same acceptance test for candidates:
+
+| Test | Pass condition |
+|---|---|
+| New thumbnail | Create a new file on the Mac while playing. The correct pad updates without editor/project transfer. Repeat with changed contents and rapid page changes. |
+| Real image load | 64 grid pictures plus 12 fingerprint pictures at intended size; no mistaken pad/image associations, disruptive stalls or growing memory use. |
+| Gestures | Hold a pad while moving two faders. Short taps still preview; 400 ms holds apply once; release and touch cancellation cannot leave a pad held. |
+| Feedback | Names, colours, active rings, hidden controls and meter/progress values follow the host; updates do not echo commands or fight held faders. |
+| Recovery | Background/sleep/wake the iPad; interrupt Wi-Fi; restart the host and any bridge. State converges and stale queued press/fire commands are not replayed. |
+| Timing | Compare against TouchOSC on the same iPad/network. Measure typical and tail latency/jitter during fader movement and image refresh; use the owner's playing judgment too. |
+| Operation | Cold-start with internet disconnected, reconnect with a changed IP, and confirm wired networking where intended. For activated products, distinguish internet-free startup from expiry behaviour. |
+| Maintenance | Recreate the setup from retained layout/assets/runtime on a clean machine; document what still depends on the vendor or App Store. |
+
+No generic latency numbers or new migration time estimates are justified before this test.
+The five-to-six-day estimate in the opening Summary is the earlier Open Stage Control planning estimate,
+not evidence that any candidate has already met these gates.
+
+### 11.11 Freshness and limits of the evidence
+
+Version checks used Apple's live public lookup endpoint on 16 November 2026, for example
+[Lemur](https://itunes.apple.com/lookup?id=6739544164&country=gb),
+[OSC/PILOT](https://itunes.apple.com/lookup?id=1616363234&country=gb),
+[OSCPilot2 Player](https://itunes.apple.com/lookup?id=6825646158&country=gb),
+[Ctrl for iPad](https://itunes.apple.com/lookup?id=1247514528&country=gb),
+[Ctrl Player](https://itunes.apple.com/lookup?id=6747518244&country=gb), and
+[Mira](https://itunes.apple.com/lookup?id=649586480&country=gb).
+Several indexed App Store pages and vendor manuals lagged these records. Version availability
+was checked for the UK store; prices and in-app purchase tiers can vary and should be checked
+at purchase. Free download does not mean unrestricted free use.
+
+The Open Stage Control release/contributor endpoints were read directly because the web
+index could not fetch them. Some ON LX Process reference pages were inaccessible, and no
+vendor was contacted. Missing documented features remain unverified. None of the comparisons
+claims measured reliability, support response time, contractual support or a known successor
+maintainer. The engineering recommendations are inferences from the cited capabilities and
+our existing OSC implementation.

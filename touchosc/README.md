@@ -332,8 +332,11 @@ TouchOSC rendering behaviours nothing here can prove:
    - The names sit on their buttons and a press goes through the name to the
      button.
 
-## Another surface: Open Stage Control
+## Alternative iPad surfaces and image support
 
 [`open-stage-control-assessment.md`](open-stage-control-assessment.md) is an assessment of a
 swap to Open Stage Control, written on 14 November 2026. It maps each message, tab and script
-function of this layout to that tool. Nothing in it is built.
+function of this layout to that tool. Section 11, expanded on 16 November 2026, compares
+Lemur, OSC/PILOT v1/v2, Ctrl for iPad, Ctrl Suite, Companion and other iPad options, including
+runtime image delivery, maintenance risk and the tests needed before choosing. Nothing in
+the assessment is built or tested on an iPad.
