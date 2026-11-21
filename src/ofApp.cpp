@@ -68,7 +68,7 @@ void ofApp::setup(){
     currentLaunch = LaunchSelection { launch.launchFile, launch.gridName, initialLaunch.rig };
     applySessionRuntimeSettings(launch.session.json);
     installSynth(buildResourceManagerFromLaunch(launch), initialStudio || launch.kind == "studio");
-    if (launch.kind == "performance") {   // a Finder launch reopens the performance
+    if (launch.kind == "performance" && !initialStudio) {   // a Finder launch reopens the performance; a check (--studio) leaves it
       saveLastSessionConfigPath(getSessionConfigPointerFilePath("fingerprint2", "lastSessionConfig.json"), launch.launchFile);
     }
     return;
