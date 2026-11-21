@@ -172,16 +172,22 @@ int main(int argc, char** argv) {
   // launch (play-live*.sh) takes both screens when there are two. Hold Option/Alt at launch to
   // force the single-screen windowed layout anyway (parallels Shift-to-rechoose-config).
   const bool optionHeld = isOptionKeyHeldAtLaunch();
+  // A launch's screens follow its rig (owner 2026-11-21: the MOTU rigs should use both screens):
+  // a live rig takes both, a recorded one stays on the laptop's. A Studio launch shows the notebook
+  // either way; --studio itself still means one screen, as play-recorded.sh and the checks use it.
+  bool singleScreen = initialStudio;
   if (!launchFile.empty()) {
     try {
-      const ofJson launch = ofLoadJson(ofxMarkSynth::launchFileIn(launchFile));
-      if (launch.value("kind", "") == "studio") initialStudio = true;
+      const ofxMarkSynth::ComposedLaunch launch = ofxMarkSynth::composeLaunch({ launchFile, launchGrid, launchRig });
+      if (launch.kind == "studio") initialStudio = true;
+      const ofJson rig = ofLoadJson(launch.rigPath);
+      singleScreen = singleScreen || rig.value("kind", "") != "live";
     } catch (const std::exception&) {}   // the composer says what is wrong once the app sets up
   }
-  const bool forceSingleScreen = initialStudio || optionHeld;
+  const bool forceSingleScreen = singleScreen || optionHeld;
   if (forceSingleScreen) {
     ofLogNotice() << (optionHeld ? "Option held at launch: forcing single-screen mode"
-                                 : "Studio launch: single-screen mode");
+                                 : "Studio or recorded launch: single-screen mode");
   }
 
   // Hold Control at launch to swap which display gets the main visuals vs the
