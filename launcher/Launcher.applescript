@@ -1,5 +1,5 @@
 -- Fingerprints Launcher: play a performance, or a Studio grid, without a terminal window.
--- Double-click: choose from the performances and the Studio grids; a Studio grid then takes a rig. Drop a performance folder,
+-- Double-click: choose from the performances and the Studio grids, in a list under two headings; a Studio grid then takes a rig. Drop a performance folder,
 -- a performance.json or a studio.json on it: play that. It opens Fingerprints.app by its bundle id
 -- with --launch (ofxMarkSynth LaunchComposer). Built by build-launcher.sh.
 -- It remembers the last launch in the defaults domain com.meyfroidt.fingerprint2.launcher and offers it first.
@@ -19,6 +19,7 @@ on run
 		end if
 	end if
 	set root to (POSIX path of (path to home folder)) & performancesRoot
+	-- One list in two sections, each under a heading line; picking a heading asks again.
 	set choices to {}
 	set targets to {}
 	-- The performances: each folder of Performances that holds a performance.json.
@@ -26,8 +27,12 @@ on run
 		set found to paragraphs of (do shell script "cd " & quoted form of (root & "/Performances") & " && for d in */; do [ -f \"$d/performance.json\" ] && echo \"${d%/}\"; done; true")
 		repeat with name in found
 			if name as text is not "" then
-				set end of choices to "Performance: " & name
-				set end of targets to {root & "/Performances/" & name & "/performance.json", ""}
+				if choices is {} then
+					set end of choices to "PERFORMANCES"
+					set end of targets to {"", "", "heading", ""}
+				end if
+				set end of choices to "    " & name
+				set end of targets to {root & "/Performances/" & name & "/performance.json", "", "performance", name as text}
 			end if
 		end repeat
 	end try
@@ -41,10 +46,17 @@ for f in d.get('gridFolders',[]):
   if os.path.isdir(r):
     for n in sorted(os.listdir(r)):
       if os.path.isdir(os.path.join(r,n,'config','synth')): print(os.path.join(r,n))") & " " & quoted form of studioFile)
+		set headed to false
 		repeat with gridPath in grids
 			if gridPath as text is not "" then
-				set end of choices to "Studio: " & (do shell script "basename " & quoted form of (gridPath as text))
-				set end of targets to {studioFile, gridPath as text}
+				if not headed then
+					set end of choices to "STUDIO GRIDS"
+					set end of targets to {"", "", "heading", ""}
+					set headed to true
+				end if
+				set gridName to (do shell script "basename " & quoted form of (gridPath as text))
+				set end of choices to "    " & gridName
+				set end of targets to {studioFile, gridPath as text, "studio", gridName}
 			end if
 		end repeat
 	end try
@@ -52,20 +64,24 @@ for f in d.get('gridFolders',[]):
 		display alert "Nothing to play" message "No performance.json under " & root & "/Performances and no grids in " & studioFile
 		return
 	end if
-	set picked to choose from list choices with title "Fingerprints" with prompt "Play:" OK button name "Play"
-	if picked is false then return
-	set chosen to item 1 of picked
-	repeat with i from 1 to count of choices
-		if item i of choices is chosen then
-			set target to item i of targets
-			exit repeat
-		end if
+	set target to {"", "", "heading", ""}
+	repeat while item 3 of target is "heading"
+		set picked to choose from list choices with title "Fingerprints" with prompt "Play:" OK button name "Play"
+		if picked is false then return
+		repeat with i from 1 to count of choices
+			if item i of choices is (item 1 of picked) then
+				set target to item i of targets
+				exit repeat
+			end if
+		end repeat
 	end repeat
+	set kind to item 3 of target
+	set chosenName to item 4 of target
 	set rigPath to ""
 	set rigLabel to ""
 	set mode to ""
 	-- The Studio joins a grid and a rig at launch: the rigs of studio.json's rigFolders, its default first.
-	if chosen starts with "Studio: " then
+	if kind is "studio" then
 		set rigs to paragraphs of (do shell script "/usr/bin/python3 -c " & quoted form of ("import json,os,sys
 p=sys.argv[1]; d=json.load(open(p)); here=os.path.dirname(p)
 first=os.path.normpath(os.path.join(here,os.path.expanduser(d.get('rig',''))))
@@ -81,7 +97,7 @@ print(chr(10).join(found))") & " " & quoted form of studioFile)
 		repeat with rigPath in rigs
 			set rigNames to rigNames & {(do shell script "basename " & quoted form of (rigPath as text) & " .json")}
 		end repeat
-		set pickedRig to choose from list rigNames with title "Fingerprints" with prompt "Play " & (text 9 thru -1 of chosen) & " through the rig:" default items {item 1 of rigNames} OK button name "Play"
+		set pickedRig to choose from list rigNames with title "Fingerprints" with prompt "Play " & chosenName & " through the rig:" default items {item 1 of rigNames} OK button name "Play"
 		if pickedRig is false then return
 		repeat with i from 1 to count of rigNames
 			if item i of rigNames is (item 1 of pickedRig) then
@@ -90,11 +106,15 @@ print(chr(10).join(found))") & " " & quoted form of studioFile)
 			end if
 		end repeat
 	end if
-	if chosen starts with "Performance: " then
-		set answer to button returned of (display dialog "Play " & (text 14 thru -1 of chosen) & " for the show, or as a practice (no take on the first wake, no auto drawings)?" buttons {"Cancel", "Practice", "Show"} default button "Show" with title "Fingerprints")
+	if kind is "performance" then
+		set answer to button returned of (display dialog "Play " & chosenName & " for the show, or as a practice (no take on the first wake, no auto drawings)?" buttons {"Cancel", "Practice", "Show"} default button "Show" with title "Fingerprints")
 		if answer is "Practice" then set mode to "practice"
 	end if
-	set chosenLabel to chosen & rigLabel
+	if kind is "studio" then
+		set chosenLabel to "the Studio grid " & chosenName & rigLabel
+	else
+		set chosenLabel to "the performance " & chosenName
+	end if
 	if mode is "practice" then set chosenLabel to chosenLabel & " (practice)"
 	launchIt(item 1 of target, item 2 of target, rigPath, mode, chosenLabel)
 end run
